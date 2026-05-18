@@ -63,6 +63,7 @@ function loadFromCache() {
     if (cp) S.posts = JSON.parse(cp);
     if (cu) S.users = JSON.parse(cu);
     if (uu) S.user  = JSON.parse(uu);
+    if (!cp) S._loading = true; // no cache — show skeletons
   } catch(_) {}
 }
 
@@ -138,6 +139,7 @@ async function loadStorage() {
       }
     });
     S.posts = freshPosts;
+    S._loading = false;
     try { localStorage.setItem('dl_posts_cache', JSON.stringify(S.posts)); } catch(_) {}
   }
 
@@ -1143,15 +1145,55 @@ function renderVideoPreviews() {
 
   list.innerHTML = pendingVideos.map((v, i) => `
     <div class="video-preview-item" data-i="${i}">
-      <div class="video-preview-thumb">
-        <i class="fas fa-play-circle"></i>
+      <div class="video-preview-thumb" id="vthumb-${i}">
+        <div class="vthumb-loading"><i class="fas fa-spinner fa-spin"></i></div>
       </div>
       <div class="video-preview-info">
         <div class="video-preview-name">${esc(v.name)}</div>
-        <div class="video-preview-size">${(v.size/1024/1024).toFixed(1)} MB</div>
+        <div class="video-preview-size">${v.size > 0 ? (v.size/1024/1024).toFixed(1)+' MB' : 'Video'}</div>
+        <div class="video-preview-dur" id="vdur-${i}"></div>
       </div>
       <button class="video-preview-rm" data-i="${i}" aria-label="Remove video"><i class="fas fa-times"></i></button>
     </div>`).join('');
+
+  // Generate real thumbnails from video frames
+  pendingVideos.forEach((v, i) => {
+    const thumbEl = el('vthumb-'+i);
+    const durEl   = el('vdur-'+i);
+    if (!thumbEl || !v.dataUrl) return;
+    const video = document.createElement('video');
+    video.src = v.dataUrl;
+    video.muted = true;
+    video.preload = 'metadata';
+    video.style.display = 'none';
+    document.body.appendChild(video);
+    video.addEventListener('loadedmetadata', () => {
+      // Show duration
+      if (durEl) {
+        const d = Math.floor(video.duration);
+        const m = Math.floor(d/60), s = d%60;
+        durEl.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+      }
+      // Seek to 10% in for a better frame
+      video.currentTime = Math.min(video.duration * 0.1, 2);
+    });
+    video.addEventListener('seeked', () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = 160;
+      canvas.height = 90;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, 160, 90);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      thumbEl.innerHTML = `
+        <img src="${dataUrl}" class="vthumb-img" alt="Video thumbnail"/>
+        <div class="vthumb-play-icon"><i class="fas fa-play"></i></div>`;
+      video.remove();
+    });
+    video.addEventListener('error', () => {
+      thumbEl.innerHTML = `<div class="vthumb-fallback"><i class="fas fa-film"></i></div>`;
+      video.remove();
+    });
+  });
 
   list.querySelectorAll('.video-preview-rm').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1671,12 +1713,25 @@ function renderFeed() {
   const infoEl = el('feedResultsInfo');
   if (infoEl) { infoEl.style.display = activeCount>0 ? 'block':'none'; if(activeCount>0) infoEl.innerHTML=`Showing <b>${total}</b> build${total!==1?'s':''} · ${activeCount} filter${activeCount!==1?'s':''} active`; }
   if (!vis.length) {
-    el('feedGrid').innerHTML = `<div class="feed-empty-state">
-      <i class="fas fa-car feed-empty-icon"></i>
-      <h3>No builds yet</h3>
-      <p>Be the first to post your build.</p>
-      ${S.user ? '<button class="btn-primary" onclick="openPostModal()"><i class="fas fa-plus"></i> Post Your Build</button>' : '<button class="btn-primary" onclick="el(\'authModal\').classList.add(\'open\')">Create Account to Post</button>'}
-    </div>`;
+    // Show skeletons if still loading from Supabase
+    if (S._loading) {
+      el('feedGrid').innerHTML = Array(6).fill(0).map(()=>`
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-card-img"></div>
+          <div class="skeleton-card-body">
+            <div class="skeleton skeleton-card-title"></div>
+            <div class="skeleton skeleton-card-meta"></div>
+            <div class="skeleton skeleton-card-foot"></div>
+          </div>
+        </div>`).join('');
+    } else {
+      el('feedGrid').innerHTML = `<div class="feed-empty-state">
+        <i class="fas fa-car feed-empty-icon"></i>
+        <h3>No builds yet</h3>
+        <p>Be the first to post your build.</p>
+        ${S.user ? '<button class="btn-primary" onclick="openPostModal()"><i class="fas fa-plus"></i> Post Your Build</button>' : '<button class="btn-primary" onclick="el(\'authModal\').classList.add(\'open\')">Create Account to Post</button>'}
+      </div>`;
+    }
   } else {
     el('feedGrid').innerHTML = vis.map((p,i)=>cardHTML(p,i)).join('');
   }
@@ -2005,7 +2060,7 @@ function renderCategories() {
 // ─── LEADERBOARD ──────────────────────────────────────────────
 function renderLeaderboard() {
   const top=[...S.posts].sort((a,b)=>b.likes-a.likes).slice(0,10);
-  el('lbBuilds').innerHTML=top.map((p,i)=>{
+  el('lbBuilds').innerHTML=`<div class="lb-list">${top.map((p,i)=>{
     const img=p.images?.[0];
     return `<div class="lb-row${i===0?' gold':i===1?' silver':i===2?' bronze':''}" data-id="${p.id}">
       <div class="lb-pos${i===0?' p1':i===1?' p2':i===2?' p3':' pn'}">${i+1}</div>
@@ -2013,17 +2068,17 @@ function renderLeaderboard() {
       <div class="lb-info"><div class="lb-title">${esc(p.title)}</div><div class="lb-meta">by ${esc(p.user)} · ${p.category}${p.hp?' · '+p.hp:''}</div></div>
       <div class="lb-score"><div class="lb-num">♥ ${p.likes.toLocaleString()}</div><div class="lb-lbl">Likes</div></div>
     </div>`;
-  }).join('');
+  }).join('')}</div>`;
   el('lbBuilds').querySelectorAll('.lb-row[data-id]').forEach(r=>r.addEventListener('click',()=>{const p=S.posts.find(x=>x.id===r.dataset.id);if(p)openCarPage(p);}));
 
   const topM=[...S.users].sort((a,b)=>(b.totalLikes||0)-(a.totalLikes||0)).slice(0,10);
-  el('lbMembers').innerHTML=topM.map((u,i)=>`
-    <div class="lb-row">
+  el('lbMembers').innerHTML=`<div class="lb-list">${topM.map((u,i)=>`
+    <div class="lb-row${i===0?' gold':i===1?' silver':i===2?' bronze':''}">
       <div class="lb-pos${i===0?' p1':i===1?' p2':i===2?' p3':' pn'}">${i+1}</div>
       <div class="lb-thumb lb-av-th clickable-user" data-user="${u.username}" style="background:${avColor(u.username)}">${u.username[0].toUpperCase()}</div>
       <div class="lb-info"><div class="lb-title">${esc(u.username)}</div><div class="lb-meta">${u.posts||0} builds · Joined ${u.joined}</div></div>
       <div class="lb-score"><div class="lb-num">${(u.totalLikes||0).toLocaleString()}</div><div class="lb-lbl">Likes</div></div>
-    </div>`).join('');
+    </div>`).join('')}</div>`;
 
   el('lbCats').innerHTML=CATS.map(c=>{
     const cp=[...S.posts].filter(p=>p.category===c.name).sort((a,b)=>b.likes-a.likes).slice(0,3);
@@ -2036,13 +2091,13 @@ function renderLeaderboard() {
     </div>`;
   }).join('');
   el('lbCats').querySelectorAll('.lb-cat-row[data-id]').forEach(r=>r.addEventListener('click',()=>{const p=S.posts.find(x=>x.id===r.dataset.id);if(p)openCarPage(p);}));
-  // Most Posts leaderboard
+
   const topPosts=[...S.users].sort((a,b)=>{
     const ap=S.posts.filter(p=>p.user===a.username).length;
     const bp=S.posts.filter(p=>p.user===b.username).length;
     return bp-ap;
   }).slice(0,10);
-  el('lbPosts').innerHTML=topPosts.map((u,i)=>{
+  el('lbPosts').innerHTML=`<div class="lb-list">${topPosts.map((u,i)=>{
     const pCount=S.posts.filter(p=>p.user===u.username).length;
     return `<div class="lb-row${i===0?' gold':i===1?' silver':i===2?' bronze':''}">
       <div class="lb-pos${i===0?' p1':i===1?' p2':i===2?' p3':' pn'}">${i+1}</div>
@@ -2050,15 +2105,14 @@ function renderLeaderboard() {
       <div class="lb-info"><div class="lb-title">${esc(u.username)}</div><div class="lb-meta">Member since ${u.joined} · ${pCount} builds posted</div></div>
       <div class="lb-score"><div class="lb-num">${pCount}</div><div class="lb-lbl">Posts</div></div>
     </div>`;
-  }).join('');
+  }).join('')}</div>`;
 
-  // Oldest Users leaderboard — sorted by joinedFull timestamp (earliest first)
   const oldestUsers=[...S.users].filter(u=>u.joinedFull||u.joined).sort((a,b)=>{
     const aT=new Date(a.joinedFull||a.joined+'-01').getTime();
     const bT=new Date(b.joinedFull||b.joined+'-01').getTime();
     return aT-bT;
   }).slice(0,10);
-  el('lbOldest').innerHTML=oldestUsers.map((u,i)=>{
+  el('lbOldest').innerHTML=`<div class="lb-list">${oldestUsers.map((u,i)=>{
     const age=accountAge(u);
     return `<div class="lb-row${i===0?' gold':i===1?' silver':i===2?' bronze':''}">
       <div class="lb-pos${i===0?' p1':i===1?' p2':i===2?' p3':' pn'}">${i+1}</div>
@@ -2066,7 +2120,7 @@ function renderLeaderboard() {
       <div class="lb-info"><div class="lb-title">${esc(u.username)}</div><div class="lb-meta">Joined ${fmtDate(u.joinedFull||u.joined+'-01')}</div></div>
       <div class="lb-score"><div class="lb-num">${age.short}</div><div class="lb-lbl">Account Age</div></div>
     </div>`;
-  }).join('');
+  }).join('')}</div>`;
 
   document.querySelectorAll('.lbtab').forEach(t=>t.addEventListener('click',()=>{
     document.querySelectorAll('.lbtab,.lb-panel').forEach(x=>x.classList.remove('active'));
