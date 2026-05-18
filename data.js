@@ -43,8 +43,8 @@ const SEED_EVENTS = [];
 const SEED_TIMELINES = {};
 
 const AWARDS_DEF = [
-  { id:'founders',  icon:'fas fa-crown', label:'Founders Award',  desc:'Awarded to the original founders of DriveLog.',       color:'#f0a030', bg:'rgba(240,160,48,.12)',  border:'rgba(240,160,48,.4)'  },
-  { id:'viral',     icon:'fas fa-bolt', label:'Viral Award',      desc:'Awarded for a build or post that went truly viral.',   color:'#3b82f6', bg:'rgba(59,130,246,.12)',  border:'rgba(59,130,246,.4)'  },
-  { id:'honorary',  icon:'fas fa-medal', label:'Honorary Award',   desc:'Awarded at the discretion of the DriveLog founders.',  color:'#a855f7', bg:'rgba(168,85,247,.12)',  border:'rgba(168,85,247,.4)'  },
+  { id:'founders',  icon:'fas fa-crown', label:'Founders',  desc:'Awarded to the original founders of DriveLog.',       color:'#fff', bg:'#b45309', border:'#92400e'  },
+  { id:'viral',     icon:'fas fa-bolt',  label:'Viral',     desc:'Awarded for a build or post that went truly viral.',   color:'#fff', bg:'#1d4ed8', border:'#1e3a8a'  },
+  { id:'honorary',  icon:'fas fa-medal', label:'Honorary',  desc:'Awarded at the discretion of the DriveLog founders.',  color:'#fff', bg:'#7e22ce', border:'#581c87'  },
 ];
 function getAwardDef(id) { return AWARDS_DEF.find(a => a.id === id); }

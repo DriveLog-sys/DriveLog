@@ -796,8 +796,9 @@ function initAuth() {
     S.user = dbUserToApp(data);
     // Refresh users list
     try { const profiles = await DB.getAllProfiles(); S.users = profiles.map(dbUserToApp); } catch(_) {}
-    loginUser(S.user.username);
     el('authModal').classList.remove('open');
+    document.body.classList.remove('modal-open');
+    loginUser(S.user.username);
   });
 
   // ── REGISTER ──
@@ -851,9 +852,10 @@ function loginUser(username) {
   if (user) {
     S.user = user;
   } else {
-    // Profile may not have loaded yet — create minimal local object
     S.user = { username, posts:0, totalLikes:0, joined:new Date().toISOString().slice(0,7), joinedFull:new Date().toISOString(), bio:'', awards:[] };
   }
+  // Always force-close auth modal
+  el('authModal')?.classList.remove('open');
   updateAuthUI(); updateProfilePage(); updateDmBadge();
   setupRealtimeSubscriptions();
   toastSignIn(username);
@@ -2386,6 +2388,8 @@ function updateProfilePage() {
   const grid=el('profileGrid');
   if(posts.length){el('noBuilds').style.display='none';grid.innerHTML=posts.map((p,i)=>cardHTML(p,i)).join('');attachCardEvents(grid);}
   else{grid.innerHTML='';el('noBuilds').style.display='block';}
+  // Your Media — social posts
+  renderProfileMedia(u.username);
 }
 
 // ─── UTILS ────────────────────────────────────────────────────
@@ -4581,3 +4585,27 @@ document.addEventListener('visibilitychange', async () => {
     applyPrefs(); syncThemeToggle();
   } catch(e) {}
 });
+
+// ─── PROFILE MEDIA SECTION ────────────────────────────────────
+function renderProfileMedia(username) {
+  const section = el('profileMediaSection');
+  const grid    = el('profileMediaGrid');
+  if (!section || !grid) return;
+  const allSocial = JSON.parse(localStorage.getItem('dl_social_posts') || '[]');
+  const userPosts = allSocial.filter(p => p.user === username);
+  if (!userPosts.length) { section.style.display = 'none'; return; }
+  section.style.display = 'block';
+  grid.innerHTML = userPosts.map(p => {
+    const media = p.media?.[0];
+    const thumb = media
+      ? (media.type === 'video'
+          ? `<div class="pm-thumb pm-video"><i class="fas fa-play"></i></div>`
+          : `<img src="${media.url}" alt="" class="pm-thumb-img"/>`)
+      : `<div class="pm-thumb pm-no-media"><i class="fas fa-comment"></i></div>`;
+    return `<div class="pm-item">
+      ${thumb}
+      ${p.caption ? `<div class="pm-caption">${esc(p.caption.slice(0,60))}${p.caption.length>60?'…':''}</div>` : ''}
+      <div class="pm-meta">${timeAgo(p.ts)} · ${p.likes||0} likes</div>
+    </div>`;
+  }).join('');
+}
