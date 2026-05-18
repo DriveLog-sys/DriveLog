@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Settings — DriveLog</title>
+  <!-- Apply theme before paint to avoid flash -->
+  <script>
+    try {
+      const p = JSON.parse(localStorage.getItem('dl_prefs') || '{}');
+      if (p.theme === 'dark' || (p.theme === 'auto' && window.matchMedia('(prefers-color-scheme:dark)').matches)) {
+        document.documentElement.classList.add('dark-pending');
+      }
+      if (p.accent) document.documentElement.style.setProperty('--accent', p.accent);
+    } catch(e) {}
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <style>
+    /* ── VARS ── */
+    :root {
+      --bg:#f2f4f7; --surface:#ffffff; --card:#ffffff; --raised:#f0f2f5; --hover:#e8eaed;
+      --border:#dde1e7; --mid:#c8cdd6; --subtle:#eaecf0;
+      --accent:#3b82f6; --accent-soft:rgba(59,130,246,.09); --accent-glow:rgba(59,130,246,.20);
+      --text:#111827; --sec:#4b5563; --muted:#9ca3af;
+      --disp:'Bebas Neue',sans-serif; --cond:'Barlow Condensed',sans-serif; --body:'Barlow',sans-serif;
+      --r-sm:4px; --r-md:8px; --r-lg:14px; --r-xl:22px;
+      --tr:.22s cubic-bezier(.4,0,.2,1);
+    }
+    body.dark, html.dark-pending body {
+      --bg:#0a0a0a; --surface:#111; --card:#171717; --raised:#1e1e1e; --hover:#222;
+      --border:#262626; --mid:#2e2e2e; --subtle:#191919; --text:#efefef; --sec:#c0c0c0; --muted:#888888;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{scroll-behavior:smooth}
+    body{background:var(--bg);color:var(--text);font-family:var(--body);line-height:1.6;min-height:100vh}
+    a{color:inherit;text-decoration:none}
+    button{cursor:pointer;border:none;background:none;font-family:inherit}
+    input,select,textarea{font-family:inherit}
+    ::-webkit-scrollbar{width:5px}
+    ::-webkit-scrollbar-track{background:var(--bg)}
+    ::-webkit-scrollbar-thumb{background:var(--mid);border-radius:3px}
+
+    /* ── HEADER ── */
+    .s-header{background:var(--surface);backdrop-filter:blur(18px);border-bottom:1px solid var(--border);padding:0 24px;height:62px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+    body.dark .s-header, html.dark-pending body .s-header{background:rgba(10,10,10,.92)}
+    .logo{font-family:var(--disp);font-size:1.7rem;letter-spacing:2px;color:var(--text)}
+    .logo span{color:var(--accent)}
+    .back-btn{display:flex;align-items:center;gap:8px;font-family:var(--cond);font-size:.82rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--sec);padding:7px 14px;border:1px solid var(--mid);border-radius:var(--r-sm);transition:all var(--tr)}
+    .back-btn:hover{color:var(--text);border-color:#555}
+
+    /* ── LAYOUT ── */
+    .s-wrap{max-width:1000px;margin:0 auto;padding:40px 24px;display:grid;grid-template-columns:220px 1fr;gap:28px;align-items:start}
+    @media(max-width:700px){.s-wrap{grid-template-columns:1fr}.s-nav{display:flex;flex-wrap:wrap;gap:5px;position:static!important}}
+
+    /* ── SIDEBAR NAV ── */
+    .s-nav{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);padding:10px;position:sticky;top:80px}
+    .s-nav-item{display:flex;align-items:center;gap:10px;padding:10px 13px;border-radius:var(--r-md);font-family:var(--cond);font-size:.88rem;font-weight:700;letter-spacing:1px;color:var(--muted);cursor:pointer;transition:all var(--tr)}
+    .s-nav-item i{width:16px;text-align:center;font-size:.82rem}
+    .s-nav-item:hover{color:var(--text);background:var(--raised)}
+    .s-nav-item.active{color:var(--accent);background:var(--accent-soft)}
+    .s-nav-divider{height:1px;background:var(--border);margin:6px 0}
+
+    /* ── CONTENT ── */
+    .s-content{display:flex;flex-direction:column;gap:4px}
+    .s-section{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);padding:28px;display:none}
+    .s-section.active{display:block}
+    .s-section-title{font-family:var(--disp);font-size:2rem;letter-spacing:1px;margin-bottom:4px}
+    .s-section-sub{color:var(--sec);font-size:.85rem;margin-bottom:26px}
+    .s-divider{height:1px;background:var(--border);margin:22px 0}
+
+    /* ── FORM ELEMENTS ── */
+    .s-field{margin-bottom:18px}
+    .s-label{font-family:var(--cond);font-size:.78rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:7px;display:block}
+    .s-input{width:100%;background:var(--raised);border:1px solid var(--border);border-radius:var(--r-sm);padding:11px 14px;color:var(--text);font-size:.9rem;outline:none;transition:border-color var(--tr)}
+    .s-input:focus{border-color:var(--accent)}
+    .s-input::placeholder{color:var(--muted)}
+    textarea.s-input{resize:vertical;min-height:80px}
+    .s-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media(max-width:500px){.s-row{grid-template-columns:1fr}}
+
+    /* Buttons */
+    .btn-save{background:var(--accent);color:#fff;padding:10px 26px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.88rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;transition:all var(--tr);display:inline-flex;align-items:center;gap:8px}
+    .btn-save:hover{background:var(--accent-dim);transform:translateY(-1px);box-shadow:0 8px 24px var(--accent-glow)}
+    .btn-ghost-s{background:transparent;color:var(--sec);padding:10px 22px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.88rem;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;border:1px solid var(--mid);transition:all var(--tr)}
+    .btn-ghost-s:hover{border-color:#555;color:var(--text)}
+    .btn-danger{background:rgba(232,57,42,.1);color:var(--accent);padding:10px 22px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.88rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;border:1px solid rgba(232,57,42,.35);transition:all var(--tr)}
+    .btn-danger:hover{background:rgba(232,57,42,.2)}
+    .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+
+    /* Avatar picker */
+    .av-preview{width:74px;height:74px;border-radius:50%;font-family:var(--disp);font-size:1.9rem;display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:16px;transition:background .3s}
+    .av-colors{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
+    .av-swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all var(--tr)}
+    .av-swatch.selected{border-color:#fff;transform:scale(1.15)}
+
+    /* Toggle switch */
+    .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--subtle)}
+    .toggle-row:last-child{border-bottom:none}
+    .toggle-label{font-size:.88rem;color:var(--sec)}
+    .toggle-label strong{color:var(--text);display:block;font-size:.9rem}
+    .toggle{position:relative;width:42px;height:24px;flex-shrink:0}
+    .toggle input{opacity:0;width:0;height:0}
+    .toggle-track{position:absolute;inset:0;background:var(--mid);border-radius:30px;cursor:pointer;transition:background .3s}
+    .toggle input:checked+.toggle-track{background:var(--accent)}
+    .toggle-track::after{content:'';position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .3s}
+    .toggle input:checked+.toggle-track::after{transform:translateX(18px)}
+
+    /* Accent colors */
+    .accent-swatches{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+    .accent-sw{width:32px;height:32px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all var(--tr)}
+    .accent-sw.selected{border-color:#fff;transform:scale(1.18)}
+
+    /* Theme options */
+    .theme-opts{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+    .theme-opt{padding:8px 18px;border-radius:var(--r-md);font-family:var(--cond);font-size:.82rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--raised);border:1px solid var(--border);cursor:pointer;transition:all var(--tr)}
+    .theme-opt.selected{color:var(--accent);border-color:rgba(232,57,42,.4);background:var(--accent-soft)}
+
+    /* Font size slider */
+    .slider-wrap{display:flex;align-items:center;gap:12px}
+    .slider-wrap input[type=range]{flex:1;accent-color:var(--accent)}
+    .slider-val{font-family:var(--cond);font-weight:700;font-size:.88rem;color:var(--accent);width:40px;text-align:center}
+
+    /* Account info */
+    .acct-info{background:var(--raised);border:1px solid var(--border);border-radius:var(--r-md);padding:16px;margin-bottom:18px}
+    .acct-info-row{display:flex;justify-content:space-between;padding:5px 0;font-size:.85rem;border-bottom:1px solid var(--subtle)}
+    .acct-info-row:last-child{border-bottom:none}
+    .acct-info-row span:first-child{color:var(--muted);font-family:var(--cond);font-size:.75rem;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+    .acct-info-row span:last-child{color:var(--text);font-weight:500}
+    .danger-zone{background:rgba(232,57,42,.05);border:1px solid rgba(232,57,42,.2);border-radius:var(--r-md);padding:18px;margin-top:18px}
+    .danger-zone h4{font-family:var(--cond);font-size:.78rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:13px}
+
+    /* Toast */
+    .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--raised);border:1px solid var(--mid);border-radius:30px;padding:9px 22px;font-family:var(--cond);font-size:.86rem;font-weight:700;color:var(--text);z-index:9999;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    .toast.ok{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.1);color:#4ade80}
+    .toast.err{border-color:rgba(232,57,42,.4);background:var(--accent-soft);color:var(--accent)}
+
+    /* Avatar preview — small circle */
+    .avatar-upload-preview{
+      width:72px !important;height:72px !important;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      font-family:var(--disp);font-size:1.6rem;color:#fff;
+      flex-shrink:0;overflow:hidden;border:2px solid var(--border);
+      background:var(--raised);cursor:pointer;
+    }
+
+    /* Crop modal */
+    .avatar-crop-modal{
+      position:fixed;inset:0;z-index:9999;
+      background:rgba(0,0,0,.8);backdrop-filter:blur(8px);
+      display:flex;align-items:center;justify-content:center;
+    }
+    .avatar-crop-box{
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:16px;width:360px;max-width:95vw;
+      overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,.5);
+    }
+    .avatar-crop-head{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:16px 20px;border-bottom:1px solid var(--border);
+      font-family:var(--cond);font-weight:700;font-size:.9rem;color:var(--text);
+    }
+    .avatar-crop-close{
+      background:transparent;border:none;color:var(--muted);
+      font-size:1rem;cursor:pointer;padding:4px;
+    }
+    .avatar-crop-stage{padding:24px 20px 16px}
+    .avatar-crop-circle-mask{
+      width:180px;height:180px;border-radius:50%;
+      overflow:hidden;margin:0 auto 20px;
+      border:3px solid var(--accent);
+      position:relative;cursor:grab;
+      background:var(--raised);
+    }
+    .avatar-crop-circle-mask:active{cursor:grabbing}
+    #avatarCropImg{
+      position:absolute;top:50%;left:50%;
+      width:100%;height:100%;
+      object-fit:contain;
+      transform-origin:center center;
+      transform:translate(-50%,-50%);
+      pointer-events:none;
+      user-select:none;
+      -webkit-user-drag:none;
+    }
+    .avatar-crop-controls{display:flex;align-items:center;gap:12px}
+    .avatar-crop-label{font-family:var(--cond);font-size:.72rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);flex-shrink:0}
+    .avatar-crop-slider{flex:1;accent-color:var(--accent)}
+    .avatar-crop-actions{
+      display:flex;gap:10px;padding:14px 20px;
+      border-top:1px solid var(--border);justify-content:flex-end;
+    }
+
+    /* Not signed in */
+    .not-signed-in{text-align:center;padding:60px 20px;color:var(--muted)}
+    .not-signed-in i{font-size:3rem;margin-bottom:14px;display:block}
+    .not-signed-in h2{font-family:var(--disp);font-size:1.8rem;color:var(--sec);margin-bottom:8px}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div class="toast" id="settingsToast"></div>
+
+<header class="s-header">
+  <a href="index.html" class="back-btn" id="backBtn"><i class="fas fa-arrow-left"></i> Back to DriveLog</a>
+  <div class="logo">DRIVE<span>LOG</span></div>
+  <div style="width:120px"></div>
+</header>
+
+<div class="s-wrap">
+
+  <!-- Sidebar nav -->
+  <nav class="s-nav" id="sNav">
+    <div class="s-nav-item active" data-sec="profile"><i class="fas fa-user"></i> Profile</div>
+    <div class="s-nav-item" data-sec="social"><i class="fas fa-share-alt"></i> Social Links</div>
+    <div class="s-nav-divider"></div>
+    <div class="s-nav-item" data-sec="appearance"><i class="fas fa-palette"></i> Appearance</div>
+    <div class="s-nav-item" data-sec="notifications"><i class="fas fa-bell"></i> Notifications</div>
+    <div class="s-nav-divider"></div>
+    <div class="s-nav-item" data-sec="privacy"><i class="fas fa-shield-alt"></i> Privacy</div>
+    <div class="s-nav-item" data-sec="account"><i class="fas fa-cog"></i> Account</div>
+  </nav>
+
+  <!-- Content panels -->
+  <div class="s-content">
+
+    <!-- PROFILE -->
+    <div class="s-section active" id="sec-profile">
+      <div class="s-section-title">Profile</div>
+      <div class="s-section-sub">Customize how others see you on DriveLog</div>
+
+      <div id="notSignedIn" class="not-signed-in" style="display:none">
+        <i class="fas fa-user-circle"></i>
+        <h2>Not signed in</h2>
+        <p>Go back to DriveLog and sign in to manage your profile.</p>
+        <a href="index.html" style="display:inline-block;margin-top:14px;padding:9px 22px;background:var(--accent);color:#fff;border-radius:var(--r-sm);font-family:var(--cond);font-weight:700;font-size:.85rem;letter-spacing:1px;text-transform:uppercase">Go to DriveLog</a>
+      </div>
+
+      <div id="profileForm">
+        <!-- Profile Picture Upload -->
+        <div class="s-field" style="margin-bottom:20px">
+          <label class="s-label">Profile Picture</label>
+          <div class="avatar-upload-row">
+            <!-- Small circle preview -->
+            <div class="avatar-upload-preview" id="avatarPreview">
+              <span id="avatarPreviewLetter"></span>
+            </div>
+            <div class="avatar-upload-actions">
+              <button class="btn-save" id="avatarUploadBtn" type="button"><i class="fas fa-camera"></i> Change Photo</button>
+              <button class="btn-ghost-s" id="avatarRemoveBtn" type="button" style="display:none"><i class="fas fa-times"></i> Remove</button>
+              <input type="file" id="avatarFileInput" accept="image/*" hidden/>
+              <p class="avatar-upload-note">Max 5MB · JPG, PNG, WEBP</p>
+              <p class="avatar-upload-warn"><i class="fas fa-exclamation-triangle"></i> Must follow community guidelines.</p>
+            </div>
+          </div>
+          <!-- Crop modal -->
+          <div class="avatar-crop-modal" id="avatarCropModal" style="display:none">
+            <div class="avatar-crop-box">
+              <div class="avatar-crop-head">
+                <span>Adjust Photo</span>
+                <button class="avatar-crop-close" id="avatarCropClose"><i class="fas fa-times"></i></button>
+              </div>
+              <div class="avatar-crop-stage">
+                <div class="avatar-crop-circle-mask">
+                  <img id="avatarCropImg" src="" alt="" draggable="false"/>
+                </div>
+                <div class="avatar-crop-controls">
+                  <label class="avatar-crop-label">Zoom</label>
+                  <input type="range" id="avatarCropZoom" min="1" max="3" step="0.01" value="1" class="avatar-crop-slider"/>
+                </div>
+              </div>
+              <div class="avatar-crop-actions">
+                <button class="btn-ghost-s" id="avatarCropCancel">Cancel</button>
+                <button class="btn-save" id="avatarCropSave"><i class="fas fa-check"></i> Save Photo</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="av-preview" id="avPreview"></div>
+        <div class="s-label">Avatar Color (used as fallback)</div>
+        <div class="av-colors" id="avColors"></div>
+
+        <div class="s-field">
+          <label class="s-label">Username</label>
+          <div class="username-change-wrap">
+            <input class="s-input" id="fDisplayName" placeholder="Your username" readonly/>
+            <button class="btn-ghost-s" id="enableUsernameEdit" style="white-space:nowrap"><i class="fas fa-pencil-alt"></i> Change</button>
+          </div>
+          <div id="usernameChangeForm" style="display:none;margin-top:10px">
+            <input class="s-input" id="fNewUsername" placeholder="New username (letters, numbers, _ only)" style="margin-bottom:8px"/>
+            <div class="username-rules">
+              <span id="usernameStatus" class="username-status"></span>
+            </div>
+            <div class="btn-row" style="margin-top:8px">
+              <button class="btn-save" id="saveUsername"><i class="fas fa-check"></i> Confirm Change</button>
+              <button class="btn-ghost-s" id="cancelUsernameEdit">Cancel</button>
+            </div>
+          </div>
+          <div id="usernameCooldownMsg" style="display:none" class="username-cooldown-msg"></div>
+        </div>
+        <div class="s-field">
+          <label class="s-label">Location</label>
+          <input class="s-input" id="fLocation" placeholder="City, State or Country"/>
+        </div>
+        <div class="s-field">
+          <label class="s-label">Bio</label>
+          <textarea class="s-input" id="fBio" placeholder="Tell the community about yourself and your builds…"></textarea>
+        </div>
+        <button class="btn-save" id="saveProfile"><i class="fas fa-save"></i> Save Profile</button>
+      </div>
+    </div>
+
+    <!-- SOCIAL -->
+    <div class="s-section" id="sec-social">
+      <div class="s-section-title">Social Links</div>
+      <div class="s-section-sub">Link your social accounts so the community can follow your journey</div>
+      <div class="s-field">
+        <label class="s-label"><i class="fab fa-instagram" style="color:#e1306c;margin-right:5px"></i> Instagram Username</label>
+        <input class="s-input" id="fInstagram" placeholder="yourhandle (no @)"/>
+      </div>
+      <div class="s-field">
+        <label class="s-label"><i class="fab fa-tiktok" style="color:#69c9d0;margin-right:5px"></i> TikTok Username</label>
+        <input class="s-input" id="fTikTok" placeholder="yourhandle (no @)"/>
+      </div>
+      <div class="s-field">
+        <label class="s-label"><i class="fab fa-youtube" style="color:#f00;margin-right:5px"></i> YouTube Handle</label>
+        <input class="s-input" id="fYouTube" placeholder="yourchannel (no @)"/>
+      </div>
+      <div class="s-field">
+        <label class="s-label"><i class="fas fa-globe" style="color:var(--accent);margin-right:5px"></i> Personal Website</label>
+        <input class="s-input" id="fWebsite" placeholder="https://yoursite.com"/>
+      </div>
+      <button class="btn-save" id="saveSocial"><i class="fas fa-save"></i> Save Social Links</button>
+    </div>
+
+    <!-- APPEARANCE -->
+    <div class="s-section" id="sec-appearance">
+      <div class="s-section-title">Appearance</div>
+      <div class="s-section-sub">Make DriveLog look and feel the way you want</div>
+
+      <div class="s-field">
+        <label class="s-label">Theme</label>
+        <div class="theme-opts">
+          <div class="theme-opt" data-theme="dark"><i class="fas fa-moon"></i> Dark</div>
+          <div class="theme-opt selected" data-theme="light"><i class="fas fa-sun"></i> Light</div>
+          <div class="theme-opt" data-theme="auto"><i class="fas fa-circle-half-stroke"></i> Auto</div>
+        </div>
+      </div>
+
+      <div class="s-divider"></div>
+
+      <div class="s-field">
+        <label class="s-label">Accent Color</label>
+        <div class="accent-swatches" id="accentSwatches"></div>
+      </div>
+
+      <div class="s-divider"></div>
+
+      <div class="s-field">
+        <label class="s-label">Font Size</label>
+        <div class="slider-wrap">
+          <span style="font-size:.75rem;color:var(--muted)">A</span>
+          <input type="range" id="fontSlider" min="13" max="18" step="1" value="15"/>
+          <span style="font-size:1.1rem;color:var(--text)">A</span>
+          <span class="slider-val" id="fontVal">15px</span>
+        </div>
+      </div>
+
+      <div class="s-divider"></div>
+      <button class="btn-save" id="saveAppearance"><i class="fas fa-paint-brush"></i> Save Appearance</button>
+    </div>
+
+    <!-- NOTIFICATIONS -->
+    <div class="s-section" id="sec-notifications">
+      <div class="s-section-title">Notifications</div>
+      <div class="s-section-sub">Choose what you want to be notified about</div>
+
+      <div class="toggle-row">
+        <div class="toggle-label"><strong>Likes</strong>When someone likes your build</div>
+        <label class="toggle"><input type="checkbox" id="nLikes" checked/><div class="toggle-track"></div></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label"><strong>Comments</strong>When someone comments on your build</div>
+        <label class="toggle"><input type="checkbox" id="nComments" checked/><div class="toggle-track"></div></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label"><strong>New Followers</strong>When someone follows you</div>
+        <label class="toggle"><input type="checkbox" id="nFollowers" checked/><div class="toggle-track"></div></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label"><strong>Events</strong>RSVP confirmations and upcoming events</div>
+        <label class="toggle"><input type="checkbox" id="nEvents" checked/><div class="toggle-track"></div></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label"><strong>Build of the Week</strong>When a new BOTW is announced</div>
+        <label class="toggle"><input type="checkbox" id="nBOTW" checked/><div class="toggle-track"></div></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label"><strong>Community Announcements</strong>News and updates from DriveLog</div>
+        <label class="toggle"><input type="checkbox" id="nAnnouncements" checked/><div class="toggle-track"></div></label>
+      </div>
+      <div style="margin-top:20px">
+        <button class="btn-save" id="saveNotifs"><i class="fas fa-bell"></i> Save Notifications</button>
+      </div>
+    </div>
+
+    <!-- PRIVACY -->
+    <div class="s-section" id="sec-privacy">
+      <div class="s-section-title">Privacy</div>
+      <div class="s-section-sub">Control who can see your activity and profile</div>
+
+      <div class="toggle-row">
+        <div class="toggle-label"><strong>Public Profile</strong>Anyone can view your profile and builds</div>
+        <label class="toggle"><input type="checkbox" id="pPublic" checked/><div class="toggle-track"></div></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label"><strong>Show on Leaderboard</strong>Appear in the members leaderboard</div>
+        <label class="toggle"><input type="checkbox" id="pLeaderboard" checked/><div class="toggle-track"></div></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label"><strong>Show Social Links</strong>Display your social links on your profile</div>
+        <label class="toggle"><input type="checkbox" id="pSocials" checked/><div class="toggle-track"></div></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label"><strong>Show Following List</strong>Let others see who you follow</div>
+        <label class="toggle"><input type="checkbox" id="pFollowing"/><div class="toggle-track"></div></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-label"><strong>Show Liked Builds</strong>Let others see builds you've liked</div>
+        <label class="toggle"><input type="checkbox" id="pLiked"/><div class="toggle-track"></div></label>
+      </div>
+      <div style="margin-top:20px">
+        <button class="btn-save" id="savePrivacy"><i class="fas fa-shield-alt"></i> Save Privacy Settings</button>
+      </div>
+    </div>
+
+    <!-- ACCOUNT -->
+    <div class="s-section" id="sec-account">
+      <div class="s-section-title">Account</div>
+      <div class="s-section-sub">Manage your DriveLog account</div>
+
+      <div class="acct-info" id="acctInfo">
+        <div class="acct-info-row"><span>Username</span><span id="acctUsername">—</span></div>
+        <div class="acct-info-row"><span>Member Since</span><span id="acctJoined">—</span></div>
+        <div class="acct-info-row"><span>Total Builds</span><span id="acctBuilds">—</span></div>
+      </div>
+
+      <div class="s-field">
+        <label class="s-label">Change Password</label>
+        <input class="s-input" type="password" id="fCurrentPw" placeholder="Current password" style="margin-bottom:10px"/>
+        <input class="s-input" type="password" id="fNewPw" placeholder="New password" style="margin-bottom:10px"/>
+        <input class="s-input" type="password" id="fConfirmPw" placeholder="Confirm new password"/>
+      </div>
+      <div class="btn-row">
+        <button class="btn-save" id="savePassword"><i class="fas fa-lock"></i> Update Password</button>
+      </div>
+
+      <div class="s-divider"></div>
+
+      <div class="btn-row">
+        <button class="btn-ghost-s" id="exportData"><i class="fas fa-download"></i> Export My Data</button>
+        <button class="btn-ghost-s" id="signOutAll"><i class="fas fa-sign-out-alt"></i> Sign Out Everywhere</button>
+      </div>
+
+      <div class="danger-zone">
+        <h4>⚠ Danger Zone</h4>
+        <p style="font-size:.83rem;color:var(--sec);margin-bottom:14px">These actions are permanent and cannot be undone.</p>
+        <button class="btn-danger" id="deleteAccount"><i class="fas fa-trash-alt"></i> Delete My Account</button>
+      </div>
+    </div>
+
+  </div><!-- /s-content -->
+</div><!-- /s-wrap -->
+
+<script>
+(function() {
+  /* ── Prefs & User ── */
+  function getPrefs() { try { return JSON.parse(localStorage.getItem('dl_prefs') || '{}'); } catch(e) { return {}; } }
+  function savePrefs(p) { localStorage.setItem('dl_prefs', JSON.stringify(p)); }
+  function getUser() {
+    try {
+      // Check all possible keys where user session could be stored
+      return JSON.parse(localStorage.getItem('dl_user_cache') || localStorage.getItem('dl_user') || 'null');
+    } catch(e) { return null; }
+  }
+  function saveUser(u) {
+    localStorage.setItem('dl_user_cache', JSON.stringify(u));
+    localStorage.setItem('dl_user', JSON.stringify(u)); // keep both in sync
+  }
+  function getUsers() {
+    try {
+      return JSON.parse(localStorage.getItem('dl_users_cache') || localStorage.getItem('dl_users') || '[]');
+    } catch(e) { return []; }
+  }
+  function saveUsers(us) {
+    localStorage.setItem('dl_users_cache', JSON.stringify(us));
+    localStorage.setItem('dl_users', JSON.stringify(us));
+  }
+
+  /* ── Apply prefs on load ── */
+  const prefs = getPrefs();
+  if (prefs.theme === 'dark' || (prefs.theme === 'auto' && window.matchMedia('(prefers-color-scheme:dark)').matches)) {
+    document.body.classList.add('dark');
+  }
+  document.documentElement.classList.remove('dark-pending');
+  if (prefs.accent) {
+    document.documentElement.style.setProperty('--accent', prefs.accent);
+    document.documentElement.style.setProperty('--accent-soft', prefs.accent + '15');
+    document.documentElement.style.setProperty('--accent-glow', prefs.accent + '30');
+  }
+  if (prefs.fontSize) document.documentElement.style.fontSize = prefs.fontSize + 'px';
+
+  /* ── Toast ── */
+  let _tt;
+  function toast(msg, type) {
+    const t = document.getElementById('settingsToast');
+    t.textContent = msg; t.className = 'toast' + (type === 'ok' ? ' ok' : type === 'err' ? ' err' : '');
+    clearTimeout(_tt);
+    requestAnimationFrame(() => { t.classList.add('show'); _tt = setTimeout(() => t.classList.remove('show'), 2600); });
+  }
+
+  /* ── Sidebar navigation ── */
+  document.querySelectorAll('.s-nav-item[data-sec]').forEach(item => {
+    item.addEventListener('click', () => {
+      document.querySelectorAll('.s-nav-item').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.s-section').forEach(x => x.classList.remove('active'));
+      item.classList.add('active');
+      document.getElementById('sec-' + item.dataset.sec).classList.add('active');
+    });
+  });
+
+  /* ── AV COLORS ── */
+  const AV_SWATCHES = ['#e8392a','#3b82f6','#a855f7','#22c55e','#f59e0b','#14b8a6','#ec4899','#6366f1','#f0a030','#10b981'];
+  let currentAvColor = prefs.avColor || '#e8392a';
+  const avPreview = document.getElementById('avPreview');
+  const avColorsEl = document.getElementById('avColors');
+  const user = getUser();
+
+  function setAvPreview() {
+    const u = getUser();
+    if (u) { avPreview.textContent = u.username[0].toUpperCase(); }
+    avPreview.style.background = currentAvColor;
+  }
+
+  if (avColorsEl) {
+    avColorsEl.innerHTML = AV_SWATCHES.map(c =>
+      `<div class="av-swatch${c === currentAvColor ? ' selected' : ''}" data-c="${c}" style="background:${c}"></div>`
+    ).join('');
+    avColorsEl.querySelectorAll('.av-swatch').forEach(sw => sw.addEventListener('click', () => {
+      avColorsEl.querySelectorAll('.av-swatch').forEach(x => x.classList.remove('selected'));
+      sw.classList.add('selected');
+      currentAvColor = sw.dataset.c;
+      setAvPreview();
+    }));
+  }
+  setAvPreview();
+
+  /* ── Load user into profile form ── */
+  if (user) {
+    document.getElementById('fDisplayName').value = user.username || '';
+    document.getElementById('fBio').value = user.bio || '';
+    document.getElementById('fLocation').value = user.location || '';
+    document.getElementById('fInstagram').value = user.instagram || '';
+    document.getElementById('fTikTok').value = user.tiktok || '';
+    document.getElementById('fYouTube').value = user.youtube || '';
+    document.getElementById('fWebsite').value = user.website || '';
+    document.getElementById('acctUsername').textContent = user.username;
+    document.getElementById('acctJoined').textContent = user.joined || '—';
+    // count builds
+    const posts = JSON.parse(localStorage.getItem('dl_posts_cache') || localStorage.getItem('dl_posts') || '[]');
+    const myPosts = posts.filter(p => p.user === user.username).length;
+    document.getElementById('acctBuilds').textContent = myPosts;
+  } else {
+    document.getElementById('notSignedIn').style.display = 'block';
+    document.getElementById('profileForm').style.display = 'none';
+  }
+
+  /* ── Load prefs into appearance ── */
+  const accentColors = ['#e8392a','#3b82f6','#a855f7','#f0a030','#22c55e','#14b8a6','#ec4899','#f59e0b'];
+  const accentSwatches = document.getElementById('accentSwatches');
+  let currentAccent = prefs.accent || '#e8392a';
+  accentSwatches.innerHTML = accentColors.map(c =>
+    `<div class="accent-sw${c === currentAccent ? ' selected' : ''}" data-c="${c}" style="background:${c}"></div>`
+  ).join('');
+  accentSwatches.querySelectorAll('.accent-sw').forEach(sw => sw.addEventListener('click', () => {
+    accentSwatches.querySelectorAll('.accent-sw').forEach(x => x.classList.remove('selected'));
+    sw.classList.add('selected');
+    currentAccent = sw.dataset.c;
+    document.documentElement.style.setProperty('--accent', currentAccent);
+    document.documentElement.style.setProperty('--accent-soft', currentAccent + '15');
+    document.documentElement.style.setProperty('--accent-glow', currentAccent + '30');
+  }));
+
+  // Theme
+  const currentTheme = prefs.theme || 'dark';
+  document.querySelectorAll('.theme-opt').forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.theme === currentTheme);
+    opt.addEventListener('click', () => {
+      document.querySelectorAll('.theme-opt').forEach(x => x.classList.remove('selected'));
+      opt.classList.add('selected');
+      document.body.classList.remove('light','dark');
+      if (opt.dataset.theme === 'dark') document.body.classList.add('dark');
+      else if (opt.dataset.theme === 'auto' && window.matchMedia('(prefers-color-scheme:dark)').matches) document.body.classList.add('dark');
+    });
+  });
+
+  // Font size
+  const slider = document.getElementById('fontSlider');
+  const fontVal = document.getElementById('fontVal');
+  slider.value = prefs.fontSize || 15;
+  fontVal.textContent = slider.value + 'px';
+  slider.addEventListener('input', () => {
+    fontVal.textContent = slider.value + 'px';
+    document.documentElement.style.fontSize = slider.value + 'px';
+  });
+
+  /* ── Load prefs into toggles ── */
+  const np = prefs.notifs || {};
+  ['nLikes','nComments','nFollowers','nEvents','nBOTW','nAnnouncements'].forEach(id => {
+    const key = id.slice(1).toLowerCase();
+    const el = document.getElementById(id);
+    if (el && np[key] !== undefined) el.checked = np[key];
+  });
+  const pp = prefs.privacy || {};
+  ['pPublic','pLeaderboard','pSocials','pFollowing','pLiked'].forEach(id => {
+    const key = id.slice(1).toLowerCase();
+    const el = document.getElementById(id);
+    if (el && pp[key] !== undefined) el.checked = pp[key];
+  });
+
+  /* ── Save handlers ── */
+  document.getElementById('saveProfile').addEventListener('click', () => {
+    const u = getUser(); if (!u) { toast('Not signed in', 'err'); return; }
+    u.bio      = document.getElementById('fBio').value.trim();
+    u.location = document.getElementById('fLocation').value.trim();
+    saveUser(u);
+    const users = getUsers();
+    const idx = users.findIndex(x => x.username === u.username);
+    if (idx >= 0) { users[idx] = { ...users[idx], ...u }; saveUsers(users); }
+    const p = getPrefs(); p.avColor = currentAvColor; savePrefs(p);
+    // Push to Supabase if available
+    pushProfileToSupabase(u);
+    toast('Profile saved ✓', 'ok');
+  });
+
+  document.getElementById('saveSocial').addEventListener('click', () => {
+    const u = getUser(); if (!u) { toast('Not signed in', 'err'); return; }
+    u.instagram = document.getElementById('fInstagram').value.trim();
+    u.tiktok    = document.getElementById('fTikTok').value.trim();
+    u.youtube   = document.getElementById('fYouTube').value.trim();
+    u.website   = document.getElementById('fWebsite').value.trim();
+    saveUser(u);
+    const users = getUsers();
+    const idx = users.findIndex(x => x.username === u.username);
+    if (idx >= 0) { users[idx] = { ...users[idx], ...u }; saveUsers(users); }
+    pushProfileToSupabase(u);
+    toast('Social links saved ✓', 'ok');
+  });
+
+  document.getElementById('saveAppearance').addEventListener('click', () => {
+    const selectedTheme = document.querySelector('.theme-opt.selected')?.dataset.theme || 'dark';
+    const p = getPrefs();
+    p.theme = selectedTheme;
+    p.accent = currentAccent;
+    p.avColor = currentAvColor;
+    p.fontSize = +slider.value;
+    savePrefs(p);
+    // Apply immediately in settings page too
+    document.documentElement.style.setProperty('--accent', currentAccent);
+    if (selectedTheme === 'dark') document.body.classList.add('dark');
+    else document.body.classList.remove('dark');
+    toast('Appearance saved ✓', 'ok');
+  });
+
+  document.getElementById('saveNotifs').addEventListener('click', () => {
+    const p = getPrefs();
+    p.notifs = {
+      likes: document.getElementById('nLikes').checked,
+      comments: document.getElementById('nComments').checked,
+      followers: document.getElementById('nFollowers').checked,
+      events: document.getElementById('nEvents').checked,
+      botw: document.getElementById('nBOTW').checked,
+      announcements: document.getElementById('nAnnouncements').checked,
+    };
+    savePrefs(p); toast('Notification settings saved ✓', 'ok');
+  });
+
+  document.getElementById('savePrivacy').addEventListener('click', () => {
+    const p = getPrefs();
+    p.privacy = {
+      public: document.getElementById('pPublic').checked,
+      leaderboard: document.getElementById('pLeaderboard').checked,
+      socials: document.getElementById('pSocials').checked,
+      following: document.getElementById('pFollowing').checked,
+      liked: document.getElementById('pLiked').checked,
+    };
+    savePrefs(p); toast('Privacy settings saved ✓', 'ok');
+  });
+
+  document.getElementById('savePassword').addEventListener('click', () => {
+    const np = document.getElementById('fNewPw').value;
+    const cp = document.getElementById('fConfirmPw').value;
+    if (!np) { toast('Enter a new password', 'err'); return; }
+    if (np !== cp) { toast('Passwords do not match', 'err'); return; }
+    if (np.length < 6) { toast('Password must be at least 6 characters', 'err'); return; }
+    toast('Password updated ✓', 'ok');
+    document.getElementById('fCurrentPw').value = '';
+    document.getElementById('fNewPw').value = '';
+    document.getElementById('fConfirmPw').value = '';
+  });
+
+  document.getElementById('exportData').addEventListener('click', () => {
+    const u = getUser();
+    const data = {
+      user: u,
+      posts: JSON.parse(localStorage.getItem('dl_posts') || '[]'),
+      following: JSON.parse(localStorage.getItem('dl_following') || '[]'),
+      prefs: getPrefs(),
+      exported: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'drivelog-data.json';
+    a.click();
+    toast('Data exported ✓', 'ok');
+  });
+
+  document.getElementById('signOutAll').addEventListener('click', () => {
+    if (confirm('Sign out of all sessions?')) {
+      localStorage.removeItem('dl_user');
+      localStorage.removeItem('dl_user_cache');
+      toast('Signed out everywhere', 'ok');
+      setTimeout(() => window.location.href = 'index.html', 1200);
+    }
+  });
+
+  document.getElementById('deleteAccount').addEventListener('click', () => {
+    const u = getUser(); if (!u) return;
+    if (confirm(`This will permanently delete your account "${u.username}" and all your builds. This cannot be undone. Are you sure?`)) {
+      if (prompt('Type your username to confirm:') === u.username) {
+        localStorage.removeItem('dl_user');
+        localStorage.removeItem('dl_user_cache');
+        localStorage.removeItem('dl_following');
+        const posts = JSON.parse(localStorage.getItem('dl_posts') || '[]').filter(p => p.user !== u.username);
+        localStorage.setItem('dl_posts', JSON.stringify(posts));
+        toast('Account deleted', '');
+        setTimeout(() => window.location.href = 'index.html', 1200);
+      } else {
+        toast('Username did not match', 'err');
+      }
+    }
+  });
+
+
+  /* ── USERNAME CHANGE ── */
+  const USERNAME_COOLDOWN_DAYS = 30;
+
+  function canChangeUsername(u) {
+    if (!u.lastUsernameChange) return { ok: true };
+    const last = new Date(u.lastUsernameChange).getTime();
+    const daysSince = (Date.now() - last) / 86400000;
+    if (daysSince < USERNAME_COOLDOWN_DAYS) {
+      const daysLeft = Math.ceil(USERNAME_COOLDOWN_DAYS - daysSince);
+      return { ok: false, daysLeft };
+    }
+    return { ok: true };
+  }
+
+  // Show cooldown message or enable change button on load
+  (function initUsernameSection() {
+    const u = getUser(); if (!u) return;
+    const check = canChangeUsername(u);
+    const cooldownMsg = document.getElementById('usernameCooldownMsg');
+    const changeBtn   = document.getElementById('enableUsernameEdit');
+    if (!check.ok) {
+      cooldownMsg.style.display = 'block';
+      cooldownMsg.innerHTML = `<i class="fas fa-clock"></i> You can change your username again in <b>${check.daysLeft} day${check.daysLeft===1?'':'s'}</b>.`;
+      changeBtn.disabled = true;
+      changeBtn.style.opacity = '0.4';
+      changeBtn.style.cursor = 'not-allowed';
+    }
+  })();
+
+  // ── Back button — auto-save everything first ──────────────
+  document.getElementById('backBtn').addEventListener('click', function(e) {
+    e.preventDefault();
+    autoSaveAll();
+    setTimeout(() => { window.location.href = 'index.html'; }, 300);
+  });
+
+  function autoSaveAll() {
+    const u = getUser(); if (!u) return;
+    // Save profile fields
+    u.bio      = (document.getElementById('fBio')?.value || '').trim();
+    u.location = (document.getElementById('fLocation')?.value || '').trim();
+    u.instagram = (document.getElementById('fInstagram')?.value || '').trim();
+    u.tiktok    = (document.getElementById('fTikTok')?.value || '').trim();
+    u.youtube   = (document.getElementById('fYouTube')?.value || '').trim();
+    u.website   = (document.getElementById('fWebsite')?.value || '').trim();
+    saveUser(u);
+    const users = getUsers();
+    const idx = users.findIndex(x => x.username === u.username);
+    if (idx >= 0) { users[idx] = { ...users[idx], ...u }; saveUsers(users); }
+    // Save appearance
+    const selectedTheme = document.querySelector('.theme-opt.selected')?.dataset.theme || 'dark';
+    const slider = document.getElementById('fontSlider');
+    const p = getPrefs();
+    p.theme = selectedTheme;
+    p.accent = currentAccent;
+    p.avColor = currentAvColor;
+    if (slider) p.fontSize = +slider.value;
+    savePrefs(p);
+    pushProfileToSupabase(u);
+  }
+
+  // ── Avatar Upload with Crop UI ─────────────────────────────
+  (function initAvatarUpload() {
+    const u        = getUser();
+    const preview  = document.getElementById('avatarPreview');
+    const letter   = document.getElementById('avatarPreviewLetter');
+    const uploadBtn= document.getElementById('avatarUploadBtn');
+    const removeBtn= document.getElementById('avatarRemoveBtn');
+    const fileInput= document.getElementById('avatarFileInput');
+    const cropModal= document.getElementById('avatarCropModal');
+    const cropImg  = document.getElementById('avatarCropImg');
+    const cropZoom = document.getElementById('avatarCropZoom');
+    const cropSave = document.getElementById('avatarCropSave');
+    const cropCancel=document.getElementById('avatarCropCancel');
+    const cropClose= document.getElementById('avatarCropClose');
+    if (!preview || !uploadBtn || !fileInput) return;
+
+    // Crop state
+    let _cropObjUrl = null;
+    let _cropOffsetX = 0, _cropOffsetY = 0;
+    let _cropDragging = false, _cropStartX = 0, _cropStartY = 0;
+    let _cropZoom = 1;
+
+    function avColorFn(name) {
+      const cols = {'A':'#e8392a','B':'#3b82f6','C':'#22c55e','D':'#f0a030','E':'#a855f7','F':'#14b8a6','G':'#e8392a','H':'#3b82f6','I':'#22c55e','J':'#e8392a','K':'#f0a030','L':'#a855f7','M':'#3b82f6','N':'#22c55e','O':'#f0a030','P':'#14b8a6','Q':'#e8392a','R':'#3b82f6','S':'#a855f7','T':'#f0a030','U':'#14b8a6','V':'#22c55e','W':'#3b82f6','X':'#e8392a','Y':'#f0a030','Z':'#a855f7'};
+      return cols[(name||'?')[0].toUpperCase()] || '#e8392a';
+    }
+
+    function refreshPreview() {
+      const cu = getUser(); if (!cu) return;
+      if (cu.avatarUrl) {
+        preview.style.background = 'transparent';
+        preview.innerHTML = `<img src="${cu.avatarUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block"/>`;
+        if (removeBtn) removeBtn.style.display = 'inline-flex';
+      } else {
+        preview.style.background = avColorFn(cu.username);
+        preview.innerHTML = cu.username[0].toUpperCase();
+        if (removeBtn) removeBtn.style.display = 'none';
+      }
+    }
+    refreshPreview();
+
+    uploadBtn.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0]; if (!file) return;
+      if (file.size > 5 * 1024 * 1024) { toast('Image must be under 5MB', 'err'); return; }
+      if (!file.type.match(/image\/(jpeg|png|webp|gif)/)) { toast('Please use JPG, PNG, or WEBP', 'err'); return; }
+      // Open crop modal
+      if (_cropObjUrl) URL.revokeObjectURL(_cropObjUrl);
+      _cropObjUrl = URL.createObjectURL(file);
+      cropImg.src = _cropObjUrl;
+      _cropOffsetX = 0; _cropOffsetY = 0; _cropZoom = 1;
+      if (cropZoom) { cropZoom.value = 1; cropZoom.min = 1; cropZoom.max = 3; }
+      cropImg.onload = () => applyTransform();
+      cropModal.style.display = 'flex';
+      fileInput.value = '';
+    });
+
+    function applyTransform() {
+      cropImg.style.transform = `translate(calc(-50% + ${_cropOffsetX}px), calc(-50% + ${_cropOffsetY}px)) scale(${_cropZoom})`;
+    }
+
+    // Zoom slider
+    if (cropZoom) cropZoom.addEventListener('input', () => {
+      _cropZoom = +cropZoom.value;
+      applyTransform();
+    });
+
+    // Drag to reposition
+    cropImg.addEventListener('mousedown', e => { _cropDragging=true; _cropStartX=e.clientX-_cropOffsetX; _cropStartY=e.clientY-_cropOffsetY; e.preventDefault(); });
+    document.addEventListener('mousemove', e => { if(!_cropDragging) return; _cropOffsetX=e.clientX-_cropStartX; _cropOffsetY=e.clientY-_cropStartY; applyTransform(); });
+    document.addEventListener('mouseup', () => _cropDragging=false);
+    // Touch support
+    cropImg.addEventListener('touchstart', e => { const t=e.touches[0]; _cropDragging=true; _cropStartX=t.clientX-_cropOffsetX; _cropStartY=t.clientY-_cropOffsetY; },{passive:true});
+    document.addEventListener('touchmove', e => { if(!_cropDragging) return; const t=e.touches[0]; _cropOffsetX=t.clientX-_cropStartX; _cropOffsetY=t.clientY-_cropStartY; applyTransform(); },{passive:true});
+    document.addEventListener('touchend', () => _cropDragging=false);
+
+    function closeCrop() { cropModal.style.display='none'; if(_cropObjUrl){URL.revokeObjectURL(_cropObjUrl);_cropObjUrl=null;} }
+    if (cropCancel) cropCancel.addEventListener('click', closeCrop);
+    if (cropClose)  cropClose.addEventListener('click', closeCrop);
+
+    // Save crop — render canvas from current transform
+    if (cropSave) cropSave.addEventListener('click', () => {
+      const size = 200;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+
+      const img = cropImg;
+      const naturalW = img.naturalWidth;
+      const naturalH = img.naturalHeight;
+
+      // The circle mask is 180px. At zoom=1 the image should fit entirely
+      // inside the circle — so the base scale fits the image into 180px
+      const maskDiameter = 180;
+      const baseScale = maskDiameter / Math.max(naturalW, naturalH);
+      const totalScale = baseScale * _cropZoom;
+
+      // Displayed image dimensions at current zoom
+      const dispW = naturalW * totalScale;
+      const dispH = naturalH * totalScale;
+
+      // Center of the mask circle in display coords
+      // Offset moves the image so we subtract it to find source coords
+      // dispX/dispY = top-left of image in mask coords
+      const dispX = (maskDiameter - dispW) / 2 + _cropOffsetX;
+      const dispY = (maskDiameter - dispH) / 2 + _cropOffsetY;
+
+      // What source region maps to the 180px mask?
+      // Source rect: start at (-dispX / totalScale, -dispY / totalScale)
+      //              size: maskDiameter / totalScale
+      const srcX = -dispX / totalScale;
+      const srcY = -dispY / totalScale;
+      const srcSize = maskDiameter / totalScale;
+
+      // Clip to circle
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.clip();
+
+      ctx.drawImage(img, srcX, srcY, srcSize, srcSize, 0, 0, size, size);
+
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+      const u2 = getUser(); if (!u2) return;
+      u2.avatarUrl = dataUrl;
+      saveUser(u2);
+      const users = getUsers();
+      const idx = users.findIndex(x => x.username === u2.username);
+      if (idx >= 0) { users[idx].avatarUrl = dataUrl; saveUsers(users); }
+      refreshPreview();
+      closeCrop();
+      toast('Profile picture saved!', 'ok');
+      localStorage.setItem('dl_avatar_updated', Date.now().toString());
+      localStorage.setItem('dl_avatar_url', dataUrl);
+    });
+
+    if (removeBtn) removeBtn.addEventListener('click', () => {
+      if (!confirm('Remove your profile picture?')) return;
+      const u2 = getUser(); if (!u2) return;
+      delete u2.avatarUrl;
+      saveUser(u2);
+      const users = getUsers();
+      const idx = users.findIndex(x => x.username === u2.username);
+      if (idx >= 0) { delete users[idx].avatarUrl; saveUsers(users); }
+      refreshPreview();
+      toast('Profile picture removed', 'ok');
+      localStorage.setItem('dl_avatar_updated', Date.now().toString());
+      localStorage.removeItem('dl_avatar_url');
+    });
+  })();
+
+  // ── Supabase profile push ─────────────────────────────────
+  let _sbSettings = null;
+  function getSettingsSb() {
+    if (_sbSettings) return _sbSettings;
+    try {
+      if (typeof supabase === 'undefined') return null;
+      const SUPABASE_URL = 'https://lsnpxneywkrirfkfszbo.supabase.co';
+      const SUPABASE_KEY = 'sb_publishable_wF4jFiIEuucuJXJJo8sn0Q_b2PRnh6-';
+      _sbSettings = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    } catch(e) { return null; }
+    return _sbSettings;
+  }
+
+  function pushProfileToSupabase(u) {
+    if (!u || !u.id) return;
+    const sb = getSettingsSb(); if (!sb) return;
+    sb.from('profiles').update({
+      bio:       u.bio       || '',
+      instagram: u.instagram || '',
+      tiktok:    u.tiktok    || '',
+      youtube:   u.youtube   || '',
+      website:   u.website   || '',
+      location:  u.location  || '',
+    }).eq('id', u.id).then(({ error }) => {
+      if (error) console.warn('Profile push failed:', error);
+    });
+  }
+
+  // Bio word count
+  const bioEl = document.getElementById('fBio');
+  const bioCount = document.getElementById('bioWordCount');
+  function updateBioCount() {
+    if (!bioEl || !bioCount) return;
+    const words = bioEl.value.trim().split(/\s+/).filter(Boolean).length;
+    bioCount.textContent = words + ' / 50 words';
+    bioCount.style.color = words > 50 ? '#e84242' : 'var(--muted)';
+  }
+  if (bioEl) {
+    bioEl.addEventListener('input', updateBioCount);
+    // Trim on save
+    bioEl.addEventListener('blur', () => {
+      const words = bioEl.value.trim().split(/\s+/);
+      if (words.length > 50) bioEl.value = words.slice(0,50).join(' ');
+      updateBioCount();
+    });
+  }
+
+  document.getElementById('enableUsernameEdit').addEventListener('click', () => {
+    const u = getUser(); if (!u) return;
+    const check = canChangeUsername(u);
+    if (!check.ok) { toast(`You can change your username in ${check.daysLeft} day${check.daysLeft===1?'':'s'}`, 'err'); return; }
+    document.getElementById('usernameChangeForm').style.display = 'block';
+    document.getElementById('fNewUsername').value = '';
+    document.getElementById('fNewUsername').focus();
+    document.getElementById('usernameStatus').textContent = '';
+  });
+
+  document.getElementById('cancelUsernameEdit').addEventListener('click', () => {
+    document.getElementById('usernameChangeForm').style.display = 'none';
+    document.getElementById('usernameStatus').textContent = '';
+  });
+
+  // Live validation as user types
+  document.getElementById('fNewUsername').addEventListener('input', () => {
+    const val = document.getElementById('fNewUsername').value.trim();
+    const status = document.getElementById('usernameStatus');
+    if (!val) { status.textContent = ''; return; }
+    if (val.length < 3) { status.textContent = 'Too short (min 3 characters)'; status.className = 'username-status err'; return; }
+    if (!/^[a-zA-Z0-9_]+$/.test(val)) { status.textContent = 'Letters, numbers, and underscores only'; status.className = 'username-status err'; return; }
+    const users = getUsers();
+    const taken = users.some(u => u.username.toLowerCase() === val.toLowerCase());
+    if (taken) { status.textContent = 'Username already taken'; status.className = 'username-status err'; return; }
+    status.textContent = val + ' is available'; status.className = 'username-status ok';
+  });
+
+  document.getElementById('saveUsername').addEventListener('click', () => {
+    const u = getUser(); if (!u) { toast('Not signed in', 'err'); return; }
+    const newUsername = document.getElementById('fNewUsername').value.trim();
+
+    // Validate
+    if (!newUsername) { toast('Enter a new username', 'err'); return; }
+    if (newUsername.length < 3) { toast('Must be at least 3 characters', 'err'); return; }
+    if (!/^[a-zA-Z0-9_]+$/.test(newUsername)) { toast('Letters, numbers, and underscores only', 'err'); return; }
+    if (newUsername.toLowerCase() === u.username.toLowerCase()) { toast('That is already your username', 'err'); return; }
+
+    // Check cooldown
+    const check = canChangeUsername(u);
+    if (!check.ok) { toast(`Wait ${check.daysLeft} more day${check.daysLeft===1?'':'s'}`, 'err'); return; }
+
+    // Check uniqueness
+    const users = getUsers();
+    if (users.some(x => x.username.toLowerCase() === newUsername.toLowerCase())) {
+      toast('Username already taken', 'err'); return;
+    }
+
+    // Update all references
+    const oldUsername = u.username;
+    u.username = newUsername;
+    u.lastUsernameChange = new Date().toISOString();
+    saveUser(u);
+    document.getElementById('fDisplayName').value = newUsername;
+    document.getElementById('acctUsername').textContent = newUsername;
+
+    // Update in users array
+    const idx = users.findIndex(x => x.username === oldUsername);
+    if (idx >= 0) {
+      users[idx] = { ...users[idx], username: newUsername, lastUsernameChange: u.lastUsernameChange };
+      saveUsers(users);
+    }
+
+    // Hide form, show cooldown message
+    document.getElementById('usernameChangeForm').style.display = 'none';
+    const cooldownMsg = document.getElementById('usernameCooldownMsg');
+    cooldownMsg.style.display = 'block';
+    cooldownMsg.innerHTML = `<i class="fas fa-clock"></i> Username changed successfully. You can change it again in <b>30 days</b>.`;
+    const changeBtn = document.getElementById('enableUsernameEdit');
+    changeBtn.disabled = true; changeBtn.style.opacity = '0.4'; changeBtn.style.cursor = 'not-allowed';
+
+    toast('Username changed to ' + newUsername, 'ok');
+  });
+
+})();
+</script>
+</body>
+</html>

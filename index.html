@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DriveLog — The Car Community</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link rel="stylesheet" href="main.css"/>
+  <!-- Open Graph / Share meta tags -->
+  <meta property="og:type"        content="website"/>
+  <meta property="og:title"       content="DriveLog — The Car Community"/>
+  <meta property="og:description" content="Share your build. Find your community. The home of automotive culture."/>
+  <meta property="og:image"       content="https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=1200"/>
+  <meta name="twitter:card"       content="summary_large_image"/>
+  <meta name="description"        content="DriveLog is the car community for builders and enthusiasts. Post your build, browse the feed, and connect with other gearheads."/>
+  <meta name="theme-color"        content="#3b82f6"/>
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+<!-- LIGHTBOX -->
+<div id="lightbox" class="lightbox">
+  <div class="lb-backdrop" id="lbBackdrop"></div>
+  <button class="lb-close" id="lbClose"><i class="fas fa-times"></i></button>
+  <button class="lb-nav lb-prev" id="lbPrev"><i class="fas fa-chevron-left"></i></button>
+  <img class="lb-img" id="lbImg" src="" alt=""/>
+  <button class="lb-nav lb-next" id="lbNext"><i class="fas fa-chevron-right"></i></button>
+  <div class="lb-counter" id="lbCounter"></div>
+</div>
+
+<!-- MOBILE NAV -->
+<div class="mob-overlay" id="mobOverlay"></div>
+<div class="mob-nav" id="mobNav">
+  <div class="mob-nav-top">
+    <div class="logo">DRIVE<span>LOG</span></div>
+    <button id="mobClose"><i class="fas fa-times"></i></button>
+  </div>
+  <nav class="mob-links">
+    <a class="mob-link active" data-page="home"><i class="fas fa-home"></i> Feed</a>
+    <a class="mob-link" data-page="categories"><i class="fas fa-th-large"></i> Categories</a>
+    <a class="mob-link" data-page="social"><i class="fas fa-film"></i> Social</a>
+    <a class="mob-link" data-page="leaderboard"><i class="fas fa-trophy"></i> Leaderboard</a>
+    <a class="mob-link" data-page="garage"><i class="fas fa-warehouse"></i> Garage</a>
+    <a class="mob-link" data-page="messages"><i class="fas fa-envelope"></i> Messages <span class="nav-dm-badge" id="mobDmBadge" style="display:none"></span></a>
+    <a class="mob-link" data-page="whatsnew"><i class="fas fa-star"></i> What's New</a>
+    <a class="mob-link" data-page="admin"><i class="fas fa-shield-alt"></i> Admin</a>
+    <a class="mob-link" data-page="profile"><i class="fas fa-user"></i> Profile</a>
+  </nav>
+  <div class="mob-nav-foot">
+    <a href="settings.html" class="mob-link"><i class="fas fa-cog"></i> Settings</a>
+  </div>
+</div>
+
+<!-- SEARCH OVERLAY -->
+<div class="search-overlay" id="searchOverlay">
+  <div class="search-inner">
+    <button class="search-close-btn" id="searchClose"><i class="fas fa-times"></i></button>
+    <p class="search-eyebrow">Search DriveLog</p>
+    <div class="search-bar">
+      <i class="fas fa-search"></i>
+      <input type="text" id="searchInput" placeholder="Make, model, year, category, username…" autocomplete="off"/>
+    </div>
+    <div id="searchResults" class="search-results"></div>
+    <div class="search-tags">
+      <span class="stag" data-q="JDM"><i class="fas fa-sun pill-icon"></i>JDM</span>
+      <span class="stag" data-q="Euro"><i class="fas fa-compass pill-icon"></i>Euro</span>
+      <span class="stag" data-q="Muscle"><i class="fas fa-bolt pill-icon"></i>Muscle</span>
+      <span class="stag" data-q="Classic"><i class="fas fa-star pill-icon"></i>Classic</span>
+      <span class="stag" data-q="Off-Road"><i class="fas fa-mountain pill-icon"></i>Off-Road</span>
+      <span class="stag" data-q="Collector"><i class="fas fa-gem pill-icon"></i>Collector</span>
+      <span class="stag" data-q="Sports Car"><i class="fas fa-car pill-icon"></i>Sports Car</span>
+      <span class="stag" data-q="Drift"><i class="fas fa-wind pill-icon"></i>Drift</span>
+      <span class="stag" data-q="Track"><i class="fas fa-flag-checkered pill-icon"></i>Track</span>
+      <span class="stag" data-q="Electric"><i class="fas fa-plug pill-icon"></i>Electric</span>
+      <span class="stag" data-q="Supercar"><i class="fas fa-rocket pill-icon"></i>Supercar</span>
+    </div>
+  </div>
+</div>
+
+<!-- AUTH MODAL -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal-box">
+    <button class="modal-close" id="authClose"><i class="fas fa-times"></i></button>
+    <div class="modal-tabs">
+      <button class="mtab active" data-tab="login">Sign In</button>
+      <button class="mtab" data-tab="register">Create Account</button>
+    </div>
+    <!-- LOGIN -->
+    <div class="mform active" id="loginForm">
+      <h2>Welcome back.</h2>
+      <div class="google-sign-in-wrap">
+        <button class="google-btn" id="googleSignInBtn">
+          <svg class="google-icon" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Continue with Google
+        </button>
+      </div>
+      <div class="auth-divider"><span>or sign in with email</span></div>
+      <div class="auth-field">
+        <input class="finput" type="email" id="loginEmail" placeholder="Email address" autocomplete="email"/>
+        <div class="auth-field-err" id="loginEmailErr"></div>
+      </div>
+      <div class="auth-field">
+        <input class="finput" type="password" id="loginPassword" placeholder="Password" autocomplete="current-password"/>
+        <div class="auth-field-err" id="loginPasswordErr"></div>
+      </div>
+      <button class="btn-primary full" id="doLogin">Sign In</button>
+      <p class="form-hint">New here? <a href="#" class="switch-tab" data-target="register">Create an account</a></p>
+    </div>
+    <!-- REGISTER -->
+    <div class="mform" id="registerForm">
+      <h2>Join the community.</h2>
+      <div class="google-sign-in-wrap">
+        <button class="google-btn" id="googleRegisterBtn">
+          <svg class="google-icon" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+          Sign up with Google
+        </button>
+      </div>
+      <div class="auth-divider"><span>or create account with email</span></div>
+      <div class="auth-field">
+        <input class="finput" type="text" id="regUser" placeholder="Username (letters, numbers, _ only)" autocomplete="username"/>
+        <div class="auth-field-err" id="regUserErr"></div>
+      </div>
+      <div class="auth-field">
+        <input class="finput" type="email" id="regEmail" placeholder="Email address" autocomplete="email"/>
+        <div class="auth-field-err" id="regEmailErr"></div>
+      </div>
+      <div class="auth-field">
+        <input class="finput" type="password" id="regPassword" placeholder="Create a password (min 8 chars)" autocomplete="new-password"/>
+        <div class="auth-field-err" id="regPasswordErr"></div>
+      </div>
+      <button class="btn-primary full" id="doRegister">Create Account</button>
+      <p class="form-hint">Already a member? <a href="#" class="switch-tab" data-target="login">Sign in</a></p>
+    </div>
+  </div>
+</div>
+
+<!-- Post modal removed — now a full page -->
+
+<!-- CAR DETAIL MODAL -->
+<div class="modal-overlay" id="carModal">
+  <div class="modal-box xlarge">
+    <button class="modal-close" id="carClose"><i class="fas fa-times"></i></button>
+    <div class="car-layout">
+      <div class="car-left">
+        <div class="car-gallery-main" id="carGallMain"></div>
+        <div class="car-gallery-strip" id="carGallStrip"></div>
+        <div class="car-cat-bar" id="carCatBar"></div>
+      </div>
+      <div class="car-right">
+        <div class="car-poster-row">
+          <div class="car-poster-av" id="carPosterAv"></div>
+          <div>
+            <div class="car-poster-name" id="carPosterName"></div>
+            <div class="car-poster-date" id="carPosterDate"></div>
+          </div>
+          <div class="car-poster-socials" id="carPosterSocials"></div>
+        </div>
+        <h2 id="carTitle"></h2>
+        <div class="car-chips" id="carChips"></div>
+        <div class="car-mods" id="carMods"></div>
+        <p class="car-desc" id="carDesc"></p>
+        <div class="car-actions">
+          <button class="act-btn like-btn" id="carLike"><i class="fas fa-heart"></i> <span id="carLikeCount">0</span></button>
+          <button class="act-btn save-btn" id="carSave"><i class="fas fa-bookmark"></i> Save</button>
+          <button class="act-btn" id="carShare"><i class="fas fa-share"></i> Share</button>
+          <button class="act-btn report-btn" id="carReport"><i class="fas fa-flag"></i></button>
+        </div>
+        <div class="reactions-row" id="carReactionsRow"></div>
+        <!-- Detail tabs -->
+        <div class="detail-tabs">
+          <button class="dtab active" data-dtab="comments"><i class="fas fa-comment"></i> Comments</button>
+          <button class="dtab" data-dtab="timeline"><i class="fas fa-stream"></i> Build Timeline</button>
+        </div>
+        <div id="dtab-comments" class="dtab-panel active">
+          <div class="comments-list" id="commentsList"></div>
+          <div class="add-comment">
+            <input class="finput" type="text" id="commentInput" placeholder="Leave a comment…"/>
+            <button class="btn-primary small" id="submitComment">Post</button>
+          </div>
+        </div>
+        <div id="dtab-timeline" class="dtab-panel" style="display:none">
+          <div id="timelineContent"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="site-header" id="siteHeader">
+  <div class="header-inner">
+    <button class="hamburger" id="hamburger"><i class="fas fa-bars"></i></button>
+    <div class="logo" id="logoBtn">DRIVE<span>LOG</span></div>
+    <nav class="main-nav">
+      <a class="nav-link active" data-page="home">Feed</a>
+      <a class="nav-link" data-page="categories">Categories</a>
+      <a class="nav-link" data-page="social">Social</a>
+      <a class="nav-link" data-page="leaderboard">Leaderboard</a>
+      <a class="nav-link" data-page="garage">Garage</a>
+      <a class="nav-link" data-page="messages">Messages <span class="nav-dm-badge" id="navDmBadge" style="display:none"></span></a>
+      <a class="nav-link" data-page="whatsnew">What's New</a>
+    </nav>
+    <div class="header-right">
+      <button class="icon-btn" id="searchBtn"><i class="fas fa-search"></i></button>
+      <button class="icon-btn" id="themeToggleBtn" title="Toggle dark/light mode"><i class="fas fa-moon"></i></button>
+      <!-- Notification bell -->
+      <div class="notif-wrap">
+        <button class="icon-btn" id="notifBtn"><i class="fas fa-bell"></i><span class="notif-badge" id="notifBadge"></span></button>
+        <div class="notif-drop" id="notifDrop">
+          <div class="notif-drop-head"><span>Notifications</span><span class="notif-clear" id="notifClear">Mark all read</span></div>
+          <div id="notifList"><div class="notif-empty">No notifications yet</div></div>
+        </div>
+      </div>
+      <button class="btn-post" id="openPostBtn">+ Post Build</button>
+      <button class="btn-auth" id="openAuthBtn">Sign In</button>
+      <!-- Avatar + dropdown -->
+      <div class="av-wrap" id="avWrap" style="display:none">
+        <div class="av-chip" id="avChip">
+          <div class="av-circle" id="avCircle"></div>
+          <span id="avName"></span>
+          <i class="fas fa-chevron-down" style="font-size:.55rem;color:var(--muted)"></i>
+        </div>
+        <div class="av-drop" id="avDrop">
+          <div class="av-drop-item" id="ddProfile"><i class="fas fa-user"></i> My Profile</div>
+          <div class="av-drop-item" id="ddGarage"><i class="fas fa-warehouse"></i> My Garage</div>
+          <div class="av-drop-item" id="ddMessages"><i class="fas fa-envelope"></i> Messages</div>
+          <div class="av-drop-item" id="ddMembers"><i class="fas fa-users"></i> Members</div>
+          <div class="av-drop-item" id="ddChallenges"><i class="fas fa-trophy"></i> Challenges</div>
+          <div class="av-drop-item" id="ddCompare"><i class="fas fa-balance-scale"></i> Compare Builds</div>
+          <div class="av-drop-item" id="ddAdmin"><i class="fas fa-shield-alt"></i> Admin Panel</div>
+          <div class="av-drop-divider"></div>
+          <a href="settings.html" class="av-drop-item"><i class="fas fa-cog"></i> Settings</a>
+          <div class="av-drop-divider"></div>
+          <div class="av-drop-item danger" id="ddLogout"><i class="fas fa-sign-out-alt"></i> Sign Out</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- PAGES -->
+<main class="page-wrap">
+
+  <!-- HOME -->
+  <section class="page active" id="page-home">
+    <div class="hero">
+      <!-- Cinematic video background -->
+      <div class="hero-bg-video-wrap">
+        <video class="hero-bg-video" autoplay muted loop playsinline poster="">
+          <!-- Add hero-bg.mp4 to your DriveLog folder to activate -->
+        </video>
+        <div class="hero-bg-overlay"></div>
+      </div>
+      <div class="hero-orbs">
+        <div class="orb orb1"></div><div class="orb orb2"></div><div class="orb orb3"></div>
+      </div>
+      <div class="hero-inner">
+        <div class="hero-content">
+          <p class="hero-eyebrow"><span class="pulse-dot"></span> The Community For Car Enthusiasts</p>
+          <h1 class="hero-title">Built by Enthusiasts.<br/><em class="accent-text">For Enthusiasts.</em></h1>
+          <p class="hero-sub">Come share the cars that turn heads, spark conversations, and tell a story.</p>
+          <div class="hero-btns">
+            <button class="btn-primary large" id="heroPostBtn"><i class="fas fa-camera"></i> Share Your Build</button>
+            <button class="btn-ghost large" id="heroExploreBtn">Explore Builds</button>
+          </div>
+          <div class="hero-stats">
+            <div class="hstat"><span class="hstat-n" id="statBuilds">0</span><span class="hstat-l">Builds</span></div>
+            <div class="hstat-div"></div>
+            <div class="hstat"><span class="hstat-n" id="statMembers">0</span><span class="hstat-l">Members</span></div>
+            <div class="hstat-div"></div>
+            <div class="hstat"><span class="hstat-n" id="statLikes">0</span><span class="hstat-l">Likes</span></div>
+          </div>
+        </div>
+        <!-- BOTW — right side of hero -->
+        <div class="botw-card" id="botwCard">
+          <div class="botw-head">
+            <span class="botw-label"><i class="fas fa-star" style="color:var(--accent)"></i> Build of the Week</span>
+            <div class="botw-dots" id="botwDots"></div>
+          </div>
+          <div class="botw-slides" id="botwSlides"></div>
+          <div class="botw-foot">
+            <button class="botw-nav" id="botwPrev"><i class="fas fa-chevron-left"></i></button>
+            <button class="botw-nav" id="botwNext"><i class="fas fa-chevron-right"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hot Right Now — Cinematic Slider -->
+    <div class="hot-panel" id="hotPanel">
+      <div class="hot-panel-inner">
+        <div class="hot-section-head">
+          <span class="hot-section-label"><i class="fas fa-fire"></i> Hot Right Now</span>
+        </div>
+        <div class="hot-slider" id="hotSlider">
+          <div class="hot-empty" id="hotEmpty" style="display:none">
+            <i class="fas fa-fire"></i> No hot builds yet
+          </div>
+          <!-- Slides render here by JS -->
+          <div class="hot-controls" id="hotControls" style="display:none">
+            <div class="hot-ctrl-dots" id="hotDots"></div>
+            <button class="hot-ctrl-btn" id="hotPrev"><i class="fas fa-chevron-left"></i></button>
+            <button class="hot-ctrl-btn" id="hotNext"><i class="fas fa-chevron-right"></i></button>
+          </div>
+          <div class="hot-progress"><div class="hot-progress-fill" id="hotProgressFill"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="filter-bar" id="filterBar">
+      <div class="filter-scroll">
+        <button class="fpill active" data-cat="All">All Builds</button>
+        <button class="fpill" data-cat="JDM"><i class="fas fa-sun pill-icon"></i>JDM</button>
+        <button class="fpill" data-cat="Euro"><i class="fas fa-compass pill-icon"></i>Euro</button>
+        <button class="fpill" data-cat="Muscle"><i class="fas fa-bolt pill-icon"></i>Muscle</button>
+        <button class="fpill" data-cat="Classic"><i class="fas fa-star pill-icon"></i>Classic</button>
+        <button class="fpill" data-cat="Off-Road"><i class="fas fa-mountain pill-icon"></i>Off-Road</button>
+        <button class="fpill" data-cat="Collector"><i class="fas fa-gem pill-icon"></i>Collector</button>
+        <button class="fpill" data-cat="Sports Car"><i class="fas fa-car pill-icon"></i>Sports Car</button>
+        <button class="fpill" data-cat="Truck"><i class="fas fa-truck-pickup pill-icon"></i>Truck</button>
+        <button class="fpill" data-cat="SUV"><i class="fas fa-car-side pill-icon"></i>SUV</button>
+        <button class="fpill" data-cat="Drift"><i class="fas fa-wind pill-icon"></i>Drift</button>
+        <button class="fpill" data-cat="Track"><i class="fas fa-flag-checkered pill-icon"></i>Track</button>
+        <button class="fpill" data-cat="Drag"><i class="fas fa-tachometer-alt pill-icon"></i>Drag</button>
+        <button class="fpill" data-cat="Electric"><i class="fas fa-plug pill-icon"></i>Electric</button>
+        <button class="fpill" data-cat="Supercar"><i class="fas fa-rocket pill-icon"></i>Supercar</button>
+        <button class="fpill" data-cat="Hypercar"><i class="fas fa-rocket pill-icon"></i>Hypercar</button>
+      </div>
+    </div>
+
+    <!-- Feed layout -->
+    <div class="feed-wrap">
+      <div class="feed-main">
+        <div class="sort-row">
+          <button class="filter-trigger-btn" id="openFilterBtn"><i class="fas fa-sliders-h"></i> Filters <span class="filter-trigger-count" id="filterTriggerCount" style="display:none"></span></button>
+          <div class="sort-divider"></div>
+          <span class="sort-label">Sort</span>
+          <button class="sort-btn active" data-sort="newest">Newest</button>
+          <button class="sort-btn" data-sort="popular">Most Liked</button>
+          <button class="sort-btn" data-sort="discussed">Most Comments</button>
+        </div>
+        <div id="feedResultsInfo" class="feed-results-info" style="display:none"></div>
+        <div class="card-grid" id="feedGrid"></div>
+        <div class="load-more-wrap"><button class="btn-ghost" id="loadMoreBtn">Load More Builds</button></div>
+      </div>
+      <aside class="sidebar">
+        <div class="widget red-widget">
+          <div class="widget-title"><i class="fas fa-fire widget-icon"></i>Trending</div>
+          <div id="trendingList"></div>
+        </div>
+        <div class="widget">
+          <div class="widget-title"><i class="fas fa-users widget-icon"></i>Top Members</div>
+          <div id="topMembersList"></div>
+        </div>
+        <div class="widget gold-widget">
+          <div class="widget-sub-title"><i class="fas fa-star widget-icon"></i>Daily Pick</div>
+          <div id="dailyPick"></div>
+        </div>
+        <div class="widget">
+          <div class="widget-title"><i class="fas fa-calendar-alt widget-icon"></i>Upcoming Events</div>
+          <div id="sidebarEvents"></div>
+          <a class="widget-link" data-page="events">View all events →</a>
+        </div>
+        <div class="widget">
+          <div class="widget-title"><i class="fas fa-tags widget-icon"></i>Browse Tags</div>
+          <div class="tag-cloud" id="tagCloud"></div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- CATEGORIES -->
+  <section class="page" id="page-categories">
+    <div class="page-head"><h1>Categories</h1><p>Find your niche. Every build belongs somewhere.</p></div>
+    <div class="cat-grid" id="catGrid"></div>
+    <div id="catFeedWrap" style="display:none">
+      <div class="cat-feed-head">
+        <button class="btn-ghost small" id="backToCats"><i class="fas fa-arrow-left"></i> All Categories</button>
+        <h2 id="catFeedTitle"></h2>
+      </div>
+      <div class="card-grid" id="catFeedGrid"></div>
+    </div>
+  </section>
+
+  <!-- LEADERBOARD -->
+  <section class="page" id="page-leaderboard">
+    <div class="page-head"><h1>Leaderboard</h1><p>The most celebrated builds and members on DriveLog.</p></div>
+    <div class="lb-tabs">
+      <button class="lbtab active" data-lb="builds"><i class="fas fa-trophy tab-icon"></i>Top Builds</button>
+      <button class="lbtab" data-lb="members"><i class="fas fa-users tab-icon"></i>Top Members</button>
+      <button class="lbtab" data-lb="posts"><i class="fas fa-images tab-icon"></i>Most Posts</button>
+      <button class="lbtab" data-lb="oldest"><i class="fas fa-clock tab-icon"></i>Oldest Users</button>
+      <button class="lbtab" data-lb="categories"><i class="fas fa-th-large tab-icon"></i>By Category</button>
+    </div>
+    <div class="lb-panel active" id="lb-builds"><div id="lbBuilds"></div></div>
+    <div class="lb-panel" id="lb-members"><div id="lbMembers"></div></div>
+    <div class="lb-panel" id="lb-posts"><div id="lbPosts"></div></div>
+    <div class="lb-panel" id="lb-oldest"><div id="lbOldest"></div></div>
+    <div class="lb-panel" id="lb-categories"><div class="lb-cat-grid" id="lbCats"></div></div>
+  </section>
+
+  <!-- EVENTS -->
+  <section class="page" id="page-events">
+    <div class="page-head events-head">
+      <div><h1>Events</h1><p>Car meets, track days, and shows near you.</p></div>
+      <button class="btn-primary" id="createEvtBtn"><i class="fas fa-plus"></i> Create Event</button>
+    </div>
+    <div id="createEvtForm" style="display:none">
+      <div class="evt-form-inner">
+        <div class="evt-form-top">
+          <h3>Create New Event</h3>
+          <button class="modal-close-sm" id="createEvtClose"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="frow two">
+          <input class="finput" type="text" id="evtTitle" placeholder="Event name"/>
+          <select class="finput" id="evtType">
+            <option value="">— Type —</option>
+            <option>Car Meet</option><option>Track Day</option><option>Car Show</option>
+            <option>Cruise</option><option>Cars &amp; Coffee</option><option>Drag Event</option>
+          </select>
+        </div>
+        <div class="frow two">
+          <input class="finput" type="text" id="evtLocation" placeholder="Location / Venue"/>
+          <input class="finput" type="date" id="evtDate"/>
+        </div>
+        <div class="frow two">
+          <input class="finput" type="time" id="evtTime"/>
+          <input class="finput" type="number" id="evtCap" placeholder="Max attendees (optional)"/>
+        </div>
+        <textarea class="finput" id="evtDesc" rows="3" placeholder="Tell people what to expect…"></textarea>
+        <button class="btn-primary" id="submitEvt">Create Event <i class="fas fa-arrow-right"></i></button>
+      </div>
+    </div>
+    <div class="evt-filter-row">
+      <button class="fpill active" data-ecat="All">All</button>
+      <button class="fpill" data-ecat="Car Meet">Meet</button>
+      <button class="fpill" data-ecat="Track Day">Track</button>
+      <button class="fpill" data-ecat="Car Show">Show</button>
+      <button class="fpill" data-ecat="Cars &amp; Coffee">C&amp;C</button>
+      <button class="fpill" data-ecat="Cruise">Cruise</button>
+    </div>
+    <div class="evt-grid" id="evtGrid"></div>
+  </section>
+
+  <!-- MEMBERS -->
+  <!-- SOCIAL FEED PAGE (replaces members in nav) -->
+  <section class="page" id="page-social">
+    <div class="social-layout">
+      <!-- Left: vertical scroll feed -->
+      <div class="social-feed-col" id="socialFeedCol">
+        <div class="social-feed-header">
+          <h2 class="social-feed-title">Social</h2>
+          <div class="social-feed-tabs">
+            <button class="soc-tab active" data-soctab="foryou">For You</button>
+            <button class="soc-tab" data-soctab="following">Following</button>
+          </div>
+          <button class="social-upload-btn btn-primary small" id="socialUploadBtn">
+            <i class="fas fa-plus"></i> Post
+          </button>
+        </div>
+        <div class="social-posts-wrap" id="socialPostsWrap">
+          <!-- Posts render here -->
+        </div>
+        <div class="social-load-sentinel" id="socialSentinel"></div>
+      </div>
+      <!-- Right: sidebar -->
+      <div class="social-sidebar-col">
+        <div class="widget">
+          <div class="widget-title"><i class="fas fa-users widget-icon"></i>Who to Follow</div>
+          <div id="socialWhoToFollow"></div>
+        </div>
+        <div class="widget">
+          <div class="widget-title"><i class="fas fa-fire widget-icon"></i>Trending Tags</div>
+          <div class="social-tags" id="socialTags"></div>
+        </div>
+        <div class="widget">
+          <div class="widget-title"><i class="fas fa-hashtag widget-icon"></i>Trending Hashtags</div>
+          <div class="social-hashtags" id="socialHashtags"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MEMBERS PAGE (kept for internal use, search from DMs etc) -->
+  <section class="page" id="page-members" style="display:none">
+    <div class="page-head"><h1>Members</h1><p>Browse the DriveLog community.</p></div>
+    <div class="members-top">
+      <div class="members-search-wrap">
+        <i class="fas fa-search"></i>
+        <input type="text" id="membersSearch" placeholder="Search members…" class="members-search-input"/>
+      </div>
+      <div class="sort-row" style="margin-bottom:0">
+        <button class="sort-btn active" data-msort="likes">Top Liked</button>
+        <button class="sort-btn" data-msort="builds">Most Builds</button>
+        <button class="sort-btn" data-msort="newest">Newest</button>
+      </div>
+    </div>
+    <div class="members-grid" id="membersGrid"></div>
+  </section>
+
+  <!-- SOCIAL UPLOAD MODAL -->
+  <div class="modal-overlay" id="socialUploadModal">
+    <div class="modal-box" style="max-width:520px">
+      <button class="modal-close" id="socialUploadClose"><i class="fas fa-times"></i></button>
+      <h2 style="margin-bottom:6px">Share a Moment</h2>
+      <p style="color:var(--muted);font-size:.82rem;margin-bottom:16px">Photos or video from your build journey</p>
+      <div class="upload-zone upload-zone-sm" id="socialUploadZone">
+        <i class="fas fa-images"></i>
+        <p>Drop photos or video here or <span>browse</span></p>
+        <small>Images or 1 video · Max 50MB</small>
+        <input type="file" id="socialFileInput" accept="image/*,video/*" multiple hidden/>
+      </div>
+      <div id="socialUploadPreview" style="margin-top:10px"></div>
+      <textarea class="finput" id="socialCaption" rows="3" placeholder="Add a caption… what's going on with the build?" style="margin-top:12px;resize:none"></textarea>
+      <div class="social-upload-tags" id="socialUploadTags">
+        <div class="post-cat-label" style="margin-bottom:7px">Tag a category <span class="post-cat-hint">Optional</span></div>
+        <div class="social-tag-pills" id="socialTagPills"></div>
+      </div>
+      <progress id="socialUploadProgress" value="0" max="100" style="display:none;width:100%;height:6px;margin-top:8px;border-radius:3px;overflow:hidden"></progress>
+      <button class="btn-primary full" id="socialSubmitBtn" style="margin-top:10px"><i class="fas fa-paper-plane"></i> Share</button>
+    </div>
+  </div>
+
+  <!-- GARAGE -->
+  <section class="page" id="page-garage">
+    <div class="page-head"><h1>My Garage</h1><p>Your saved and liked builds in one place.</p></div>
+    <div class="garage-wrap">
+      <div class="garage-tabs">
+        <button class="gtab active" data-gtab="saved"><i class="fas fa-bookmark"></i> Saved</button>
+        <button class="gtab" data-gtab="liked"><i class="fas fa-heart"></i> Liked</button>
+        <button class="gtab" data-gtab="shared"><i class="fas fa-share-alt"></i> Shared</button>
+        <button class="gtab" data-gtab="parts"><i class="fas fa-wrench"></i> Saved Parts</button>
+      </div>
+      <div class="gpanel active" id="gpanel-saved">
+        <div class="card-grid" id="savedGrid"></div>
+        <div class="garage-empty" id="savedEmpty"><i class="fas fa-bookmark"></i><h3>No saved builds yet</h3><p>Bookmark any build to find it here.</p></div>
+      </div>
+      <div class="gpanel" id="gpanel-liked">
+        <div class="card-grid" id="likedGrid"></div>
+        <div class="garage-empty" id="likedEmpty"><i class="fas fa-heart"></i><h3>No liked builds yet</h3><p>Like any build to find it here.</p></div>
+      </div>
+      <div class="gpanel" id="gpanel-shared">
+        <div class="card-grid" id="sharedGrid"></div>
+        <div class="garage-empty" id="sharedEmpty"><i class="fas fa-share-alt"></i><h3>No builds shared yet</h3><p>Your posted builds will appear here.</p></div>
+      </div>
+      <div class="gpanel" id="gpanel-parts">
+        <div id="partsPanel"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROFILE -->
+  <section class="page" id="page-profile">
+    <!-- Cover / Banner -->
+    <div class="profile-cover" id="profileCover">
+      <div class="profile-cover-overlay"></div>
+    </div>
+    <!-- Profile header -->
+    <div class="profile-header-wrap">
+      <div class="profile-header-inner">
+        <div class="profile-av-wrap">
+          <div class="profile-av" id="profileAv"></div>
+        </div>
+        <div class="profile-header-info">
+          <div class="profile-name-row">
+            <h1 id="profileName" class="profile-username">Sign in to view profile</h1>
+            <div id="profileAwards" class="profile-awards-row"></div>
+          </div>
+          <p class="profile-bio" id="profileBio"></p>
+          <p class="profile-joined" id="profileJoined"></p>
+          <div class="profile-socials" id="profileSocials"></div>
+        </div>
+        <div class="profile-header-actions" id="profileActions" style="display:none">
+          <button class="btn-primary small" id="followBtn" style="display:none"><i class="fas fa-user-plus"></i> Follow</button>
+          <a href="settings.html" class="btn-ghost small"><i class="fas fa-pencil-alt"></i> Edit Profile</a>
+        </div>
+      </div>
+      <!-- Stats bar -->
+      <div class="profile-stats-bar" id="profileStats"></div>
+    </div>
+    <!-- Body -->
+    <div class="profile-body">
+      <div id="noLoginMsg" class="no-login">
+        <i class="fas fa-user-circle"></i>
+        <h2>You're not signed in</h2>
+        <p>Create an account or sign in to view your profile.</p>
+        <button class="btn-primary" id="profileSignInBtn">Sign In / Register</button>
+      </div>
+      <div id="profilePostsWrap" style="display:none">
+        <div id="profileAgeNotice" class="age-notice" style="display:none"></div>
+        <div class="profile-builds-head">
+          <h2 id="profileBuildsLabel">Builds</h2>
+        </div>
+        <div class="card-grid" id="profileGrid"></div>
+        <div class="no-builds" id="noBuilds" style="display:none">
+          <i class="fas fa-car"></i><p>No builds posted yet.</p>
+          <button class="btn-primary" id="profilePostBtn">Post Your First Build</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+
+  <!-- POST BUILD PAGE -->
+  <section class="page" id="page-post">
+    <div class="post-page-wrap">
+      <div class="post-page-back">
+        <button class="btn-ghost small" id="postPageBack"><i class="fas fa-arrow-left"></i> Back</button>
+      </div>
+      <div class="post-page-layout">
+
+        <!-- LEFT: Photos -->
+        <div class="post-page-left">
+          <div class="post-section-head">
+            <span class="post-section-num">01</span>
+            <div>
+              <div class="post-section-title">Photos</div>
+              <div class="post-section-sub">Up to 50 images · First is cover</div>
+            </div>
+          </div>
+          <div class="upload-zone" id="uploadZone">
+            <i class="fas fa-images"></i>
+            <p>Drop photos here or <span>browse files</span></p>
+            <small>JPG, PNG, WEBP — up to 50 images</small>
+            <input type="file" id="fileInput" accept="image/*" multiple hidden/>
+          </div>
+          <div class="preview-strip" id="previewStrip" style="display:none">
+            <div class="preview-thumbs" id="previewThumbs"></div>
+            <button class="add-more-btn" id="addMoreBtn"><i class="fas fa-plus"></i> Add More Photos</button>
+          </div>
+        </div>
+
+        <!-- VIDEO UPLOAD -->
+        <div class="post-page-video-section">
+          <div class="post-section-head" style="margin-bottom:12px">
+            <span class="post-section-num" style="opacity:.5">▶</span>
+            <div>
+              <div class="post-section-title">Media <span class="post-section-optional">Optional</span></div>
+              <div class="post-section-sub">Up to 3 videos · MP4, MOV, WEBM · Max 50MB each</div>
+            </div>
+          </div>
+          <div class="upload-zone upload-zone-video" id="videoUploadZone">
+            <i class="fas fa-film"></i>
+            <p>Drop videos here or <span>browse files</span></p>
+            <small>MP4, MOV, WEBM — up to 3 videos, 50MB each</small>
+            <input type="file" id="videoFileInput" accept="video/mp4,video/quicktime,video/webm" multiple hidden/>
+          </div>
+          <div class="video-preview-list" id="videoPreviewList" style="display:none"></div>
+        </div>
+
+        <!-- RIGHT: Details -->
+        <div class="post-page-right">
+
+          <!-- Basic info -->
+          <div class="post-section">
+            <div class="post-section-head">
+              <span class="post-section-num">02</span>
+              <div>
+                <div class="post-section-title">Vehicle Info</div>
+                <div class="post-section-sub">Basic details about your car</div>
+              </div>
+            </div>
+            <input class="finput" type="text" id="postTitle" placeholder="Build title (e.g. 1993 Honda NSX — Time Attack)"/>
+            <div class="frow">
+              <input class="finput" type="text" id="postMake"  placeholder="Make (e.g. Honda)"/>
+              <input class="finput" type="text" id="postModel" placeholder="Model (e.g. NSX)"/>
+              <input class="finput" type="text" id="postYear"  placeholder="Year (e.g. 1993)"/>
+            </div>
+            <div class="post-cat-field">
+              <div class="post-cat-label">Categories <span class="post-cat-hint">Select one or more</span></div>
+              <div class="post-cat-pills" id="postCatPills">
+                <button type="button" class="post-cat-pill" data-cat="JDM"><i class="fas fa-sun pill-icon"></i>JDM</button>
+                <button type="button" class="post-cat-pill" data-cat="Euro"><i class="fas fa-compass pill-icon"></i>Euro</button>
+                <button type="button" class="post-cat-pill" data-cat="Muscle"><i class="fas fa-bolt pill-icon"></i>Muscle</button>
+                <button type="button" class="post-cat-pill" data-cat="Classic"><i class="fas fa-star pill-icon"></i>Classic</button>
+                <button type="button" class="post-cat-pill" data-cat="Off-Road"><i class="fas fa-mountain pill-icon"></i>Off-Road</button>
+                <button type="button" class="post-cat-pill" data-cat="Collector"><i class="fas fa-gem pill-icon"></i>Collector</button>
+                <button type="button" class="post-cat-pill" data-cat="Sports Car"><i class="fas fa-car pill-icon"></i>Sports Car</button>
+                <button type="button" class="post-cat-pill" data-cat="Truck"><i class="fas fa-truck-pickup pill-icon"></i>Truck</button>
+                <button type="button" class="post-cat-pill" data-cat="SUV"><i class="fas fa-car-side pill-icon"></i>SUV</button>
+                <button type="button" class="post-cat-pill" data-cat="Drift"><i class="fas fa-wind pill-icon"></i>Drift</button>
+                <button type="button" class="post-cat-pill" data-cat="Track"><i class="fas fa-flag-checkered pill-icon"></i>Track</button>
+                <button type="button" class="post-cat-pill" data-cat="Drag"><i class="fas fa-tachometer-alt pill-icon"></i>Drag</button>
+                <button type="button" class="post-cat-pill" data-cat="Electric"><i class="fas fa-plug pill-icon"></i>Electric</button>
+                <button type="button" class="post-cat-pill" data-cat="Supercar"><i class="fas fa-rocket pill-icon"></i>Supercar</button>
+                <button type="button" class="post-cat-pill" data-cat="Hypercar"><i class="fas fa-rocket pill-icon"></i>Hypercar</button>
+              </div>
+              <!-- Hidden input to hold selected value for JS compat -->
+              <input type="hidden" id="postCategory" value=""/>
+            </div>
+            <input class="finput" type="text" id="postHP" placeholder="Power output (e.g. 450whp, 520hp)" style="margin-top:12px"/>
+            <div class="frow two" style="margin-top:12px;gap:10px">
+              <select class="finput" id="postTransmission">
+                <option value="">— Transmission —</option>
+                <option value="Manual">Manual</option>
+                <option value="Automatic">Automatic</option>
+                <option value="DCT">DCT (Dual-Clutch)</option>
+                <option value="CVT">CVT</option>
+                <option value="Sequential">Sequential</option>
+              </select>
+              <input class="finput" type="number" id="postMileage" placeholder="Mileage (e.g. 45000)" min="0" max="9999999"/>
+            </div>
+            <select class="finput" id="postState" style="margin-top:12px">
+              <option value="">— Build State (optional) —</option>
+              <option>Alabama</option><option>Alaska</option><option>Arizona</option><option>Arkansas</option><option>California</option><option>Colorado</option><option>Connecticut</option><option>Delaware</option><option>Florida</option><option>Georgia</option><option>Hawaii</option><option>Idaho</option><option>Illinois</option><option>Indiana</option><option>Iowa</option><option>Kansas</option><option>Kentucky</option><option>Louisiana</option><option>Maine</option><option>Maryland</option><option>Massachusetts</option><option>Michigan</option><option>Minnesota</option><option>Mississippi</option><option>Missouri</option><option>Montana</option><option>Nebraska</option><option>Nevada</option><option>New Hampshire</option><option>New Jersey</option><option>New Mexico</option><option>New York</option><option>North Carolina</option><option>North Dakota</option><option>Ohio</option><option>Oklahoma</option><option>Oregon</option><option>Pennsylvania</option><option>Rhode Island</option><option>South Carolina</option><option>South Dakota</option><option>Tennessee</option><option>Texas</option><option>Utah</option><option>Vermont</option><option>Virginia</option><option>Washington</option><option>West Virginia</option><option>Wisconsin</option><option>Wyoming</option>
+            </select>
+            <div class="perf-fields-label">Performance <span class="post-section-optional">Optional</span></div>
+            <div class="frow three" style="margin-top:8px;gap:10px">
+              <input class="finput" type="text" id="postZeroSixty" placeholder="0–60 mph (e.g. 3.8s)"/>
+              <input class="finput" type="text" id="postQuarterMile" placeholder="¼ mile (e.g. 11.4s)"/>
+              <input class="finput" type="text" id="postTopSpeed" placeholder="Top speed (e.g. 180mph)"/>
+            </div>
+            <textarea class="finput" id="postDesc" rows="4" placeholder="Tell the story — build journey, inspiration, what makes this car special to you…"></textarea>
+
+            <!-- Social Links Toggle -->
+            <div class="post-social-toggle-row">
+              <div class="post-social-toggle-info">
+                <i class="fas fa-share-alt post-social-icon"></i>
+                <div>
+                  <div class="post-social-toggle-label">Show my social links on this post</div>
+                  <div class="post-social-toggle-sub">Your Instagram, TikTok, YouTube and website will appear on the listing</div>
+                </div>
+              </div>
+              <label class="toggle post-social-toggle">
+                <input type="checkbox" id="postShowSocials" checked/>
+                <div class="toggle-track"></div>
+              </label>
+            </div>
+            <div class="post-social-preview" id="postSocialPreview"></div>
+          </div>
+
+          <!-- Modifications — dynamic list entry per category -->
+          <div class="post-section">
+            <div class="post-section-head">
+              <span class="post-section-num">03</span>
+              <div>
+                <div class="post-section-title">Modifications</div>
+                <div class="post-section-sub">Type each mod and press Enter or + to add it as a list item. Leave any section blank if none.</div>
+              </div>
+            </div>
+            <div class="mods-grid">
+
+              <div class="mod-cat-card" data-modkey="engine">
+                <div class="mod-cat-head"><span class="mod-cat-icon"><i class="fas fa-cog"></i></span><div><div class="mod-cat-title">Engine</div><div class="mod-cat-sub">Intake, exhaust, forced induction, internals, tune</div></div></div>
+                <div class="mod-item-list" id="modList-engine"></div>
+                <div class="mod-entry-row"><input class="mod-item-input" type="text" placeholder="e.g. Garrett GT3582 turbocharger"/><button type="button" class="mod-add-btn" data-key="engine"><i class="fas fa-plus"></i></button></div>
+              </div>
+
+              <div class="mod-cat-card" data-modkey="drivetrain">
+                <div class="mod-cat-head"><span class="mod-cat-icon"><i class="fas fa-circle-notch"></i></span><div><div class="mod-cat-title">Drivetrain</div><div class="mod-cat-sub">Transmission, clutch, differential, axles</div></div></div>
+                <div class="mod-item-list" id="modList-drivetrain"></div>
+                <div class="mod-entry-row"><input class="mod-item-input" type="text" placeholder="e.g. Cusco 2-way LSD"/><button type="button" class="mod-add-btn" data-key="drivetrain"><i class="fas fa-plus"></i></button></div>
+              </div>
+
+              <div class="mod-cat-card" data-modkey="suspension">
+                <div class="mod-cat-head"><span class="mod-cat-icon"><i class="fas fa-sliders-h"></i></span><div><div class="mod-cat-title">Suspension &amp; Brakes</div><div class="mod-cat-sub">Coilovers, swaybars, brakes, alignment</div></div></div>
+                <div class="mod-item-list" id="modList-suspension"></div>
+                <div class="mod-entry-row"><input class="mod-item-input" type="text" placeholder="e.g. Öhlins DFV coilovers"/><button type="button" class="mod-add-btn" data-key="suspension"><i class="fas fa-plus"></i></button></div>
+              </div>
+
+              <div class="mod-cat-card" data-modkey="wheels">
+                <div class="mod-cat-head"><span class="mod-cat-icon"><i class="fas fa-circle"></i></span><div><div class="mod-cat-title">Wheels &amp; Tires</div><div class="mod-cat-sub">Brand, size, offset, tire spec</div></div></div>
+                <div class="mod-item-list" id="modList-wheels"></div>
+                <div class="mod-entry-row"><input class="mod-item-input" type="text" placeholder="e.g. Enkei RPF1 18x9.5 +22"/><button type="button" class="mod-add-btn" data-key="wheels"><i class="fas fa-plus"></i></button></div>
+              </div>
+
+              <div class="mod-cat-card" data-modkey="exterior">
+                <div class="mod-cat-head"><span class="mod-cat-icon"><i class="fas fa-paint-brush"></i></span><div><div class="mod-cat-title">Exterior</div><div class="mod-cat-sub">Aero, paint, wrap, lighting, bodywork</div></div></div>
+                <div class="mod-item-list" id="modList-exterior"></div>
+                <div class="mod-entry-row"><input class="mod-item-input" type="text" placeholder="e.g. Varis carbon front bumper"/><button type="button" class="mod-add-btn" data-key="exterior"><i class="fas fa-plus"></i></button></div>
+              </div>
+
+              <div class="mod-cat-card" data-modkey="interior">
+                <div class="mod-cat-head"><span class="mod-cat-icon"><i class="fas fa-couch"></i></span><div><div class="mod-cat-title">Interior</div><div class="mod-cat-sub">Seats, cage, gauges, steering, audio</div></div></div>
+                <div class="mod-item-list" id="modList-interior"></div>
+                <div class="mod-entry-row"><input class="mod-item-input" type="text" placeholder="e.g. Recaro SP-G seats"/><button type="button" class="mod-add-btn" data-key="interior"><i class="fas fa-plus"></i></button></div>
+              </div>
+
+              <div class="mod-cat-card mod-cat-card--full" data-modkey="other">
+                <div class="mod-cat-head"><span class="mod-cat-icon"><i class="fas fa-wrench"></i></span><div><div class="mod-cat-title">Other</div><div class="mod-cat-sub">Safety, electronics, cooling, fuel system, misc</div></div></div>
+                <div class="mod-item-list" id="modList-other"></div>
+                <div class="mod-entry-row"><input class="mod-item-input" type="text" placeholder="e.g. Fire suppression system"/><button type="button" class="mod-add-btn" data-key="other"><i class="fas fa-plus"></i></button></div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Submit -->
+          <div class="post-submit-row">
+            <div class="post-submit-info" id="postSubmitInfo"></div>
+            <button class="btn-primary large" id="submitPost">
+              <i class="fas fa-upload"></i> Publish Build
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAR DETAIL PAGE -->
+  <section class="page" id="page-car">
+    <div class="car-page-wrap">
+      <div class="car-page-back">
+        <button class="btn-ghost small" id="carPageBack"><i class="fas fa-arrow-left"></i> Back to Feed</button>
+      </div>
+      <div class="car-page-layout">
+        <!-- Left: Gallery -->
+        <div class="car-page-left">
+          <div class="car-page-gallery-main" id="cpGallMain"></div>
+          <div class="car-page-gallery-strip" id="cpGallStrip"></div>
+        </div>
+        <!-- Right: Title, poster, description, actions -->
+        <div class="car-page-right">
+          <div class="car-page-header">
+            <div class="car-page-cat" id="cpCat"></div>
+            <h1 class="car-page-title" id="cpTitle"></h1>
+            <div class="car-page-poster-row">
+              <div class="car-page-av" id="cpAv"></div>
+              <div>
+                <span class="car-page-poster-name" id="cpPosterName"></span>
+                <span class="car-page-poster-date" id="cpPosterDate"></span><span class="post-edited-tag" id="cpEditedBadge" style="display:none"><i class="fas fa-pencil-alt"></i> Edited</span>
+              </div>
+              <div class="car-page-poster-socials" id="cpSocials"></div>
+              <button class="btn-ghost small" id="cpDmBtn" style="display:none"><i class="fas fa-envelope"></i> DM</button>
+              <button class="btn-primary small" id="cpEditBtn" style="display:none"><i class="fas fa-pencil-alt"></i> Edit Build</button>
+            </div>
+          </div>
+          <!-- Description lives in the right column -->
+          <p class="car-page-desc" id="cpDesc"></p>
+          <div class="car-page-actions">
+            <button class="act-btn like-btn" id="cpLike"><i class="fas fa-heart"></i> <span id="cpLikeCount">0</span></button>
+            <button class="act-btn save-btn" id="cpSave"><i class="fas fa-bookmark"></i> Save</button>
+            <button class="act-btn" id="cpShare"><i class="fas fa-share"></i> Share</button>
+            <button class="act-btn" id="cpCompare" title="Compare this build"><i class="fas fa-balance-scale"></i></button>
+            <button class="act-btn report-btn" id="cpReport" title="Report this build"><i class="fas fa-flag"></i></button>
+            <button class="act-btn delete-btn" id="cpDelete" title="Delete this build" style="display:none"><i class="fas fa-trash-alt"></i></button>
+          </div>
+          <div class="reactions-row" id="cpReactionsRow"></div>
+        </div>
+      </div>
+
+      <!-- Full-width specs + mods below the two-column layout -->
+      <div class="car-page-details" id="cpDetails">
+        <div class="cp-details-label">Vehicle Specs &amp; Modifications</div>
+        <!-- Specs table renders here -->
+        <div id="cpChips"></div>
+        <!-- Mods grid below specs -->
+        <div class="car-page-mods" id="cpMods"></div>
+      </div>
+      <!-- Tabs: Comments | Timeline -->
+      <div class="car-page-tabs-wrap">
+        <div class="car-page-tabs">
+          <button class="cptab active" data-cptab="comments"><i class="fas fa-comment"></i> Comments <span id="cpCommentCount"></span></button>
+          <button class="cptab" data-cptab="timeline"><i class="fas fa-stream"></i> Build Timeline</button>
+        </div>
+        <div id="cptab-comments" class="cptab-panel">
+          <div class="cp-comments-list" id="cpCommentsList"></div>
+          <div class="cp-add-comment" id="cpAddComment">
+            <div class="cp-comment-input-row">
+              <div class="cp-comment-av" id="cpCommentAv"></div>
+              <input class="finput" type="text" id="cpCommentInput" placeholder="Leave a comment…"/>
+              <button class="cp-comment-img-btn" id="cpCommentImgBtn" title="Add image (post owners only)" style="display:none">
+                <i class="fas fa-image"></i>
+              </button>
+              <input type="file" id="cpCommentImgInput" accept="image/*" hidden/>
+              <button class="btn-primary small" id="cpSubmitComment">Post</button>
+            </div>
+            <img id="cpCommentImgPreview" class="comment-img-preview" src="" alt="" style="display:none"/>
+          </div>
+        </div>
+        <div id="cptab-timeline" class="cptab-panel" style="display:none">
+          <div id="cpTimelineContent"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MESSAGES PAGE -->
+  <section class="page" id="page-messages">
+    <div class="messages-layout">
+      <!-- Conversation list -->
+      <div class="msg-list-col" id="msgListCol">
+        <div class="msg-list-head">
+          <h2>Messages</h2>
+          <button class="btn-primary small" id="newDmBtn"><i class="fas fa-edit"></i> New Message</button>
+        </div>
+        <div class="msg-search-wrap">
+          <i class="fas fa-search"></i>
+          <input type="text" id="msgSearch" placeholder="Search conversations…" class="msg-search-input"/>
+        </div>
+        <div id="msgConvList"><div class="msg-empty"><i class="fas fa-envelope-open"></i><p>No messages yet</p></div></div>
+      </div>
+      <!-- Chat window -->
+      <div class="msg-chat-col" id="msgChatCol">
+        <div id="msgNoneSelected" class="msg-none-selected">
+          <i class="fas fa-comments"></i>
+          <h3>Select a conversation</h3>
+          <p>Choose someone to message from your contacts, or start a new conversation.</p>
+        </div>
+        <div id="msgChatWrap" style="display:none">
+          <div class="msg-chat-head">
+            <button class="msg-back-btn" id="msgBackBtn"><i class="fas fa-arrow-left"></i></button>
+            <div class="msg-chat-av" id="msgChatAv"></div>
+            <div class="msg-chat-head-info">
+              <div class="msg-chat-name" id="msgChatName"></div>
+              <div class="msg-chat-status" id="msgChatStatus"></div>
+            </div>
+            <button class="btn-ghost small" id="msgViewProfileBtn"><i class="fas fa-user"></i> Profile</button>
+          </div>
+          <div class="msg-chat-body" id="msgChatBody"></div>
+          <div class="msg-img-preview-row" id="msgImgPreviewRow" style="display:none">
+            <img id="msgImgPreview" src="" alt="" class="msg-img-preview"/>
+            <button class="msg-img-remove" id="msgImgRemove"><i class="fas fa-times"></i></button>
+          </div>
+          <div class="msg-chat-foot">
+            <button class="msg-attach-btn" id="msgAttachBtn" title="Send image"><i class="fas fa-image"></i></button>
+            <input type="file" id="msgFileInput" accept="image/*" hidden/>
+            <input class="msg-input" type="text" id="msgInput" placeholder="Message…"/>
+            <button class="msg-send-btn" id="msgSendBtn"><i class="fas fa-paper-plane"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- New DM modal -->
+    <div class="msg-new-modal" id="msgNewModal" style="display:none">
+      <div class="msg-new-inner">
+        <div class="msg-new-head">
+          <h3>New Message</h3>
+          <button class="fs-close" id="msgNewClose"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="msg-new-search-wrap">
+          <i class="fas fa-search"></i>
+          <input type="text" id="msgNewSearch" placeholder="Search members…" class="msg-search-input"/>
+        </div>
+        <div id="msgNewResults"></div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- COMPARE PAGE -->
+  <section class="page" id="page-compare">
+    <div class="page-head">
+      <h1>Compare Builds</h1>
+      <p>Pick two builds side by side and let the specs speak for themselves.</p>
+    </div>
+    <div class="compare-search-row">
+      <div class="compare-slot" id="compareSlot1">
+        <div class="compare-slot-label">Build 1</div>
+        <div class="compare-search-wrap">
+          <i class="fas fa-search"></i>
+          <input type="text" id="compareSearch1" class="compare-search-input" placeholder="Search for a build…"/>
+        </div>
+        <div class="compare-results" id="compareResults1"></div>
+        <div class="compare-selected" id="compareSelected1" style="display:none"></div>
+      </div>
+      <div class="compare-vs">VS</div>
+      <div class="compare-slot" id="compareSlot2">
+        <div class="compare-slot-label">Build 2</div>
+        <div class="compare-search-wrap">
+          <i class="fas fa-search"></i>
+          <input type="text" id="compareSearch2" class="compare-search-input" placeholder="Search for a build…"/>
+        </div>
+        <div class="compare-results" id="compareResults2"></div>
+        <div class="compare-selected" id="compareSelected2" style="display:none"></div>
+      </div>
+    </div>
+    <div id="compareTable" style="display:none"></div>
+  </section>
+
+  <!-- CHALLENGES PAGE -->
+  <section class="page" id="page-challenges">
+    <div class="page-head challenges-head">
+      <div><h1>Weekly Challenges</h1><p>Submit your build, earn votes, climb the board.</p></div>
+      <div id="challengeTimer" class="challenge-timer"></div>
+    </div>
+    <div class="challenges-layout">
+      <div class="challenges-main">
+        <div id="currentChallenge" class="current-challenge"></div>
+        <div id="challengeEntries" class="challenge-entries"></div>
+      </div>
+      <div class="challenges-sidebar">
+        <div class="widget">
+          <div class="widget-title"><i class="fas fa-trophy widget-icon"></i>Past Winners</div>
+          <div id="pastWinners"></div>
+        </div>
+        <div class="widget">
+          <div class="widget-title"><i class="fas fa-list-ul widget-icon"></i>How It Works</div>
+          <div class="challenge-rules">
+            <div class="rule-item"><span class="rule-num">1</span><span>A new challenge drops every Monday</span></div>
+            <div class="rule-item"><span class="rule-num">2</span><span>Submit an eligible build from your garage</span></div>
+            <div class="rule-item"><span class="rule-num">3</span><span>Community votes via reactions through Sunday</span></div>
+            <div class="rule-item"><span class="rule-num">4</span><span>Most <i class="fas fa-fire" style="color:var(--accent)"></i> reactions wins the weekly badge</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHATS NEW PAGE -->
+  <section class="page" id="page-whatsnew">
+    <div class="whatsnew-wrap">
+      <div class="whatsnew-hero">
+        <div class="whatsnew-hero-inner">
+          <span class="whatsnew-eyebrow"><i class="fas fa-bolt"></i> Latest Updates</span>
+          <h1 class="whatsnew-title">What's New on DriveLog</h1>
+          <p class="whatsnew-sub">New features, community events, and exclusive gear — all in one place.</p>
+        </div>
+      </div>
+      <div class="whatsnew-body">
+        <div class="whatsnew-col-main">
+          <div class="whatsnew-section-label"><i class="fas fa-code-branch"></i> Recent Updates</div>
+          <div class="whatsnew-updates">
+            <div class="wn-update-card">
+              <div class="wn-update-badge new">New</div>
+              <div class="wn-update-content">
+                <div class="wn-update-title">Hot Right Now Slider</div>
+                <div class="wn-update-desc">The home page now features a cinematic full-width slider showing the 10 hottest builds on the platform, auto-advancing every 8 seconds.</div>
+                <div class="wn-update-date">May 2025</div>
+              </div>
+            </div>
+            <div class="wn-update-card">
+              <div class="wn-update-badge new">New</div>
+              <div class="wn-update-content">
+                <div class="wn-update-title">Social Feed</div>
+                <div class="wn-update-desc">Share quick moments from your build journey — photos, videos, captions, and hashtags. Follow other enthusiasts and explore the For You feed.</div>
+                <div class="wn-update-date">May 2025</div>
+              </div>
+            </div>
+            <div class="wn-update-card">
+              <div class="wn-update-badge update">Update</div>
+              <div class="wn-update-content">
+                <div class="wn-update-title">Build Specs &amp; Mods</div>
+                <div class="wn-update-desc">Build pages now show a full specs table with performance stats, transmission, mileage, state, and detailed modifications by category.</div>
+                <div class="wn-update-date">May 2025</div>
+              </div>
+            </div>
+            <div class="wn-update-card">
+              <div class="wn-update-badge update">Update</div>
+              <div class="wn-update-content">
+                <div class="wn-update-title">Compare Builds</div>
+                <div class="wn-update-desc">Side-by-side comparison now includes 0-60 mph, quarter mile, top speed, transmission, and mileage with automatic winner highlighting.</div>
+                <div class="wn-update-date">May 2025</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="whatsnew-col-side">
+          <div class="widget">
+            <div class="widget-title"><i class="fas fa-calendar widget-icon"></i> Upcoming Events</div>
+            <div class="wn-events-list">
+              <div class="wn-event-item">
+                <div class="wn-event-date-badge"><span class="wn-event-month">JUN</span><span class="wn-event-day">14</span></div>
+                <div class="wn-event-info">
+                  <div class="wn-event-title">Summer Showcase 2025</div>
+                  <div class="wn-event-loc"><i class="fas fa-map-marker-alt"></i> Los Angeles, CA</div>
+                </div>
+              </div>
+              <div class="wn-event-item">
+                <div class="wn-event-date-badge"><span class="wn-event-month">JUL</span><span class="wn-event-day">4</span></div>
+                <div class="wn-event-info">
+                  <div class="wn-event-title">Independence Car Meet</div>
+                  <div class="wn-event-loc"><i class="fas fa-map-marker-alt"></i> Dallas, TX</div>
+                </div>
+              </div>
+              <div class="wn-event-item">
+                <div class="wn-event-date-badge"><span class="wn-event-month">AUG</span><span class="wn-event-day">22</span></div>
+                <div class="wn-event-info">
+                  <div class="wn-event-title">Track Day — DriveLog Edition</div>
+                  <div class="wn-event-loc"><i class="fas fa-map-marker-alt"></i> Miami, FL</div>
+                </div>
+              </div>
+            </div>
+            <p class="wn-events-note">More events coming soon.</p>
+          </div>
+          <div class="widget">
+            <div class="widget-title"><i class="fas fa-tshirt widget-icon"></i> DriveLog Merch</div>
+            <div class="wn-merch-body">
+              <div class="wn-merch-logo">DRIVE<span>LOG</span></div>
+              <p class="wn-merch-desc">Rep the community. Official DriveLog gear is coming soon — tees, hoodies, hats, and stickers.</p>
+              <div class="wn-merch-coming"><i class="fas fa-clock"></i> Coming Soon</div>
+              <!-- Replace with live link when shop is ready: -->
+              <!-- <a href="https://your-shop.com" target="_blank" class="btn-primary full" style="margin-top:14px">Shop Now <i class="fas fa-arrow-right"></i></a> -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADMIN PAGE -->
+  <section class="page" id="page-admin">
+    <div class="page-head">
+      <h1>Admin Panel</h1>
+      <p>Moderation queue, reports, and community management.</p>
+    </div>
+    <div class="admin-layout">
+      <div class="admin-nav">
+        <button class="admin-tab active" data-atab="reports"><i class="fas fa-flag"></i> Reports <span id="reportsBadge" class="admin-badge"></span></button>
+        <button class="admin-tab" data-atab="posts"><i class="fas fa-images"></i> All Posts</button>
+        <button class="admin-tab" data-atab="users"><i class="fas fa-users"></i> Users</button>
+        <button class="admin-tab" data-atab="activity"><i class="fas fa-chart-line"></i> Activity</button>
+      </div>
+      <div class="admin-content">
+        <div class="admin-panel active" id="apanel-reports">
+          <div id="adminReportsList"><p class="admin-empty">No reports yet.</p></div>
+        </div>
+        <div class="admin-panel" id="apanel-posts">
+          <div class="admin-search-row">
+            <input class="finput" type="text" id="adminPostSearch" placeholder="Search posts…" style="max-width:320px"/>
+          </div>
+          <div id="adminPostsList"></div>
+        </div>
+        <div class="admin-panel" id="apanel-users">
+          <div id="adminUsersList"></div>
+        </div>
+        <div class="admin-panel" id="apanel-activity">
+          <div id="adminActivity"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- FOOTER -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="logo">DRIVE<span>LOG</span></div>
+      <p>The home of automotive culture.<br/>Share your passion. Find your community.</p>
+      <div class="footer-socials">
+        <a href="#" class="fsoc"><i class="fab fa-instagram"></i></a>
+        <a href="#" class="fsoc"><i class="fab fa-tiktok"></i></a>
+        <a href="#" class="fsoc"><i class="fab fa-youtube"></i></a>
+      </div>
+    </div>
+    <div class="footer-links"><h4>Explore</h4><a href="#">JDM</a><a href="#">Euro</a><a href="#">Muscle</a><a href="#">Classics</a><a href="#">Leaderboard</a></div>
+    <div class="footer-links"><h4>Community</h4><a href="#">Guidelines</a><a href="#">About</a><a href="#">Events</a><a href="#">Members</a></div>
+    <div class="footer-links"><h4>Account</h4><a href="settings.html">Settings</a><a href="#">Privacy</a><a href="#">Help</a></div>
+  </div>
+  <div class="footer-bottom"><p>© 2026 DriveLog. Built for car people, by car people.</p></div>
+</footer>
+
+
+
+<!-- REPORT MODAL -->
+<div class="modal-overlay" id="reportModal">
+  <div class="modal-box" style="max-width:420px">
+    <button class="modal-close" id="reportClose"><i class="fas fa-times"></i></button>
+    <div class="report-modal-head">
+      <h2>Report</h2>
+      <div class="report-target-label" id="reportTargetLabel"></div>
+    </div>
+    <p style="color:var(--muted);font-size:.82rem;margin-bottom:16px">Help us keep DriveLog safe. Reports are reviewed by our moderation team.</p>
+    <div class="report-options" id="reportOptions">
+      <label class="report-opt"><input type="radio" name="reportReason" value="spam"/> <span>Spam or self-promotion</span></label>
+      <label class="report-opt"><input type="radio" name="reportReason" value="inappropriate"/> <span>Inappropriate content</span></label>
+      <label class="report-opt"><input type="radio" name="reportReason" value="off-topic"/> <span>Not car-related</span></label>
+      <label class="report-opt"><input type="radio" name="reportReason" value="stolen"/> <span>Stolen content / not their car</span></label>
+      <label class="report-opt"><input type="radio" name="reportReason" value="harassment"/> <span>Harassment or abuse</span></label>
+      <label class="report-opt"><input type="radio" name="reportReason" value="fake"/> <span>Fake account or impersonation</span></label>
+      <label class="report-opt"><input type="radio" name="reportReason" value="other"/> <span>Other</span></label>
+    </div>
+    <textarea class="finput" id="reportDetails" rows="2" placeholder="Additional details (optional)…" style="margin-top:10px;resize:none"></textarea>
+    <button class="btn-primary full" id="submitReport" style="margin-top:12px"><i class="fas fa-flag"></i> Submit Report</button>
+  </div>
+</div>
+
+
+<!-- ONBOARDING MODAL -->
+<div class="modal-overlay" id="onboardingModal">
+  <div class="modal-box onboarding-box">
+    <div class="onb-hero">
+      <div class="onb-logo">DRIVE<span>LOG</span></div>
+      <p class="onb-tagline">The home of automotive culture.</p>
+    </div>
+    <div class="onb-features">
+      <div class="onb-feat"><span class="onb-feat-icon"><i class="fas fa-camera-retro"></i></span><div><b>Post Your Build</b><p>Share photos, specs, and your full mod list with the community.</p></div></div>
+      <div class="onb-feat"><span class="onb-feat-icon"><i class="fas fa-fire"></i></span><div><b>React & Connect</b><p>Like, react, comment, and follow builders you admire.</p></div></div>
+      <div class="onb-feat"><span class="onb-feat-icon"><i class="fas fa-trophy"></i></span><div><b>Compete Weekly</b><p>Enter weekly challenges and earn recognition from the community.</p></div></div>
+    </div>
+    <div class="onb-actions">
+      <button class="btn-primary large" onclick="closeOnboarding('register')"><i class="fas fa-user-plus"></i> Create Free Account</button>
+      <button class="btn-ghost large" onclick="closeOnboarding('browse')">Browse First</button>
+    </div>
+    <p class="onb-footer">Already a member? <a href="#" onclick="closeOnboarding('register');setTimeout(()=>{document.querySelectorAll('.mtab').forEach(t=>t.classList.toggle('active',t.dataset.tab==='login'));document.querySelectorAll('.mform').forEach(x=>x.classList.remove('active'));document.getElementById('loginForm').classList.add('active');},50);return false;">Sign in</a></p>
+  </div>
+</div>
+
+<!-- FILTER SIDEBAR OVERLAY -->
+<div class="filter-overlay" id="filterOverlay"></div>
+
+<!-- FILTER SIDEBAR -->
+<aside class="filter-sidebar" id="filterSidebar">
+  <div class="fs-head">
+    <h3 class="fs-title"><i class="fas fa-sliders-h"></i> Filter Builds</h3>
+    <button class="fs-close" id="filterClose"><i class="fas fa-times"></i></button>
+  </div>
+  <div class="fs-body">
+
+    <!-- Active filters badge row -->
+    <div class="fs-active" id="fsActive"></div>
+
+    <!-- Category — multi-select -->
+    <div class="fs-group">
+      <div class="fs-group-label">Categories <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
+      <div class="fs-pills" id="fsCategoryPills">
+        <button class="fs-pill" data-fc="JDM"><i class="fas fa-sun pill-icon"></i>JDM</button>
+        <button class="fs-pill" data-fc="Euro"><i class="fas fa-compass pill-icon"></i>Euro</button>
+        <button class="fs-pill" data-fc="Muscle"><i class="fas fa-bolt pill-icon"></i>Muscle</button>
+        <button class="fs-pill" data-fc="Classic"><i class="fas fa-star pill-icon"></i>Classic</button>
+        <button class="fs-pill" data-fc="Off-Road"><i class="fas fa-mountain pill-icon"></i>Off-Road</button>
+        <button class="fs-pill" data-fc="Collector"><i class="fas fa-gem pill-icon"></i>Collector</button>
+        <button class="fs-pill" data-fc="Sports Car"><i class="fas fa-car pill-icon"></i>Sports Car</button>
+        <button class="fs-pill" data-fc="Truck"><i class="fas fa-truck-pickup pill-icon"></i>Truck</button>
+        <button class="fs-pill" data-fc="SUV"><i class="fas fa-car-side pill-icon"></i>SUV</button>
+        <button class="fs-pill" data-fc="Drift"><i class="fas fa-wind pill-icon"></i>Drift</button>
+        <button class="fs-pill" data-fc="Track"><i class="fas fa-flag-checkered pill-icon"></i>Track</button>
+        <button class="fs-pill" data-fc="Drag"><i class="fas fa-tachometer-alt pill-icon"></i>Drag</button>
+        <button class="fs-pill" data-fc="Electric"><i class="fas fa-plug pill-icon"></i>Electric</button>
+        <button class="fs-pill" data-fc="Supercar"><i class="fas fa-rocket pill-icon"></i>Supercar</button>
+        <button class="fs-pill" data-fc="Hypercar"><i class="fas fa-rocket pill-icon"></i>Hypercar</button>
+      </div>
+    </div>
+
+    <div class="fs-divider"></div>
+
+    <!-- Make — populated dynamically from posts -->
+    <div class="fs-group">
+      <div class="fs-group-label">Make</div>
+      <div class="fs-select-wrap"><i class="fas fa-chevron-down fs-select-icon"></i>
+        <select class="fs-select" id="fsMake">
+          <option value="">All Makes</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Year Range — min/max set from real post data -->
+    <div class="fs-group">
+      <div class="fs-group-label">Year Range</div>
+      <div class="fs-range-row">
+        <div class="fs-range-wrap">
+          <input type="range" id="fsYearMin" min="1900" max="2026" value="1900" step="1"/>
+          <div class="fs-range-labels"><span id="fsYearMinVal">Any</span><span>Min Year</span></div>
+        </div>
+        <div class="fs-range-wrap">
+          <input type="range" id="fsYearMax" min="1900" max="2026" value="2026" step="1"/>
+          <div class="fs-range-labels"><span id="fsYearMaxVal">Any</span><span>Max Year</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="fs-divider"></div>
+
+    <!-- Horsepower — max set from highest HP in posts -->
+    <div class="fs-group">
+      <div class="fs-group-label">Min Power</div>
+      <div class="fs-range-single">
+        <input type="range" id="fsHP" min="0" max="1000" value="0" step="25"/>
+        <div class="fs-range-labels"><span id="fsHPVal">Any</span><span>horsepower</span></div>
+      </div>
+    </div>
+
+    <div class="fs-divider"></div>
+
+    <!-- Min Likes — max set from highest liked post -->
+    <div class="fs-group">
+      <div class="fs-group-label">Minimum Likes</div>
+      <div class="fs-range-single">
+        <input type="range" id="fsLikes" min="0" max="1000" value="0" step="10"/>
+        <div class="fs-range-labels"><span id="fsLikesVal">Any</span><span>likes</span></div>
+      </div>
+    </div>
+
+    <div class="fs-divider"></div>
+
+    <!-- Has Photos -->
+    <div class="fs-group">
+      <div class="fs-group-label">Media</div>
+      <div class="fs-pills">
+        <button class="fs-pill active" data-fmedia="">All Posts</button>
+        <button class="fs-pill" data-fmedia="photos">Has Photos</button>
+        <button class="fs-pill" data-fmedia="multi">Multiple Photos</button>
+      </div>
+    </div>
+
+    <div class="fs-divider"></div>
+
+    <!-- Has Mods listed -->
+    <div class="fs-group">
+      <div class="fs-group-label">Build Type</div>
+      <div class="fs-pills">
+        <button class="fs-pill active" data-fbuild="">All</button>
+        <button class="fs-pill" data-fbuild="modified">Modified</button>
+        <button class="fs-pill" data-fbuild="stock">Stock / Collector</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="fs-foot">
+    <button class="btn-ghost small" id="filterReset">Reset Filters</button>
+    <button class="btn-primary small" id="filterApply">Apply <span id="filterCount"></span></button>
+  </div>
+</aside>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="data.js"></script>
+<script src="db.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
