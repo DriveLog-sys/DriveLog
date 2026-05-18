@@ -390,10 +390,10 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 @media(max-width:560px){.hot-panel{display:none}}
 
 /* ─── FILTER BAR ─────────────────────────────────────────────── */
-.filter-bar{background:var(--surface);border-bottom:1px solid var(--subtle);position:sticky;top:62px;z-index:90}
-.filter-scroll{max-width:1440px;margin:0 auto;padding:9px 24px;display:flex;gap:7px;overflow-x:auto;scrollbar-width:none}
+.filter-bar{background:var(--surface);border-bottom:1px solid var(--subtle);position:sticky;top:62px;z-index:90;overflow:hidden}
+.filter-scroll{max-width:1440px;margin:0 auto;padding:9px 24px;display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .filter-scroll::-webkit-scrollbar{display:none}
-.fpill{padding:6px 17px;border-radius:30px;font-family:var(--cond);font-size:.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--card);border:1px solid var(--border);white-space:nowrap;cursor:pointer;transition:all var(--tr)}
+.fpill{padding:6px 17px;border-radius:30px;font-family:var(--cond);font-size:.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--card);border:1px solid var(--border);white-space:nowrap;cursor:pointer;transition:all var(--tr);flex-shrink:0}
 .fpill:hover{color:var(--text);border-color:var(--mid)}
 .fpill.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 4px 14px var(--accent-glow)}
 
@@ -524,6 +524,8 @@ body.dark .red-widget,body.dark .gold-widget{
 /* ─── CATEGORIES ─────────────────────────────────────────────── */
 .cat-grid{max-width:1440px;margin:0 auto;padding:0 48px 60px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
 .cat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);padding:26px 20px;cursor:pointer;transition:all var(--tr);position:relative;overflow:hidden}
+/* Slightly stronger border in light mode so cards are always visible */
+body:not(.dark) .cat-card{border-color:#c8cdd6}
 .cat-card::before{content:'';position:absolute;inset:0;background:var(--cc,var(--accent));opacity:0;transition:opacity var(--tr)}
 .cat-card:hover::before{opacity:.06}
 .cat-card:hover{border-color:var(--cc,var(--accent));transform:translateY(-3px)}
@@ -1380,9 +1382,9 @@ body.dark .card:hover{box-shadow:0 12px 40px rgba(0,0,0,.55)}
 /* ═══════════════════════════════════════════════════════════════
    NOTIFICATIONS — improved
    ═══════════════════════════════════════════════════════════════ */
-.notif-cats{display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid var(--subtle);overflow-x:auto;scrollbar-width:none}
+.notif-cats{display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid var(--subtle);overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
 .notif-cats::-webkit-scrollbar{display:none}
-.notif-cat-btn{padding:3px 10px;border-radius:30px;font-family:var(--cond);font-size:.69rem;font-weight:700;letter-spacing:.5px;text-transform:capitalize;color:var(--muted);background:transparent;border:1px solid transparent;white-space:nowrap;cursor:pointer;transition:all var(--tr)}
+.notif-cat-btn{padding:3px 10px;border-radius:30px;font-family:var(--cond);font-size:.69rem;font-weight:700;letter-spacing:.5px;text-transform:capitalize;color:var(--muted);background:transparent;border:1px solid transparent;white-space:nowrap;cursor:pointer;transition:all var(--tr);flex-shrink:0}
 .notif-cat-btn.active{background:var(--accent-soft);border-color:var(--accent-glow);color:var(--accent)}
 .notif-cat-btn:hover{color:var(--text)}
 .notif-actions{display:flex;align-items:center;flex-shrink:0;padding-left:4px}
@@ -2045,8 +2047,9 @@ body.dark .lbtab,
 body.dark .soc-tab,
 body.dark .cptab { color:#b0b0b0 }
 body.dark .lbtab.active,
-body.dark .soc-tab.active,
 body.dark .cptab.active { color:var(--accent) }
+/* Active social tab always white text (blue bg) */
+body.dark .soc-tab.active { background:var(--accent); color:#fff !important }
 
 /* Card title stays bright */
 body.dark .card-title,

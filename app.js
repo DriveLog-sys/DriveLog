@@ -4565,26 +4565,37 @@ function renderWhatsNew() {
 // Re-sync user state when returning from settings tab
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState !== 'visible') return;
-  // Read fresh user from cache (settings.html may have updated it)
+  syncFromSettingsCache();
+});
+
+// pageshow fires when returning via history.back() — more reliable than visibilitychange
+window.addEventListener('pageshow', e => {
+  if (e.persisted) {
+    // Page was restored from bfcache (browser back button)
+    syncFromSettingsCache();
+  }
+});
+
+function syncFromSettingsCache() {
   try {
     const cached = JSON.parse(localStorage.getItem('dl_user_cache') || localStorage.getItem('dl_user') || 'null');
     if (cached && cached.username) {
-      // Merge cached data into S.user without wiping session
+      // Always prefer locally-saved avatar
+      const localAvatar = localStorage.getItem('dl_avatar_url') || cached.avatarUrl;
       if (S.user) {
-        S.user = { ...S.user, ...cached };
-        S.users = S.users.map(u => u.username === S.user.username ? { ...u, ...cached } : u);
+        S.user = { ...S.user, ...cached, avatarUrl: localAvatar || S.user.avatarUrl };
+        S.users = S.users.map(u => u.username === S.user.username ? { ...u, ...S.user } : u);
       } else {
-        // Was signed out — restore from cache
-        S.user = cached;
+        S.user = { ...cached, avatarUrl: localAvatar || cached.avatarUrl };
         const userInList = S.users.find(u => u.username === cached.username);
-        if (!userInList) S.users.push(cached);
+        if (!userInList) S.users.push(S.user);
+        else S.users = S.users.map(u => u.username === S.user.username ? { ...u, ...S.user } : u);
       }
       updateAuthUI(); updateProfilePage();
     }
-    // Also re-apply prefs in case appearance was changed in settings
     applyPrefs(); syncThemeToggle();
   } catch(e) {}
-});
+}
 
 // ─── PROFILE MEDIA SECTION ────────────────────────────────────
 function renderProfileMedia(username) {

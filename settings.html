@@ -788,7 +788,13 @@
   document.getElementById('backBtn').addEventListener('click', function(e) {
     e.preventDefault();
     autoSaveAll();
-    setTimeout(() => { window.location.href = 'index.html'; }, 300);
+    // Use history.back() if we came from index.html — avoids full reload
+    // which was wiping the avatar and session state
+    if (document.referrer && document.referrer.includes(window.location.hostname)) {
+      setTimeout(() => window.history.back(), 200);
+    } else {
+      setTimeout(() => { window.location.href = 'index.html'; }, 200);
+    }
   });
 
   function autoSaveAll() {
@@ -800,6 +806,9 @@
     u.tiktok    = (document.getElementById('fTikTok')?.value || '').trim();
     u.youtube   = (document.getElementById('fYouTube')?.value || '').trim();
     u.website   = (document.getElementById('fWebsite')?.value || '').trim();
+    // Preserve avatar URL — never let it get wiped
+    const savedAvatar = localStorage.getItem('dl_avatar_url');
+    if (savedAvatar && !u.avatarUrl) u.avatarUrl = savedAvatar;
     saveUser(u);
     const users = getUsers();
     const idx = users.findIndex(x => x.username === u.username);
