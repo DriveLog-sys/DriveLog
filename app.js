@@ -122,26 +122,31 @@ async function loadStorage() {
     }
   } catch(e) { console.warn('Session restore failed', e); }
 
-  // ── STEP 3: Fire all data requests in PARALLEL ───────────────
+  // ── STEP 3: Fire all data requests in PARALLEL, render as each arrives ──
   const [postsResult, usersResult, evtsResult] = await Promise.allSettled([
-    DB.getPosts({ limit: 60 }),
+    DB.getPosts({ limit: 60 }).then(rows => {
+      // Render feed AS SOON as posts arrive — don't wait for users/events
+      const freshPosts = rows.map(dbPostToApp).filter(Boolean);
+      freshPosts.forEach(fp => {
+        const local = S.posts.find(p => p.id === fp.id);
+        if (local) {
+          if (local.likedBy.length > fp.likedBy.length) fp.likedBy = local.likedBy;
+          if (local.savedBy.length > fp.savedBy.length) fp.savedBy = local.savedBy;
+        }
+      });
+      S.posts = freshPosts;
+      S._loading = false;
+      try { localStorage.setItem('dl_posts_cache', JSON.stringify(S.posts)); } catch(_) {}
+      // Re-render feed immediately with real data
+      renderFeed(); renderSidebar(); renderBOTW(); renderHotPanel(); animateStats();
+      return rows;
+    }),
     DB.getAllProfiles(),
     DB.getEvents(),
   ]);
 
-  if (postsResult.status === 'fulfilled') {
-    const freshPosts = postsResult.value.map(dbPostToApp).filter(Boolean);
-    freshPosts.forEach(fp => {
-      const local = S.posts.find(p => p.id === fp.id);
-      if (local) {
-        if (local.likedBy.length > fp.likedBy.length) fp.likedBy = local.likedBy;
-        if (local.savedBy.length > fp.savedBy.length) fp.savedBy = local.savedBy;
-      }
-    });
-    S.posts = freshPosts;
-    S._loading = false;
-    try { localStorage.setItem('dl_posts_cache', JSON.stringify(S.posts)); } catch(_) {}
-  }
+  // Posts already processed in the .then() above — skip duplicate processing
+  // if (postsResult.status === 'fulfilled') { ... } already done inline
 
   if (usersResult.status === 'fulfilled') {
     S.users = usersResult.value.map(dbUserToApp).filter(Boolean);
@@ -149,23 +154,27 @@ async function loadStorage() {
     if (S.user) {
       const fresh = S.users.find(u => u.username === S.user.username);
       if (fresh) {
-        // Always keep the locally-saved avatar — never let Supabase overwrite
-        // it with null/empty (user may have just changed it in settings)
+        // Capture local avatar BEFORE any merge — it must always win
         const localAvatar = localStorage.getItem('dl_avatar_url') || S.user.avatarUrl || null;
         S.user = {
-          ...S.user,
-          ...fresh,
-          // Local wins for these if Supabase doesn't have them yet
+          ...fresh,      // Supabase base
+          ...S.user,     // Local overrides (bio, social links edited in settings)
+          // These fields: local wins if set, Supabase wins only if local is empty
           avatarUrl:  localAvatar || fresh.avatarUrl || null,
-          bio:        fresh.bio       || S.user.bio       || '',
-          instagram:  fresh.instagram || S.user.instagram || '',
-          tiktok:     fresh.tiktok    || S.user.tiktok    || '',
-          youtube:    fresh.youtube   || S.user.youtube   || '',
-          website:    fresh.website   || S.user.website   || '',
-          location:   fresh.location  || S.user.location  || '',
+          bio:        S.user.bio       || fresh.bio       || '',
+          instagram:  S.user.instagram || fresh.instagram || '',
+          tiktok:     S.user.tiktok    || fresh.tiktok    || '',
+          youtube:    S.user.youtube   || fresh.youtube   || '',
+          website:    S.user.website   || fresh.website   || '',
+          location:   S.user.location  || fresh.location  || '',
+          // Always take Supabase for these auth/admin fields
+          id:         fresh.id         || S.user.id,
+          isAdmin:    fresh.isAdmin    || S.user.isAdmin  || false,
+          awards:     fresh.awards.length ? fresh.awards : (S.user.awards || []),
         };
         localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
         localStorage.setItem('dl_user', JSON.stringify(S.user));
+        updateAuthUI();
       }
     }
   }
