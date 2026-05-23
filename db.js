@@ -9,20 +9,21 @@ const SUPABASE_KEY  = 'sb_publishable_wF4jFiIEuucuJXJJo8sn0Q_b2PRnh6-';
 const STORAGE_BUCKET = 'post-images';
 
 // ─── CLIENT ───────────────────────────────────────────────────
-// Safe init — works even if Supabase CDN fails to load
 let _sb = null;
-try {
-  if (typeof supabase !== 'undefined') {
-    _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  } else {
-    console.warn('Supabase library not loaded — running in offline/local mode');
-  }
-} catch(e) {
-  console.warn('Supabase init failed:', e);
+function _initSb() {
+  if (_sb) return _sb;
+  try {
+    if (typeof supabase !== 'undefined') {
+      _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    }
+  } catch(e) { console.warn('Supabase init failed:', e); }
+  return _sb;
 }
+// Initialize immediately (works if CDN is in <head>)
+_initSb();
 
 // Helper: returns true if Supabase is available
-function _sbOk() { return !!_sb; }
+function _sbOk() { _initSb(); return !!_sb; }
 
 // ─── AUTH ─────────────────────────────────────────────────────
 const DB = {
