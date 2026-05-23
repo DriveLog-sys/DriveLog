@@ -400,16 +400,36 @@
       <button class="lbtab" data-lb="posts"><i class="fas fa-images tab-icon"></i>Most Posts</button>
       <button class="lbtab" data-lb="oldest"><i class="fas fa-clock tab-icon"></i>Oldest Users</button>
       <button class="lbtab" data-lb="categories"><i class="fas fa-th-large tab-icon"></i>By Category</button>
-      <button class="lbtab lbtab-special" data-lb="botm"><i class="fas fa-calendar-star tab-icon"></i>Build of the Month</button>
-      <button class="lbtab lbtab-special" data-lb="atg"><i class="fas fa-medal tab-icon"></i>All Time Greats</button>
     </div>
     <div class="lb-panel active" id="lb-builds"><div id="lbBuilds"></div></div>
     <div class="lb-panel" id="lb-members"><div id="lbMembers"></div></div>
     <div class="lb-panel" id="lb-posts"><div id="lbPosts"></div></div>
     <div class="lb-panel" id="lb-oldest"><div id="lbOldest"></div></div>
     <div class="lb-panel" id="lb-categories"><div class="lb-cat-grid" id="lbCats"></div></div>
-    <div class="lb-panel" id="lb-botm"><div id="lbBotm"></div></div>
-    <div class="lb-panel" id="lb-atg"><div id="lbAtg"></div></div>
+
+    <!-- Build of the Month — standalone section below tabs -->
+    <div class="lb-standalone-section" id="lbBotmSection">
+      <div class="lb-standalone-head">
+        <div class="lb-standalone-icon"><i class="fas fa-calendar-star"></i></div>
+        <div>
+          <div class="lb-standalone-title">Build of the Month</div>
+          <div class="lb-standalone-sub">Selected by DriveLog admins each month</div>
+        </div>
+      </div>
+      <div id="lbBotm"></div>
+    </div>
+
+    <!-- All Time Greats — standalone section below BOTM -->
+    <div class="lb-standalone-section" id="lbAtgSection">
+      <div class="lb-standalone-head">
+        <div class="lb-standalone-icon atg"><i class="fas fa-medal"></i></div>
+        <div>
+          <div class="lb-standalone-title">All Time Greats</div>
+          <div class="lb-standalone-sub">The most legendary builds on DriveLog — chosen by admins</div>
+        </div>
+      </div>
+      <div id="lbAtg"></div>
+    </div>
   </section>
 
   <!-- EVENTS -->

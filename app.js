@@ -2230,96 +2230,89 @@ function renderLeaderboard() {
 
 // ─── BUILD OF THE MONTH ────────────────────────────────────────
 function renderLbBotm() {
-  const el2 = el('lbBotm'); if (!el2) return;
+  const wrap = el('lbBotm'); if (!wrap) return;
   const stored = JSON.parse(localStorage.getItem('dl_botm')||'null');
   const post   = stored ? S.posts.find(p=>p.id===stored.postId) : null;
 
-  el2.innerHTML = `
-    <div class="lb-special-section">
-      <div class="lb-special-head">
-        <div class="lb-special-icon"><i class="fas fa-calendar-star"></i></div>
-        <div>
-          <div class="lb-special-title">Build of the Month</div>
-          <div class="lb-special-sub">Selected by DriveLog admins</div>
-        </div>
+  if (!post) {
+    wrap.innerHTML = `<div class="lb-special-empty">
+      <i class="fas fa-calendar-star"></i>
+      <p>No Build of the Month selected yet.</p>
+      ${S.user?.isAdmin ? '<p style="color:var(--muted);font-size:.8rem">Go to Admin → Posts to select one</p>' : ''}
+    </div>`;
+    return;
+  }
+
+  const cfg = catCfg(post.category);
+  wrap.innerHTML = `
+    <div class="botm-cinematic" data-id="${post.id}">
+      <div class="botm-cinematic-img">
+        ${post.images?.[0]
+          ? `<img src="${post.images[0]}" alt="${esc(post.title)}"/>`
+          : `<div class="botm-cinematic-ph" style="background:${phBg(post.id)}"></div>`}
+        <div class="botm-cinematic-grad"></div>
       </div>
-      ${post ? `
-        <div class="botm-feature-card" data-id="${post.id}">
-          <div class="botm-feature-img">
-            ${post.images?.[0] ? `<img src="${post.images[0]}" alt="${esc(post.title)}"/>` : `<div class="botm-feature-ph" style="background:${phBg(post.id)}"></div>`}
-            <div class="botm-feature-overlay">
-              <span class="cat-badge ${catCfg(post.category).badge}" style="position:static">${post.category}</span>
-            </div>
-          </div>
-          <div class="botm-feature-info">
-            <div class="botm-feature-label"><i class="fas fa-calendar-star"></i> Build of the Month</div>
-            <div class="botm-feature-name">${esc(post.title)}</div>
-            <div class="botm-feature-meta">
-              <span>by <b>${esc(post.user)}</b></span>
-              ${post.year ? `<span>${post.year}</span>` : ''}
-              ${post.hp ? `<span>${post.hp}</span>` : ''}
-              <span>♥ ${post.likes.toLocaleString()} likes</span>
-            </div>
-            ${post.desc ? `<p class="botm-feature-desc">${esc(post.desc.slice(0,180))}${post.desc.length>180?'…':''}</p>` : ''}
-            <button class="btn-primary" onclick="openCarPage(S.posts.find(p=>p.id==='${post.id}'))">
-              <i class="fas fa-eye"></i> View Build
-            </button>
-          </div>
-        </div>` : `
-        <div class="lb-special-empty">
-          <i class="fas fa-calendar-star"></i>
-          <p>No Build of the Month selected yet.</p>
-          ${S.user?.isAdmin ? '<p style="color:var(--muted);font-size:.8rem">Go to Admin → Posts to select one</p>' : ''}
-        </div>`}
+      <div class="botm-cinematic-info">
+        <div class="botm-cinematic-badge"><i class="fas fa-calendar-star"></i> Build of the Month</div>
+        <h2 class="botm-cinematic-title">${esc(post.title)}</h2>
+        <div class="botm-cinematic-meta">
+          <span class="cat-badge ${cfg.badge}" style="position:static">${post.category}</span>
+          <span>by <b>${esc(post.user)}</b></span>
+          ${post.year ? `<span>${post.year}</span>` : ''}
+          ${post.hp   ? `<span>${esc(post.hp)}</span>` : ''}
+          <span>♥ ${post.likes.toLocaleString()} likes</span>
+        </div>
+        ${post.desc ? `<p class="botm-cinematic-desc">${esc(post.desc.slice(0,220))}${post.desc.length>220?'…':''}</p>` : ''}
+        <button class="btn-primary botm-cinematic-btn">
+          <i class="fas fa-eye"></i> View Full Build
+        </button>
+      </div>
     </div>`;
 
-  el2.querySelector('.botm-feature-card')?.addEventListener('click', e => {
-    if (e.target.closest('button')) return;
-    const p = S.posts.find(x=>x.id===post?.id); if(p) openCarPage(p);
+  const card = wrap.querySelector('.botm-cinematic');
+  wrap.querySelector('.botm-cinematic-btn').addEventListener('click', e => {
+    e.stopPropagation();
+    openCarPage(post);
   });
+  card.addEventListener('click', () => openCarPage(post));
 }
 
 // ─── ALL TIME GREATS ───────────────────────────────────────────
 function renderLbAtg() {
-  const el2 = el('lbAtg'); if (!el2) return;
+  const wrap = el('lbAtg'); if (!wrap) return;
   const stored = JSON.parse(localStorage.getItem('dl_atg')||'[]');
   const posts  = stored.map(id => S.posts.find(p=>p.id===id)).filter(Boolean);
 
-  el2.innerHTML = `
-    <div class="lb-special-section">
-      <div class="lb-special-head">
-        <div class="lb-special-icon atg"><i class="fas fa-medal"></i></div>
-        <div>
-          <div class="lb-special-title">All Time Greats</div>
-          <div class="lb-special-sub">The most legendary builds on DriveLog — chosen by admins</div>
+  if (!posts.length) {
+    wrap.innerHTML = `<div class="lb-special-empty">
+      <i class="fas fa-medal"></i>
+      <p>No All Time Greats selected yet.</p>
+      ${S.user?.isAdmin ? '<p style="color:var(--muted);font-size:.8rem">Go to Admin → Posts to add builds</p>' : ''}
+    </div>`;
+    return;
+  }
+
+  wrap.innerHTML = `<div class="atg-grid">${posts.map(p => `
+    <div class="atg-card" data-id="${p.id}">
+      <div class="atg-card-img">
+        ${p.images?.[0]
+          ? `<img src="${p.images[0]}" alt="${esc(p.title)}" loading="lazy"/>`
+          : `<div class="atg-card-ph" style="background:${phBg(p.id)}"></div>`}
+        <div class="atg-card-badge"><i class="fas fa-medal"></i></div>
+        <div class="atg-card-overlay">
+          <span class="cat-badge ${catCfg(p.category).badge}" style="position:static">${p.category}</span>
         </div>
       </div>
-      ${posts.length ? `
-        <div class="atg-grid">${posts.map(p=>`
-          <div class="atg-card" data-id="${p.id}">
-            <div class="atg-card-img">
-              ${p.images?.[0] ? `<img src="${p.images[0]}" alt="${esc(p.title)}" loading="lazy"/>` : `<div class="atg-card-ph" style="background:${phBg(p.id)}"></div>`}
-              <div class="atg-card-badge"><i class="fas fa-medal"></i></div>
-              <div class="atg-card-overlay">
-                <span class="cat-badge ${catCfg(p.category).badge}" style="position:static">${p.category}</span>
-              </div>
-            </div>
-            <div class="atg-card-info">
-              <div class="atg-card-title">${esc(p.title)}</div>
-              <div class="atg-card-meta">by ${esc(p.user)} · ♥ ${p.likes.toLocaleString()}</div>
-            </div>
-          </div>`).join('')}
-        </div>` : `
-        <div class="lb-special-empty">
-          <i class="fas fa-medal"></i>
-          <p>No All Time Greats selected yet.</p>
-          ${S.user?.isAdmin ? '<p style="color:var(--muted);font-size:.8rem">Go to Admin → Posts to add builds</p>' : ''}
-        </div>`}
-    </div>`;
+      <div class="atg-card-info">
+        <div class="atg-card-title">${esc(p.title)}</div>
+        <div class="atg-card-meta">by ${esc(p.user)} · ♥ ${p.likes.toLocaleString()}</div>
+      </div>
+    </div>`).join('')}
+  </div>`;
 
-  el2.querySelectorAll('.atg-card').forEach(card => {
+  wrap.querySelectorAll('.atg-card').forEach(card => {
     card.addEventListener('click', () => {
-      const p = S.posts.find(x=>x.id===card.dataset.id); if(p) openCarPage(p);
+      const p = posts.find(x=>x.id===card.dataset.id); if(p) openCarPage(p);
     });
   });
 }
@@ -2411,13 +2404,21 @@ function initMembers() {
   }));
 }
 function renderMembers() {
-  const q=el('membersSearch').value.toLowerCase();
+  const searchEl = el('membersSearch');
+  const q = searchEl ? searchEl.value.toLowerCase() : '';
   let members=[...S.users].filter(u=>!q||u.username.toLowerCase().includes(q)||(u.bio||'').toLowerCase().includes(q));
   if(S.memberSort==='likes')  members.sort((a,b)=>(b.totalLikes||0)-(a.totalLikes||0));
   else if(S.memberSort==='builds') members.sort((a,b)=>(b.posts||0)-(a.posts||0));
   else members.sort((a,b)=>b.joined>a.joined?1:-1);
   const grid=el('membersGrid');
-  if(!members.length){grid.innerHTML='<div class="members-empty"><i class="fas fa-users"></i><p>No members found</p></div>';return;}
+  if (!grid) return;
+  if(!members.length){
+    // If no users yet, show skeleton — they'll arrive from Supabase shortly
+    grid.innerHTML = S._loading
+      ? Array(6).fill(0).map(()=>`<div class="skeleton-card"><div class="skeleton" style="height:120px;width:100%"></div><div style="padding:14px;display:flex;flex-direction:column;gap:8px"><div class="skeleton" style="height:14px;width:60%"></div><div class="skeleton" style="height:12px;width:40%"></div></div></div>`).join('')
+      : '<div class="members-empty"><i class="fas fa-users"></i><p>No members found</p></div>';
+    return;
+  }
   grid.innerHTML=members.map((u,rank)=>{
     const posts=S.posts.filter(p=>p.user===u.username);
     const topPost=[...posts].sort((a,b)=>b.likes-a.likes)[0];
@@ -2429,7 +2430,11 @@ function renderMembers() {
         ${rank<3?`<div class="member-rank rank${rank+1}">#${rank+1}</div>`:''}
       </div>
       <div class="member-body">
-        <div class="member-av" style="background:${avColor(u.username)}">${u.username[0].toUpperCase()}</div>
+        <div class="member-av" style="background:${avColor(u.username)}">${
+          u.avatarUrl
+            ? `<img src="${u.avatarUrl}" alt="" class="av-photo"/>`
+            : u.username[0].toUpperCase()
+        }</div>
         <div class="member-info">
           <div class="member-name">${esc(u.username)}</div>
           <div class="member-bio">${u.bio?(u.bio.length>60?u.bio.slice(0,60)+'…':u.bio):'DriveLog member'}</div>
