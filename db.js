@@ -523,6 +523,7 @@ function dbUserToApp(row) {
     website:     row.website || '',
     awards:      row.awards || [],
     isAdmin:     row.is_admin || false,
+    isFeatured:  row.is_featured || false,
     avatarUrl:   row.avatar_url || null,
     posts:       0,
     totalLikes:  row.total_likes || 0,

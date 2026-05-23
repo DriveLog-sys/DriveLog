@@ -236,8 +236,8 @@ function applyPrefs() {
   try {
     const p = JSON.parse(localStorage.getItem('dl_prefs') || '{}');
     if (p.accent) setAccent(p.accent);
-    // If no theme saved yet, follow OS preference (most people have dark mode on)
-    const theme = p.theme || (window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light');
+    // Default theme is now LIGHT — only go dark when explicitly set
+    const theme = p.theme || 'light';
     if (theme === 'dark') document.body.classList.add('dark');
     else document.body.classList.remove('dark');
     if (p.fontSize) document.documentElement.style.fontSize = p.fontSize + 'px';
@@ -408,6 +408,30 @@ function closeMobNav() { el('mobNav').classList.remove('open'); el('mobOverlay')
 function animateStats() {
   const tl = S.posts.reduce((a,p)=>a+p.likes,0);
   countUp('statBuilds',S.posts.length,1200); countUp('statMembers',S.users.length,1500); countUp('statLikes',tl,1800);
+  renderFeaturedMembers();
+}
+
+function renderFeaturedMembers() {
+  const strip    = el('featuredMembersStrip');
+  const avatarsEl = el('featuredMembersAvatars');
+  if (!strip || !avatarsEl) return;
+  const featured = S.users.filter(u => u.isFeatured);
+  if (!featured.length) { strip.style.display = 'none'; return; }
+  strip.style.display = 'flex';
+  const MAX_SHOW = 5;
+  const shown = featured.slice(0, MAX_SHOW);
+  const extra = featured.length - MAX_SHOW;
+  avatarsEl.innerHTML = shown.map(u => {
+    const url = getAvatarUrl(u.username);
+    const bg  = url ? 'transparent' : avColor(u.username);
+    const img = url ? `<img src="${url}" alt="" class="av-photo"/>` : u.username[0].toUpperCase();
+    return `<div class="fm-av clickable-user" data-user="${u.username}" title="${esc(u.username)}" style="background:${bg}">${img}</div>`;
+  }).join('') + (extra > 0
+    ? `<div class="fm-av fm-av-more" onclick="goTo('members')">+${Math.min(extra,9)}${extra>=9?'+':''}</div>`
+    : '');
+  strip.addEventListener('click', e => {
+    if (!e.target.closest('.clickable-user') && !e.target.closest('.fm-av-more')) goTo('members');
+  });
 }
 function countUp(id,target,dur) {
   const node=el(id); if(!node)return;
@@ -458,8 +482,15 @@ function renderBOTW() {
   dotsEl.querySelectorAll('.botw-dot').forEach(d=>d.addEventListener('click',()=>go(+d.dataset.i)));
   el('botwPrev').addEventListener('click',()=>go((cur-1+top5.length)%top5.length));
   el('botwNext').addEventListener('click',()=>go((cur+1)%top5.length));
-  slidesEl.querySelectorAll('.botw-slide').forEach(s=>{
-    s.addEventListener('click',()=>{const p=S.posts.find(x=>x.id===s.dataset.id);if(p)openCarPage(p);});
+  slidesEl.querySelectorAll('.botw-slide').forEach((s, i) => {
+    s.style.cursor = 'pointer';
+    s.addEventListener('click', e => {
+      if (e.target.closest('.clickable-user') || e.target.closest('.botw-dot')) return;
+      // Use the post object from top5 array directly — never search S.posts
+      // which may have changed since this slide was rendered
+      const post = top5[i];
+      if (post) openCarPage(post);
+    });
   });
   timer=setInterval(()=>go((cur+1)%top5.length),4500);
 }
@@ -873,7 +904,6 @@ function loginUser(username) {
 }
 
 async function registerUser(username, email, password, googleId) {
-  // Supabase signup
   const { data, error } = await DB.signUp(email, password||'', username);
   if (error) {
     if (error.message === 'USERNAME_TAKEN') { setAuthErr('regUserErr','Error: Username already taken.'); return; }
@@ -881,8 +911,64 @@ async function registerUser(username, email, password, googleId) {
   }
   S.user = dbUserToApp(data) || { username, posts:0, totalLikes:0, joined:new Date().toISOString().slice(0,7), joinedFull:new Date().toISOString(), bio:'', awards:[] };
   S.users.push(S.user);
+  localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
+  localStorage.setItem('dl_user', JSON.stringify(S.user));
+  el('authModal').classList.remove('open');
   updateAuthUI(); updateProfilePage();
-  toast(`Welcome to DriveLog, ${username}!`, 'ok');
+  // Send welcome notification
+  pushNotif('welcome', 'DriveLog', `Welcome to DriveLog, <b>${username}</b>! 🎉 Start by posting your first build.`, null, null);
+  // Show onboarding modal
+  showOnboarding(username);
+}
+
+function showOnboarding(username) {
+  const existing = el('onboardingModal');
+  if (existing) existing.remove();
+  const modal = document.createElement('div');
+  modal.id = 'onboardingModal';
+  modal.className = 'upload-success-overlay open';
+  modal.innerHTML = `
+    <div class="upload-success-box onboarding-box">
+      <div class="onboarding-header">
+        <div class="onboarding-logo">DRIVE<span>LOG</span></div>
+        <h2 class="upload-success-title">Welcome, ${esc(username)}! 👋</h2>
+        <p class="upload-success-sub">You're now part of the DriveLog community. Here's how to get started:</p>
+      </div>
+      <div class="onboarding-steps">
+        <div class="onboarding-step">
+          <div class="onboarding-step-icon"><i class="fas fa-camera"></i></div>
+          <div>
+            <div class="onboarding-step-title">Post Your Build</div>
+            <div class="onboarding-step-desc">Share your car with the community — photos, specs, and mods.</div>
+          </div>
+        </div>
+        <div class="onboarding-step">
+          <div class="onboarding-step-icon"><i class="fas fa-users"></i></div>
+          <div>
+            <div class="onboarding-step-title">Follow Enthusiasts</div>
+            <div class="onboarding-step-desc">Find members with builds you love and follow their journey.</div>
+          </div>
+        </div>
+        <div class="onboarding-step">
+          <div class="onboarding-step-icon"><i class="fas fa-trophy"></i></div>
+          <div>
+            <div class="onboarding-step-title">Climb the Leaderboard</div>
+            <div class="onboarding-step-desc">Get likes on your builds to rise through the Top Builds ranking.</div>
+          </div>
+        </div>
+      </div>
+      <div class="upload-success-actions" style="margin-top:20px">
+        <button class="btn-primary" id="onboardPostBtn"><i class="fas fa-plus"></i> Post My First Build</button>
+        <button class="btn-ghost" id="onboardExploreBtn">Explore the Feed</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  el('onboardPostBtn').addEventListener('click', () => {
+    modal.remove(); openPostModal();
+  });
+  el('onboardExploreBtn').addEventListener('click', () => {
+    modal.remove(); goTo('home');
+  });
 }
 
 function makeNewUser(username) {
@@ -2131,10 +2217,111 @@ function renderLeaderboard() {
     </div>`;
   }).join('')}</div>`;
 
+  // BOTM
+  renderLbBotm();
+  // ATG
+  renderLbAtg();
+
   document.querySelectorAll('.lbtab').forEach(t=>t.addEventListener('click',()=>{
     document.querySelectorAll('.lbtab,.lb-panel').forEach(x=>x.classList.remove('active'));
     t.classList.add('active'); el('lb-'+t.dataset.lb).classList.add('active');
   }));
+}
+
+// ─── BUILD OF THE MONTH ────────────────────────────────────────
+function renderLbBotm() {
+  const el2 = el('lbBotm'); if (!el2) return;
+  const stored = JSON.parse(localStorage.getItem('dl_botm')||'null');
+  const post   = stored ? S.posts.find(p=>p.id===stored.postId) : null;
+
+  el2.innerHTML = `
+    <div class="lb-special-section">
+      <div class="lb-special-head">
+        <div class="lb-special-icon"><i class="fas fa-calendar-star"></i></div>
+        <div>
+          <div class="lb-special-title">Build of the Month</div>
+          <div class="lb-special-sub">Selected by DriveLog admins</div>
+        </div>
+      </div>
+      ${post ? `
+        <div class="botm-feature-card" data-id="${post.id}">
+          <div class="botm-feature-img">
+            ${post.images?.[0] ? `<img src="${post.images[0]}" alt="${esc(post.title)}"/>` : `<div class="botm-feature-ph" style="background:${phBg(post.id)}"></div>`}
+            <div class="botm-feature-overlay">
+              <span class="cat-badge ${catCfg(post.category).badge}" style="position:static">${post.category}</span>
+            </div>
+          </div>
+          <div class="botm-feature-info">
+            <div class="botm-feature-label"><i class="fas fa-calendar-star"></i> Build of the Month</div>
+            <div class="botm-feature-name">${esc(post.title)}</div>
+            <div class="botm-feature-meta">
+              <span>by <b>${esc(post.user)}</b></span>
+              ${post.year ? `<span>${post.year}</span>` : ''}
+              ${post.hp ? `<span>${post.hp}</span>` : ''}
+              <span>♥ ${post.likes.toLocaleString()} likes</span>
+            </div>
+            ${post.desc ? `<p class="botm-feature-desc">${esc(post.desc.slice(0,180))}${post.desc.length>180?'…':''}</p>` : ''}
+            <button class="btn-primary" onclick="openCarPage(S.posts.find(p=>p.id==='${post.id}'))">
+              <i class="fas fa-eye"></i> View Build
+            </button>
+          </div>
+        </div>` : `
+        <div class="lb-special-empty">
+          <i class="fas fa-calendar-star"></i>
+          <p>No Build of the Month selected yet.</p>
+          ${S.user?.isAdmin ? '<p style="color:var(--muted);font-size:.8rem">Go to Admin → Posts to select one</p>' : ''}
+        </div>`}
+    </div>`;
+
+  el2.querySelector('.botm-feature-card')?.addEventListener('click', e => {
+    if (e.target.closest('button')) return;
+    const p = S.posts.find(x=>x.id===post?.id); if(p) openCarPage(p);
+  });
+}
+
+// ─── ALL TIME GREATS ───────────────────────────────────────────
+function renderLbAtg() {
+  const el2 = el('lbAtg'); if (!el2) return;
+  const stored = JSON.parse(localStorage.getItem('dl_atg')||'[]');
+  const posts  = stored.map(id => S.posts.find(p=>p.id===id)).filter(Boolean);
+
+  el2.innerHTML = `
+    <div class="lb-special-section">
+      <div class="lb-special-head">
+        <div class="lb-special-icon atg"><i class="fas fa-medal"></i></div>
+        <div>
+          <div class="lb-special-title">All Time Greats</div>
+          <div class="lb-special-sub">The most legendary builds on DriveLog — chosen by admins</div>
+        </div>
+      </div>
+      ${posts.length ? `
+        <div class="atg-grid">${posts.map(p=>`
+          <div class="atg-card" data-id="${p.id}">
+            <div class="atg-card-img">
+              ${p.images?.[0] ? `<img src="${p.images[0]}" alt="${esc(p.title)}" loading="lazy"/>` : `<div class="atg-card-ph" style="background:${phBg(p.id)}"></div>`}
+              <div class="atg-card-badge"><i class="fas fa-medal"></i></div>
+              <div class="atg-card-overlay">
+                <span class="cat-badge ${catCfg(p.category).badge}" style="position:static">${p.category}</span>
+              </div>
+            </div>
+            <div class="atg-card-info">
+              <div class="atg-card-title">${esc(p.title)}</div>
+              <div class="atg-card-meta">by ${esc(p.user)} · ♥ ${p.likes.toLocaleString()}</div>
+            </div>
+          </div>`).join('')}
+        </div>` : `
+        <div class="lb-special-empty">
+          <i class="fas fa-medal"></i>
+          <p>No All Time Greats selected yet.</p>
+          ${S.user?.isAdmin ? '<p style="color:var(--muted);font-size:.8rem">Go to Admin → Posts to add builds</p>' : ''}
+        </div>`}
+    </div>`;
+
+  el2.querySelectorAll('.atg-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const p = S.posts.find(x=>x.id===card.dataset.id); if(p) openCarPage(p);
+    });
+  });
 }
 
 // ─── EVENTS ───────────────────────────────────────────────────
@@ -3532,6 +3719,15 @@ function grantAward(username, awardId) {
   if (S.page === 'profile') updateProfilePage();
 }
 
+function toggleFeaturedUser(username) {
+  const u = S.users.find(x=>x.username===username); if(!u) return;
+  u.isFeatured = !u.isFeatured;
+  // Persist to Supabase
+  DB.updateProfile(u.id||'', { is_featured: u.isFeatured }).catch(()=>{});
+  save(); renderAdminUsers(); renderFeaturedMembers();
+  toast(`${u.isFeatured?'Added to':'Removed from'} Featured Members`, 'ok');
+}
+
 function revokeAward(username, awardId) {
   const u = S.users.find(x => x.username === username);
   if (!u) return;
@@ -3942,25 +4138,61 @@ function renderAdminReports() {
 
 function renderAdminPosts() {
   const list = el('adminPostsList'); if (!list) return;
+  const botm  = JSON.parse(localStorage.getItem('dl_botm')||'null');
+  const atgIds = JSON.parse(localStorage.getItem('dl_atg')||'[]');
   const q = (el('adminPostSearch')?.value||'').toLowerCase();
   const posts = S.posts.filter(p=>!q||p.title.toLowerCase().includes(q)||p.user.toLowerCase().includes(q)).slice(0,30);
-  list.innerHTML = posts.map(p => `
+  list.innerHTML = posts.map(p => {
+    const isBotm = botm?.postId === p.id;
+    const isAtg  = atgIds.includes(p.id);
+    return `
     <div class="admin-post-row">
       <div class="admin-post-thumb" style="background:${phBg(p.id)}">${p.images?.[0]?`<img src="${p.images[0]}" alt=""/>`:''}</div>
       <div class="admin-post-info">
-        <div class="admin-post-title">${esc(p.title)}</div>
+        <div class="admin-post-title">${esc(p.title)} ${isBotm?'<span class="abadge" style="background:#d97706;color:#fff">BOTM</span>':''} ${isAtg?'<span class="abadge" style="background:#7e22ce;color:#fff">ATG</span>':''}</div>
         <div class="admin-post-meta">by ${esc(p.user)} · ${p.date} · ♥ ${p.likes} · ${(p.comments||[]).length} comments</div>
       </div>
       <div class="admin-post-actions">
         <button class="admin-btn view" data-pid="${p.id}">View</button>
+        <button class="admin-btn ${isBotm?'remove':'verify'} admin-set-botm" data-pid="${p.id}" title="${isBotm?'Remove as BOTM':'Set as Build of the Month'}">
+          <i class="fas fa-calendar-star"></i> ${isBotm?'Unset BOTM':'Set BOTM'}
+        </button>
+        <button class="admin-btn ${isAtg?'remove':'verify'} admin-toggle-atg" data-pid="${p.id}" title="${isAtg?'Remove from ATG':'Add to All Time Greats'}">
+          <i class="fas fa-medal"></i> ${isAtg?'Remove ATG':'Add ATG'}
+        </button>
         <button class="admin-btn remove" data-pid="${p.id}">Remove</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+
   list.querySelectorAll('.admin-btn.view').forEach(b=>b.addEventListener('click',()=>{const p=S.posts.find(x=>x.id===b.dataset.pid);if(p)openCarPage(p);}));
-  list.querySelectorAll('.admin-btn.remove').forEach(b=>b.addEventListener('click',()=>{
+
+  list.querySelectorAll('.admin-set-botm').forEach(b=>b.addEventListener('click',()=>{
+    const curr = JSON.parse(localStorage.getItem('dl_botm')||'null');
+    if (curr?.postId === b.dataset.pid) {
+      localStorage.removeItem('dl_botm');
+      toast('Build of the Month removed','ok');
+    } else {
+      localStorage.setItem('dl_botm', JSON.stringify({postId:b.dataset.pid}));
+      toast('Build of the Month set!','ok');
+    }
+    renderAdminPosts(); renderLbBotm();
+  }));
+
+  list.querySelectorAll('.admin-toggle-atg').forEach(b=>b.addEventListener('click',()=>{
+    const ids = JSON.parse(localStorage.getItem('dl_atg')||'[]');
+    const idx = ids.indexOf(b.dataset.pid);
+    if (idx>=0) { ids.splice(idx,1); toast('Removed from All Time Greats','ok'); }
+    else { ids.push(b.dataset.pid); toast('Added to All Time Greats!','ok'); }
+    localStorage.setItem('dl_atg', JSON.stringify(ids));
+    renderAdminPosts(); renderLbAtg();
+  }));
+
+  list.querySelectorAll('.admin-btn.remove:not(.admin-set-botm):not(.admin-toggle-atg)').forEach(b=>b.addEventListener('click',()=>{
     if(!confirm('Remove this post?'))return;
     S.posts=S.posts.filter(p=>p.id!==b.dataset.pid); save(); renderAdminPosts(); renderFeed(); toast('Post removed','ok');
   }));
+
   el('adminPostSearch')?.addEventListener('input', renderAdminPosts);
 }
 
@@ -3980,10 +4212,15 @@ function renderAdminUsers() {
         <div class="admin-award-btns">
           ${AWARDS_DEF.map(a => `<button class="admin-btn verify award-grant-btn" data-un="${u.username}" data-aid="${a.id}" title="Grant ${a.label}">${a.icon}</button>`).join('')}
         </div>
+        <button class="admin-btn ${u.isFeatured?'remove':'verify'} admin-toggle-featured" data-un="${u.username}" title="${u.isFeatured?'Remove from Featured':'Add to Featured'}">
+          <i class="fas fa-star"></i> ${u.isFeatured?'Unfeature':'Feature'}
+        </button>
+        ${u.avatarUrl ? `<button class="admin-btn remove admin-rm-avatar" data-un="${u.username}" title="Remove profile picture"><i class="fas fa-user-slash"></i></button>` : ''}
       </div>
     </div>`;
   }).join('');
   list.querySelectorAll('.award-grant-btn').forEach(b=>b.addEventListener('click',()=>grantAward(b.dataset.un, b.dataset.aid)));
+  list.querySelectorAll('.admin-toggle-featured').forEach(b=>b.addEventListener('click',()=>toggleFeaturedUser(b.dataset.un)));
   list.querySelectorAll('.admin-rm-avatar').forEach(b=>b.addEventListener('click',()=>{
     if(!confirm(`Remove ${b.dataset.un}'s profile picture?`)) return;
     const u=S.users.find(x=>x.username===b.dataset.un); if(!u) return;

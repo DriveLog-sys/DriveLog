@@ -272,6 +272,11 @@
             <div class="hstat-div"></div>
             <div class="hstat"><span class="hstat-n" id="statLikes">0</span><span class="hstat-l">Likes</span></div>
           </div>
+          <!-- Featured Members strip -->
+          <div class="featured-members-strip" id="featuredMembersStrip" style="display:none">
+            <span class="featured-members-label">Featured Members</span>
+            <div class="featured-members-avatars" id="featuredMembersAvatars"></div>
+          </div>
         </div>
         <!-- BOTW — right side of hero -->
         <div class="botw-card" id="botwCard">
@@ -394,12 +399,16 @@
       <button class="lbtab" data-lb="posts"><i class="fas fa-images tab-icon"></i>Most Posts</button>
       <button class="lbtab" data-lb="oldest"><i class="fas fa-clock tab-icon"></i>Oldest Users</button>
       <button class="lbtab" data-lb="categories"><i class="fas fa-th-large tab-icon"></i>By Category</button>
+      <button class="lbtab lbtab-special" data-lb="botm"><i class="fas fa-calendar-star tab-icon"></i>Build of the Month</button>
+      <button class="lbtab lbtab-special" data-lb="atg"><i class="fas fa-medal tab-icon"></i>All Time Greats</button>
     </div>
     <div class="lb-panel active" id="lb-builds"><div id="lbBuilds"></div></div>
     <div class="lb-panel" id="lb-members"><div id="lbMembers"></div></div>
     <div class="lb-panel" id="lb-posts"><div id="lbPosts"></div></div>
     <div class="lb-panel" id="lb-oldest"><div id="lbOldest"></div></div>
     <div class="lb-panel" id="lb-categories"><div class="lb-cat-grid" id="lbCats"></div></div>
+    <div class="lb-panel" id="lb-botm"><div id="lbBotm"></div></div>
+    <div class="lb-panel" id="lb-atg"><div id="lbAtg"></div></div>
   </section>
 
   <!-- EVENTS -->
