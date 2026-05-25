@@ -394,6 +394,19 @@
   <!-- LEADERBOARD -->
   <section class="page" id="page-leaderboard">
     <div class="page-head"><h1>Leaderboard</h1><p>The most celebrated builds and members on DriveLog.</p></div>
+    <!-- Build of the Month — FIRST, above the leaderboard table -->
+    <div class="lb-standalone-section" id="lbBotmSection">
+      <div class="lb-standalone-head">
+        <div class="lb-standalone-icon"><i class="fas fa-calendar-star"></i></div>
+        <div>
+          <div class="lb-standalone-title">Build of the Month</div>
+          <div class="lb-standalone-sub">Selected by DriveLog admins each month</div>
+        </div>
+      </div>
+      <div id="lbBotm"></div>
+    </div>
+
+    <!-- Leaderboard tabs — below BOTM -->
     <div class="lb-tabs">
       <button class="lbtab active" data-lb="builds"><i class="fas fa-trophy tab-icon"></i>Top Builds</button>
       <button class="lbtab" data-lb="members"><i class="fas fa-users tab-icon"></i>Top Members</button>
@@ -407,19 +420,7 @@
     <div class="lb-panel" id="lb-oldest"><div id="lbOldest"></div></div>
     <div class="lb-panel" id="lb-categories"><div class="lb-cat-grid" id="lbCats"></div></div>
 
-    <!-- Build of the Month — standalone section below tabs -->
-    <div class="lb-standalone-section" id="lbBotmSection">
-      <div class="lb-standalone-head">
-        <div class="lb-standalone-icon"><i class="fas fa-calendar-star"></i></div>
-        <div>
-          <div class="lb-standalone-title">Build of the Month</div>
-          <div class="lb-standalone-sub">Selected by DriveLog admins each month</div>
-        </div>
-      </div>
-      <div id="lbBotm"></div>
-    </div>
-
-    <!-- All Time Greats — standalone section below BOTM -->
+    <!-- All Time Greats — LAST, below the leaderboard table -->
     <div class="lb-standalone-section" id="lbAtgSection">
       <div class="lb-standalone-head">
         <div class="lb-standalone-icon atg"><i class="fas fa-medal"></i></div>
@@ -490,6 +491,12 @@
           <button class="social-upload-btn btn-primary small" id="socialUploadBtn">
             <i class="fas fa-plus"></i> Post
           </button>
+        </div>
+        <!-- Social search bar -->
+        <div class="social-search-bar">
+          <i class="fas fa-search social-search-icon"></i>
+          <input type="text" id="socialSearchInput" class="social-search-input" placeholder="Search posts, captions, #hashtags…"/>
+          <button class="social-search-clear" id="socialSearchClear" style="display:none"><i class="fas fa-times"></i></button>
         </div>
         <div class="social-posts-wrap" id="socialPostsWrap">
           <!-- Posts render here -->
@@ -650,47 +657,8 @@
       </div>
       <div class="post-page-layout">
 
-        <!-- LEFT: Photos -->
+        <!-- LEFT: Vehicle Info (now first) -->
         <div class="post-page-left">
-          <div class="post-section-head">
-            <span class="post-section-num">01</span>
-            <div>
-              <div class="post-section-title">Photos</div>
-              <div class="post-section-sub">Up to 50 images · First is cover</div>
-            </div>
-          </div>
-          <div class="upload-zone" id="uploadZone">
-            <i class="fas fa-images"></i>
-            <p>Drop photos here or <span>browse files</span></p>
-            <small>JPG, PNG, WEBP — up to 50 images</small>
-            <input type="file" id="fileInput" accept="image/*" multiple hidden/>
-          </div>
-          <div class="preview-strip" id="previewStrip" style="display:none">
-            <div class="preview-thumbs" id="previewThumbs"></div>
-            <button class="add-more-btn" id="addMoreBtn"><i class="fas fa-plus"></i> Add More Photos</button>
-          </div>
-        </div>
-
-        <!-- VIDEO UPLOAD -->
-        <div class="post-page-video-section">
-          <div class="post-section-head" style="margin-bottom:12px">
-            <span class="post-section-num" style="opacity:.5">▶</span>
-            <div>
-              <div class="post-section-title">Media <span class="post-section-optional">Optional</span></div>
-              <div class="post-section-sub">Up to 3 videos · MP4, MOV, WEBM · Max 50MB each</div>
-            </div>
-          </div>
-          <div class="upload-zone upload-zone-video" id="videoUploadZone">
-            <i class="fas fa-film"></i>
-            <p>Drop videos here or <span>browse files</span></p>
-            <small>MP4, MOV, WEBM — up to 3 videos, 50MB each</small>
-            <input type="file" id="videoFileInput" accept="video/mp4,video/quicktime,video/webm" multiple hidden/>
-          </div>
-          <div class="video-preview-list" id="videoPreviewList" style="display:none"></div>
-        </div>
-
-        <!-- RIGHT: Details -->
-        <div class="post-page-right">
 
           <!-- Basic info -->
           <div class="post-section">
@@ -832,6 +800,50 @@
             <button class="btn-primary large" id="submitPost">
               <i class="fas fa-upload"></i> Publish Build
             </button>
+          </div>
+
+        </div>
+
+        <!-- RIGHT: Photos + Videos -->
+        <div class="post-page-right">
+
+          <!-- Photos -->
+          <div class="post-section">
+            <div class="post-section-head">
+              <span class="post-section-num">01</span>
+              <div>
+                <div class="post-section-title">Photos</div>
+                <div class="post-section-sub">Up to 50 images · First is cover</div>
+              </div>
+            </div>
+            <div class="upload-zone" id="uploadZone">
+              <i class="fas fa-images"></i>
+              <p>Drop photos here or <span>browse files</span></p>
+              <small>JPG, PNG, WEBP — up to 50 images</small>
+              <input type="file" id="fileInput" accept="image/*" multiple hidden/>
+            </div>
+            <div class="preview-strip" id="previewStrip" style="display:none">
+              <div class="preview-thumbs" id="previewThumbs"></div>
+              <button class="add-more-btn" id="addMoreBtn"><i class="fas fa-plus"></i> Add More Photos</button>
+            </div>
+          </div>
+
+          <!-- Videos -->
+          <div class="post-section">
+            <div class="post-section-head">
+              <span class="post-section-num">02</span>
+              <div>
+                <div class="post-section-title">Videos <span class="post-section-optional">Optional</span></div>
+                <div class="post-section-sub">Up to 3 videos · MP4, MOV, WEBM · Max 50MB each</div>
+              </div>
+            </div>
+            <div class="upload-zone upload-zone-video" id="videoUploadZone">
+              <i class="fas fa-film"></i>
+              <p>Drop videos here or <span>browse files</span></p>
+              <small>MP4, MOV, WEBM — up to 3 videos, 50MB each</small>
+              <input type="file" id="videoFileInput" accept="video/mp4,video/quicktime,video/webm" multiple hidden/>
+            </div>
+            <div class="video-preview-list" id="videoPreviewList" style="display:none"></div>
           </div>
 
         </div>

@@ -476,12 +476,12 @@ function renderBOTW() {
   el('botwNext').addEventListener('click',()=>go((cur+1)%top5.length));
   slidesEl.querySelectorAll('.botw-slide').forEach((s, i) => {
     s.style.cursor = 'pointer';
+    const postId = top5[i]?.id;
     s.addEventListener('click', e => {
       if (e.target.closest('.clickable-user') || e.target.closest('.botw-dot')) return;
-      // Use the post object from top5 array directly — never search S.posts
-      // which may have changed since this slide was rendered
-      const post = top5[i];
-      if (post) openCarPage(post);
+      // Find by ID from current S.posts — works even after cache refreshes
+      const p = S.posts.find(x=>x.id===postId) || top5[i];
+      if (p) openCarPage(p);
     });
   });
   timer=setInterval(()=>go((cur+1)%top5.length),4500);
@@ -3131,9 +3131,10 @@ function renderComment(comment, allComments, depth) {
 
 function cpUpvoteComment(post, commentId) {
   if (!S.user) { toast('Sign in to vote','err'); el('authModal').classList.add('open'); return; }
-  // Re-find the comment from the most current post state
-  const livePost = S.posts.find(p=>p.id===post.id) || post;
-  const comment = livePost.comments.find(c => c.id === commentId);
+  // ALWAYS use S.openCarPost — it has the async-loaded comments
+  // S.posts[i].comments is often empty (async load goes to openCarPost only)
+  const livePost = S.openCarPost?.id === post.id ? S.openCarPost : (S.posts.find(p=>p.id===post.id) || post);
+  const comment = livePost.comments?.find(c => c.id === commentId);
   if (!comment) return;
   comment.upvotedBy = comment.upvotedBy || [];
   const vid = S.user.username;
@@ -3178,8 +3179,10 @@ function cpShowReplyBox(post, parentId) {
 }
 
 function bindCommentHandlers(post) {
+  // Always use S.openCarPost which has current comments loaded from Supabase
+  const livePost = S.openCarPost?.id === post.id ? S.openCarPost : post;
   el('cpCommentsList').querySelectorAll('.cp-comment-upvote').forEach(btn =>
-    btn.addEventListener('click', () => cpUpvoteComment(post, btn.dataset.cid))
+    btn.addEventListener('click', () => cpUpvoteComment(livePost, btn.dataset.cid))
   );
   el('cpCommentsList').querySelectorAll('.cp-comment-reply-btn').forEach(btn =>
     btn.addEventListener('click', () => cpShowReplyBox(post, btn.dataset.cid))
@@ -3260,11 +3263,6 @@ function renderCpVideos(post) {
           <video class="cp-video-preview" src="${esc(src)}" muted preload="metadata"></video>
           <div class="cp-video-play"><i class="fas fa-play"></i></div>
         </div>`).join('')}
-    </div>
-    <!-- Fullscreen video player -->
-    <div class="cp-video-player" id="cpVideoPlayer" style="display:none">
-      <video id="cpVideoMain" controls style="width:100%;border-radius:var(--r-md);background:#000"></video>
-      <button class="cp-video-close" id="cpVideoClose"><i class="fas fa-times"></i> Close</button>
     </div>`;
 
   // Seek each preview to 10% for a good thumbnail frame
@@ -3272,23 +3270,30 @@ function renderCpVideos(post) {
     v.addEventListener('loadedmetadata', () => { v.currentTime = v.duration * 0.1; });
   });
 
-  // Click to play fullscreen inline
+  // Click to play/pause inline — video plays right in the thumbnail
   panel.querySelectorAll('.cp-video-thumb').forEach(thumb => {
+    const preview = thumb.querySelector('.cp-video-preview');
+    const playIcon = thumb.querySelector('.cp-video-play');
     thumb.addEventListener('click', () => {
-      const player = el('cpVideoPlayer');
-      const main   = el('cpVideoMain');
-      if (!player || !main) return;
-      main.src = thumb.dataset.src;
-      player.style.display = 'block';
-      main.play();
-      thumb.scrollIntoView({ behavior:'smooth', block:'nearest' });
+      if (!preview) return;
+      // Toggle controls and play
+      preview.controls = true;
+      preview.style.cursor = 'default';
+      if (preview.paused) {
+        // Pause all other videos first
+        panel.querySelectorAll('.cp-video-preview').forEach(v => {
+          if (v !== preview) { v.pause(); v.controls = false; }
+        });
+        preview.play();
+        if (playIcon) playIcon.style.display = 'none';
+      } else {
+        preview.pause();
+        if (playIcon) playIcon.style.display = 'flex';
+      }
     });
-  });
-  el('cpVideoClose')?.addEventListener('click', () => {
-    const player = el('cpVideoPlayer');
-    const main   = el('cpVideoMain');
-    if (main) { main.pause(); main.src = ''; }
-    if (player) player.style.display = 'none';
+    preview?.addEventListener('pause', () => { if (playIcon) playIcon.style.display = 'flex'; });
+    preview?.addEventListener('play',  () => { if (playIcon) playIcon.style.display = 'none'; });
+    preview?.addEventListener('ended', () => { if (playIcon) playIcon.style.display = 'flex'; preview.controls = false; });
   });
 }
 
@@ -4602,8 +4607,25 @@ function initSocialPage() {
     t.classList.add('active');
     socialTab = t.dataset.soctab;
     socialPage = 0;
+    // Clear search when switching tabs
+    const si = el('socialSearchInput');
+    if (si) { si.value = ''; S._socialSearchQ = ''; }
+    el('socialSearchClear').style.display = 'none';
     renderSocialFeed(true);
   }));
+  // Social search
+  el('socialSearchInput')?.addEventListener('input', () => {
+    const q = el('socialSearchInput').value.trim();
+    el('socialSearchClear').style.display = q ? 'block' : 'none';
+    doSocialSearch();
+  });
+  el('socialSearchClear')?.addEventListener('click', () => {
+    el('socialSearchInput').value = '';
+    el('socialSearchClear').style.display = 'none';
+    S._socialSearchQ = '';
+    socialPage = 0;
+    renderSocialFeed(true);
+  });
 }
 
 let _socialPendingFiles = [];
@@ -4678,6 +4700,8 @@ function getSocialPosts() {
 function renderSocialFeed(reset) {
   if (reset) socialPage=0;
   const wrap = el('socialPostsWrap'); if (!wrap) return;
+  // If search is active, delegate to doSocialSearch
+  if (S._socialSearchQ) { doSocialSearch(); return; }
   const all   = getSocialPosts();
   const slice = all.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
   if (reset) wrap.innerHTML='';
@@ -4959,4 +4983,32 @@ function renderProfileMedia(username) {
       <div class="pm-meta">${timeAgo(p.ts)} · ${p.likes||0} likes</div>
     </div>`;
   }).join('');
+}
+
+// ─── SOCIAL SEARCH ────────────────────────────────────────────
+function doSocialSearch() {
+  const q = el('socialSearchInput')?.value.trim().toLowerCase() || '';
+  const allPosts = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+  if (!q) {
+    S._socialSearchQ = '';
+    socialPage = 0;
+    renderSocialFeed(true);
+    return;
+  }
+  S._socialSearchQ = q;
+  const results = allPosts.filter(p => {
+    const caption = (p.caption||'').toLowerCase();
+    const tags    = (p.tag||'').toLowerCase();
+    const user    = (p.user||'').toLowerCase();
+    const hashtags= (caption.match(/#[\w]+/g)||[]).join(' ').toLowerCase();
+    return caption.includes(q) || tags.includes(q) || user.includes(q) || hashtags.includes(q);
+  });
+  // Render results directly
+  const wrap = el('socialPostsWrap'); if (!wrap) return;
+  if (!results.length) {
+    wrap.innerHTML = `<div class="social-no-results"><i class="fas fa-search"></i><p>No posts found for "<b>${esc(q)}</b>"</p></div>`;
+    return;
+  }
+  wrap.innerHTML = results.map(p => renderSocialCard(p)).join('');
+  bindSocialCardEvents(wrap);
 }
