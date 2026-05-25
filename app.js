@@ -229,7 +229,7 @@ function applyPrefs() {
     const p = JSON.parse(localStorage.getItem('dl_prefs') || '{}');
     if (p.accent) setAccent(p.accent);
     // Default theme is now LIGHT — only go dark when explicitly set
-    const theme = p.theme || 'light';
+    const theme = p.theme || 'dark';
     if (theme === 'dark') document.body.classList.add('dark');
     else document.body.classList.remove('dark');
     if (p.fontSize) document.documentElement.style.fontSize = p.fontSize + 'px';
@@ -306,6 +306,8 @@ function goTo(page) {
   document.querySelectorAll('.nav-link,.mob-link').forEach(a => a.classList.toggle('active', a.dataset.page===page));
   window.scrollTo({top:0, behavior:'auto'});
   closeMobNav();
+  // Push state so mobile back button works
+  try { window.history.pushState({ page }, '', '#'+page); } catch(_) {}
   if (page==='profile')     updateProfilePage();
   if (page==='leaderboard') renderLeaderboard();
   if (page==='garage')      renderGarage();
@@ -318,6 +320,19 @@ function goTo(page) {
   if (page==='admin')       renderAdmin();
   updateDmBadge();
 }
+
+// Mobile/browser back button
+window.addEventListener('popstate', e => {
+  const page = e.state?.page;
+  if (page) {
+    S.page = page;
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    el('page-'+page)?.classList.add('active');
+    document.querySelectorAll('.nav-link,.mob-link').forEach(a=>a.classList.toggle('active',a.dataset.page===page));
+    closeMobNav();
+    updateDmBadge();
+  }
+});
 
 function showPageLoader() {
   let l = el('pageLoader');
@@ -390,7 +405,19 @@ function updateAuthUI() {
 
 // ─── MOBILE NAV ───────────────────────────────────────────────
 function initMobileNav() {
-  el('hamburger')?.addEventListener('click', ()=>{el('mobNav').classList.add('open'); el('mobOverlay').classList.add('open'); document.body.style.overflow='hidden';});
+  function openMobNav() {
+    el('mobNav')?.classList.add('open');
+    el('mobOverlay')?.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeMobNav() {
+    el('mobNav')?.classList.remove('open');
+    el('mobOverlay')?.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  el('hamburger')?.addEventListener('click', openMobNav);
+  el('mobNavClose')?.addEventListener('click', closeMobNav);
+  el('mobOverlay')?.addEventListener('click', closeMobNav);
   el('mobClose')?.addEventListener('click', closeMobNav);
   el('mobOverlay')?.addEventListener('click', closeMobNav);
 }
@@ -5012,3 +5039,16 @@ function doSocialSearch() {
   wrap.innerHTML = results.map(p => renderSocialCard(p)).join('');
   bindSocialCardEvents(wrap);
 }
+
+// Handle browser/mobile back button
+window.addEventListener('popstate', e => {
+  const page = e.state?.page || 'home';
+  // Don't push another history entry — just switch page
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const pageEl = el('page-'+page);
+  if (pageEl) { pageEl.classList.add('active'); S.page = page; }
+  // Close mob nav if open
+  el('mobNav')?.classList.remove('open');
+  el('mobOverlay')?.classList.remove('open');
+  document.body.style.overflow = '';
+});
