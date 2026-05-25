@@ -95,58 +95,53 @@ function gateMsg() {
 // This makes the site feel instant on repeat visits.
 
 async function loadStorage() {
-  // ── STEP 1: Load cache (instant, already done in loadFromCache) ──
-  // Just ensure we have the cached user
   const cachedUser = (() => {
     try { return JSON.parse(localStorage.getItem('dl_user_cache') || localStorage.getItem('dl_user') || 'null'); } catch(_) { return null; }
   })();
 
-  // ── STEP 2: Restore auth session from Supabase ──────────────
-  try {
-    const session = await DB.getSession();
-    if (session) {
-      // Get basic auth info from session
-      const authUser = dbUserToApp(session);
-      // MERGE with cached data — don't wipe bio/avatar/settings
-      if (cachedUser && cachedUser.username === authUser.username) {
-        S.user = { ...authUser, ...cachedUser, id: authUser.id };
-      } else {
-        S.user = authUser;
-      }
-      localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
-      localStorage.setItem('dl_user', JSON.stringify(S.user));
-    } else {
-      S.user = null;
-      localStorage.removeItem('dl_user_cache');
-      localStorage.removeItem('dl_user');
-    }
-  } catch(e) { console.warn('Session restore failed', e); }
+  // ── Fire EVERYTHING in parallel — don't wait for auth before fetching posts ──
+  const [sessionResult, postsResult, usersResult, evtsResult] = await Promise.allSettled([
 
-  // ── STEP 3: Fire all data requests in PARALLEL, render as each arrives ──
-  const [postsResult, usersResult, evtsResult] = await Promise.allSettled([
+    // Session restore (may be slow on cold start — runs in parallel now)
+    DB.getSession(),
+
+    // Posts — render immediately when they arrive
     DB.getPosts({ limit: 60 }).then(rows => {
-      // Render feed AS SOON as posts arrive — don't wait for users/events
       const freshPosts = rows.map(dbPostToApp).filter(Boolean);
       freshPosts.forEach(fp => {
         const local = S.posts.find(p => p.id === fp.id);
         if (local) {
-          if (local.likedBy.length > fp.likedBy.length) fp.likedBy = local.likedBy;
-          if (local.savedBy.length > fp.savedBy.length) fp.savedBy = local.savedBy;
+          if ((local.likedBy||[]).length > (fp.likedBy||[]).length) fp.likedBy = local.likedBy;
+          if ((local.savedBy||[]).length > (fp.savedBy||[]).length) fp.savedBy = local.savedBy;
         }
       });
       S.posts = freshPosts;
       S._loading = false;
       try { localStorage.setItem('dl_posts_cache', JSON.stringify(S.posts)); } catch(_) {}
-      // Re-render feed immediately with real data
       renderFeed(); renderSidebar(); renderBOTW(); renderHotPanel(); animateStats();
       return rows;
     }),
+
     DB.getAllProfiles(),
     DB.getEvents(),
   ]);
 
-  // Posts already processed in the .then() above — skip duplicate processing
-  // if (postsResult.status === 'fulfilled') { ... } already done inline
+  // Process session result (now that it's done)
+  if (sessionResult.status === 'fulfilled' && sessionResult.value) {
+    const session  = sessionResult.value;
+    const authUser = dbUserToApp(session);
+    if (cachedUser && cachedUser.username === authUser.username) {
+      S.user = { ...authUser, ...cachedUser, id: authUser.id };
+    } else {
+      S.user = authUser;
+    }
+    localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
+    localStorage.setItem('dl_user', JSON.stringify(S.user));
+  } else if (sessionResult.status === 'fulfilled' && !sessionResult.value) {
+    S.user = null;
+    localStorage.removeItem('dl_user_cache');
+    localStorage.removeItem('dl_user');
+  }
 
   if (usersResult.status === 'fulfilled') {
     S.users = usersResult.value.map(dbUserToApp).filter(Boolean);
@@ -154,12 +149,10 @@ async function loadStorage() {
     if (S.user) {
       const fresh = S.users.find(u => u.username === S.user.username);
       if (fresh) {
-        // Capture local avatar BEFORE any merge — it must always win
         const localAvatar = localStorage.getItem('dl_avatar_url') || S.user.avatarUrl || null;
         S.user = {
-          ...fresh,      // Supabase base
-          ...S.user,     // Local overrides (bio, social links edited in settings)
-          // These fields: local wins if set, Supabase wins only if local is empty
+          ...fresh,
+          ...S.user,
           avatarUrl:  localAvatar || fresh.avatarUrl || null,
           bio:        S.user.bio       || fresh.bio       || '',
           instagram:  S.user.instagram || fresh.instagram || '',
@@ -167,10 +160,9 @@ async function loadStorage() {
           youtube:    S.user.youtube   || fresh.youtube   || '',
           website:    S.user.website   || fresh.website   || '',
           location:   S.user.location  || fresh.location  || '',
-          // Always take Supabase for these auth/admin fields
           id:         fresh.id         || S.user.id,
           isAdmin:    fresh.isAdmin    || S.user.isAdmin  || false,
-          awards:     fresh.awards.length ? fresh.awards : (S.user.awards || []),
+          awards:     (fresh.awards||[]).length ? fresh.awards : (S.user.awards || []),
         };
         localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
         localStorage.setItem('dl_user', JSON.stringify(S.user));
