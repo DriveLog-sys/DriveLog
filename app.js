@@ -2869,15 +2869,8 @@ function renderCarPage(post) {
               </div>`).join('')}
           </div>
         </div>
-        <div class="specs-right-panel">
-          <div class="specs-categories-wrap">
-            <div class="specs-cats-label">Categories</div>
-            <div class="specs-cats">${
-              (Array.isArray(post.categories)&&post.categories.length?post.categories:[post.category].filter(Boolean))
-              .map(c=>`<span class="cat-badge ${catCfg(c).badge}" style="position:static">${c}</span>`).join(' ')
-            }</div>
-          </div>
-          <div class="specs-reactions-wrap" id="specsReactionsWrap"></div>
+        <div class="specs-right-panel" id="specsRightPanel">
+          <!-- Videos render here via renderCpVideos() -->
         </div>
       </div>`;
 
@@ -2932,10 +2925,10 @@ function renderCarPage(post) {
   }
   // Like / save state
   syncCpActions(post);
-  // Reactions — render in both the main row and specs right panel
+  // Reactions — only in the actions row
   renderReactions(post, 'cpReactionsRow');
-  // Also render in specs panel if it exists (rendered after cpChips above)
-  if (el('specsReactionsWrap')) renderReactions(post, 'specsReactionsWrap');
+  // Videos in specs right panel
+  renderCpVideos(post);
   // Compare button
   const cpCmp = el('cpCompare');
   if (cpCmp) cpCmp.onclick = () => { S.compareA = post; goTo('compare'); renderComparePage(); toast('Build loaded for comparison','ok'); };
@@ -3247,6 +3240,56 @@ function cpSubmitComment() {
   } else {
     addComment(null);
   }
+}
+
+// ─── CAR PAGE — VIDEOS in specs right panel ───────────────────
+function renderCpVideos(post) {
+  const panel = el('specsRightPanel'); if (!panel) return;
+  const videos = post.videos || [];
+  if (!videos.length) {
+    panel.innerHTML = '';
+    panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = 'flex';
+  panel.innerHTML = `
+    <div class="cp-videos-label"><i class="fas fa-video"></i> Build Videos</div>
+    <div class="cp-videos-grid">
+      ${videos.map((src, i) => `
+        <div class="cp-video-thumb" data-src="${esc(src)}" data-i="${i}">
+          <video class="cp-video-preview" src="${esc(src)}" muted preload="metadata"></video>
+          <div class="cp-video-play"><i class="fas fa-play"></i></div>
+        </div>`).join('')}
+    </div>
+    <!-- Fullscreen video player -->
+    <div class="cp-video-player" id="cpVideoPlayer" style="display:none">
+      <video id="cpVideoMain" controls style="width:100%;border-radius:var(--r-md);background:#000"></video>
+      <button class="cp-video-close" id="cpVideoClose"><i class="fas fa-times"></i> Close</button>
+    </div>`;
+
+  // Seek each preview to 10% for a good thumbnail frame
+  panel.querySelectorAll('.cp-video-preview').forEach(v => {
+    v.addEventListener('loadedmetadata', () => { v.currentTime = v.duration * 0.1; });
+  });
+
+  // Click to play fullscreen inline
+  panel.querySelectorAll('.cp-video-thumb').forEach(thumb => {
+    thumb.addEventListener('click', () => {
+      const player = el('cpVideoPlayer');
+      const main   = el('cpVideoMain');
+      if (!player || !main) return;
+      main.src = thumb.dataset.src;
+      player.style.display = 'block';
+      main.play();
+      thumb.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    });
+  });
+  el('cpVideoClose')?.addEventListener('click', () => {
+    const player = el('cpVideoPlayer');
+    const main   = el('cpVideoMain');
+    if (main) { main.pause(); main.src = ''; }
+    if (player) player.style.display = 'none';
+  });
 }
 
 function cpRenderTimeline(post) {

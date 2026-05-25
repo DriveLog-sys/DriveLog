@@ -240,7 +240,7 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 .car-poster-name{font-family:var(--cond);font-weight:700;font-size:.9rem}
 .car-poster-date{font-size:.71rem;color:var(--muted)}
 .car-poster-socials{margin-left:auto;display:flex;gap:5px}
-.soc-btn{width:26px;height:26px;border-radius:50%;background:var(--raised);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--muted);transition:all var(--tr)}
+.soc-btn{width:32px;height:32px;border-radius:50%;background:var(--raised);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.82rem;color:var(--muted);transition:all var(--tr)}
 .soc-btn.ig:hover{background:#e1306c;border-color:#e1306c;color:#fff}
 .soc-btn.tt:hover{background:#69c9d0;border-color:#69c9d0;color:#000}
 .soc-btn.yt:hover{background:#ff0000;border-color:#ff0000;color:#fff}
@@ -837,7 +837,7 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
 .car-page-title{font-family:var(--disp);font-size:clamp(1.8rem,4vw,2.8rem);letter-spacing:1px;line-height:1.05;color:var(--text)}
 .car-page-poster-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .car-page-av{width:38px;height:38px;border-radius:50%;font-family:var(--cond);font-size:.9rem;font-weight:700;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
-.car-page-poster-name{font-family:var(--cond);font-weight:700;font-size:.9rem;cursor:pointer;color:var(--accent)}
+.car-page-poster-name{font-family:var(--cond);font-weight:700;font-size:1.05rem;cursor:pointer;color:var(--accent);letter-spacing:.3px}
 .car-page-poster-name:hover{text-decoration:underline}
 .car-page-poster-date{font-size:.72rem;color:var(--muted);display:block}
 .car-page-poster-socials{display:flex;gap:5px;margin-left:auto}
@@ -2654,8 +2654,8 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
 .spec-value.spec-accent{color:var(--accent)}
 /* Right: categories + reactions */
 .specs-right-panel{
-  display:flex;flex-direction:column;gap:20px;
-  padding:4px 0;
+  display:flex;flex-direction:column;gap:14px;
+  padding:4px 0;min-width:0;
 }
 .specs-cats-label{
   font-family:var(--cond);font-size:.7rem;font-weight:700;
@@ -3338,4 +3338,56 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
 /* Fix hero section - always dark regardless of theme */
 .hero{
   background:linear-gradient(135deg,#0a0c14 0%,#0d1220 35%,#0e1428 65%,#0a0c14 100%) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CAR PAGE — VIDEOS IN SPECS RIGHT PANEL
+   ═══════════════════════════════════════════════════════════════ */
+.cp-videos-label{
+  font-family:var(--cond);font-size:.72rem;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;color:var(--muted);
+  display:flex;align-items:center;gap:7px;margin-bottom:4px;
+}
+.cp-videos-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;
+}
+.cp-video-thumb{
+  position:relative;border-radius:var(--r-md);overflow:hidden;
+  aspect-ratio:16/9;background:#000;cursor:pointer;
+  border:1px solid var(--border);
+  transition:all var(--tr);
+}
+.cp-video-thumb:hover{transform:scale(1.02);box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.cp-video-preview{
+  width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;
+}
+.cp-video-play{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.35);
+  color:#fff;font-size:1.4rem;
+  transition:background var(--tr);
+}
+.cp-video-thumb:hover .cp-video-play{background:rgba(0,0,0,.55)}
+.cp-video-player{
+  margin-top:12px;
+  border-radius:var(--r-md);overflow:hidden;
+  border:1px solid var(--border);
+}
+.cp-video-close{
+  width:100%;padding:8px;background:var(--raised);
+  border:none;border-top:1px solid var(--border);
+  font-family:var(--cond);font-size:.75rem;font-weight:700;
+  letter-spacing:1px;color:var(--muted);cursor:pointer;
+  transition:all var(--tr);
+}
+.cp-video-close:hover{background:var(--hover);color:var(--text)}
+
+/* Single video — span full width */
+.cp-videos-grid:has(.cp-video-thumb:only-child) .cp-video-thumb{
+  grid-column:1/-1;
+}
+
+@media(max-width:900px){
+  .cp-videos-grid{grid-template-columns:1fr}
 }
