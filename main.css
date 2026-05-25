@@ -3321,3 +3321,21 @@ body:not(.dark) .lb-list { border-color: #c8cdd6; }
   .botm-cinematic-title{font-size:1.5rem}
   .atg-grid{grid-template-columns:1fr 1fr}
 }
+
+/* ─── BOTW card always dark (shows car photos) ───────────────── */
+.botw-card{
+  background:#1a1a1a !important;
+  border-color:rgba(255,255,255,.08) !important;
+}
+.botw-head{
+  background:#111 !important;
+  border-bottom-color:rgba(255,255,255,.06) !important;
+}
+.botw-label{color:#fff !important}
+.botw-dots{background:#111 !important}
+body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
+
+/* Fix hero section - always dark regardless of theme */
+.hero{
+  background:linear-gradient(135deg,#0a0c14 0%,#0d1220 35%,#0e1428 65%,#0a0c14 100%) !important;
+}
