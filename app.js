@@ -1430,6 +1430,7 @@ async function submitPost() {
     };
     S.posts.unshift(localPost);
     S.user.posts = (S.user.posts||0)+1;
+    save(); // persist to cache
     pendingImages=[]; pendingVideos=[]; renderPreviews(); renderVideoPreviews(); resetPostForm();
     renderFeed(); renderSidebar(); renderBOTW(); renderTicker(); updateProfilePage();
     showUploadSuccess(localPost || newPost);
@@ -1447,7 +1448,7 @@ function resetPostForm() {
   ['postTitle','postMake','postModel','postYear','postHP','postDesc',
    'modEngine','modDrivetrain','modSuspension','modWheels','modExterior','modInterior','modOther']
     .forEach(id=>{ const e=el(id); if(e) e.value=''; });
-  el('postCategory').value='';
+  // postCategory doesn't exist — categories use pills
   el('fileInput').value='';
   document.querySelectorAll('.post-cat-pill.active').forEach(p=>p.classList.remove('active'));
   // Clear all mod list items and input fields
@@ -2241,9 +2242,16 @@ function renderLeaderboard() {
   // ATG
   renderLbAtg();
 
+  // Remove old listeners before adding new ones to prevent stacking
+  document.querySelectorAll('.lbtab').forEach(t=>{
+    const clone = t.cloneNode(true);
+    t.parentNode.replaceChild(clone, t);
+  });
   document.querySelectorAll('.lbtab').forEach(t=>t.addEventListener('click',()=>{
     document.querySelectorAll('.lbtab,.lb-panel').forEach(x=>x.classList.remove('active'));
-    t.classList.add('active'); el('lb-'+t.dataset.lb).classList.add('active');
+    t.classList.add('active');
+    const panel = el('lb-'+t.dataset.lb);
+    if (panel) panel.classList.add('active');
   }));
 }
 
@@ -3231,7 +3239,8 @@ function cpSubmitComment() {
   const imgInput = el('cpCommentImgInput');
   const imgFile  = imgInput && imgInput.files[0];
   if (!txt && !imgFile) return;
-  const post = S.posts.find(p => p.id === S.openCarPost?.id); if (!post) return;
+  // Use S.openCarPost which has comments loaded from Supabase
+  const post = S.openCarPost; if (!post) return;
 
   async function addComment(imageUrl) {
     const tempId = 'c'+Date.now();
@@ -3287,7 +3296,7 @@ function renderCpVideos(post) {
     <div class="cp-videos-grid">
       ${videos.map((src, i) => `
         <div class="cp-video-thumb" data-src="${esc(src)}" data-i="${i}">
-          <video class="cp-video-preview" src="${esc(src)}" muted preload="metadata"></video>
+          <video class="cp-video-preview" src="${esc(src)}" muted preload="metadata" playsinline></video>
           <div class="cp-video-play"><i class="fas fa-play"></i></div>
         </div>`).join('')}
     </div>`;
@@ -4270,6 +4279,22 @@ function renderAdminPosts() {
 
 function renderAdminUsers() {
   const list = el('adminUsersList'); if (!list) return;
+  // Show loading state
+  if (S.users.length <= 1) {
+    list.innerHTML = '<p class="admin-empty"><i class="fas fa-spinner fa-spin"></i> Loading all members…</p>';
+  }
+  // Always refresh from Supabase to get all users
+  DB.getAllProfiles().then(profiles => {
+    if (profiles.length > 0) {
+      S.users = profiles.map(dbUserToApp).filter(Boolean);
+      try { localStorage.setItem('dl_users_cache', JSON.stringify(S.users)); } catch(_) {}
+    }
+    _renderAdminUsersList();
+  }).catch(() => _renderAdminUsersList());
+}
+
+function _renderAdminUsersList() {
+  const list = el('adminUsersList'); if (!list) return;
   list.innerHTML = S.users.map(u => {
     const posts = S.posts.filter(p=>p.user===u.username).length;
     const age = accountAge(u);
@@ -4683,7 +4708,8 @@ async function submitSocialPost() {
   if (!S.user) { toast('Sign in to post','err'); return; }
   const caption = el('socialCaption')?.value.trim() || '';
   const tag     = el('socialTagPills')?.querySelector('.post-cat-pill.active')?.dataset.cat || '';
-  if (!caption && !_socialPendingFiles.length) { toast('Add a caption or media','err'); return; }
+  const hasContent = caption.length > 0 || _socialPendingFiles.length > 0;
+  if (!hasContent) { toast('Add a caption or photo to share','err'); return; }
   const btn = el('socialSubmitBtn');
   const progBar = el('socialUploadProgress');
   if (btn) { btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Sharing…'; }
