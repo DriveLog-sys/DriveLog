@@ -146,6 +146,8 @@ async function loadStorage() {
   if (usersResult.status === 'fulfilled') {
     S.users = usersResult.value.map(dbUserToApp).filter(Boolean);
     try { localStorage.setItem('dl_users_cache', JSON.stringify(S.users)); } catch(_) {}
+    // Cache avatar URLs for instant display on next load
+    S.users.forEach(u => { if (u.avatarUrl) cacheAvatarUrl(u.username, u.avatarUrl); });
     if (S.user) {
       const fresh = S.users.find(u => u.username === S.user.username);
       if (fresh) {
@@ -2694,8 +2696,30 @@ function toast(msg,type=''){
 // Returns the avatar URL for a user if they have one, otherwise null
 function getAvatarUrl(username) {
   if (!username) return null;
+  // Check S.users first (loaded from Supabase)
   const u = S.users.find(x => x.username === username);
-  return u?.avatarUrl || null;
+  if (u?.avatarUrl) return u.avatarUrl;
+  // Fallback: check avatar cache in localStorage (set when user uploads avatar)
+  if (S.user?.username === username) {
+    const local = localStorage.getItem('dl_avatar_url');
+    if (local) return local;
+  }
+  // Try per-user cache
+  try {
+    const cache = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
+    if (cache[username]) return cache[username];
+  } catch(_) {}
+  return null;
+}
+
+// Called when we know an avatar URL — cache it for instant display
+function cacheAvatarUrl(username, url) {
+  if (!username || !url) return;
+  try {
+    const cache = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
+    cache[username] = url;
+    localStorage.setItem('dl_avatar_cache', JSON.stringify(cache));
+  } catch(_) {}
 }
 
 // Returns HTML string for an avatar circle — img if custom, letter if not
@@ -3447,6 +3471,7 @@ function initMessages() {
   el('msgBackBtn')?.addEventListener('click', () => {
     el('msgChatWrap').style.display='none';
     el('msgNoneSelected').style.display='flex';
+    el('msgChatCol')?.classList.remove('active');
     S.openDm = null;
     el('msgListCol').classList.remove('msg-hide-list');
   });
@@ -3508,6 +3533,7 @@ async function openDmWith(username) {
   const age = otherUser ? accountAge(otherUser) : null;
   el('msgChatStatus').textContent = age ? `Member · ${age.short}` : 'Member';
   el('msgListCol').classList.add('msg-hide-list');
+  el('msgChatCol')?.classList.add('active');
   renderDmMessages(username);
   renderMessages();
   if (S.page !== 'messages') goTo('messages');
@@ -4392,6 +4418,7 @@ window.addEventListener('storage', e => {
     if (newAvatarUrl) {
       S.user.avatarUrl = newAvatarUrl;
       S.users = S.users.map(u => u.username === S.user.username ? { ...u, avatarUrl: newAvatarUrl } : u);
+      cacheAvatarUrl(S.user.username, newAvatarUrl);
       updateAuthUI(); updateProfilePage(); renderFeed();
       // Push to Supabase Storage in background
       if (newAvatarUrl.startsWith('data:')) {

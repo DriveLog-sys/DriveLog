@@ -45,7 +45,7 @@
     <a class="mob-link" data-page="leaderboard"><i class="fas fa-trophy"></i> Leaderboard</a>
     <a class="mob-link" data-page="garage"><i class="fas fa-warehouse"></i> Garage</a>
     <a class="mob-link" data-page="messages"><i class="fas fa-envelope"></i> Messages <span class="nav-dm-badge" id="mobDmBadge" style="display:none"></span></a>
-    <a class="mob-link" data-page="whatsnew"><i class="fas fa-star"></i> What's New</a>
+    <a class="mob-link" data-page="whatsnew"><i class="fas fa-star"></i> More...</a>
     <a class="mob-link" data-page="admin"><i class="fas fa-shield-alt"></i> Admin</a>
     <a class="mob-link" data-page="profile"><i class="fas fa-user"></i> Profile</a>
   </nav>
@@ -201,7 +201,7 @@
       <a class="nav-link" data-page="leaderboard">Leaderboard</a>
       <a class="nav-link" data-page="garage">Garage</a>
       <a class="nav-link" data-page="messages">Messages <span class="nav-dm-badge" id="navDmBadge" style="display:none"></span></a>
-      <a class="nav-link" data-page="whatsnew">What's New</a>
+      <a class="nav-link" data-page="whatsnew">More...</a>
     </nav>
     <div class="header-right">
       <button class="icon-btn" id="searchBtn"><i class="fas fa-search"></i></button>
@@ -393,7 +393,6 @@
 
   <!-- LEADERBOARD -->
   <section class="page" id="page-leaderboard">
-    <div class="page-head"><h1>Leaderboard</h1><p>The most celebrated builds and members on DriveLog.</p></div>
     <!-- Build of the Month — FIRST, above the leaderboard table -->
     <div class="lb-standalone-section" id="lbBotmSection">
       <div class="lb-standalone-head">
@@ -566,18 +565,18 @@
     <div class="page-head"><h1>My Garage</h1><p>Your saved and liked builds in one place.</p></div>
     <div class="garage-wrap">
       <div class="garage-tabs">
-        <button class="gtab active" data-gtab="saved"><i class="fas fa-bookmark"></i> Saved</button>
-        <button class="gtab" data-gtab="liked"><i class="fas fa-heart"></i> Liked</button>
+        <button class="gtab active" data-gtab="liked"><i class="fas fa-heart"></i> Liked</button>
+        <button class="gtab" data-gtab="saved"><i class="fas fa-bookmark"></i> Saved</button>
         <button class="gtab" data-gtab="shared"><i class="fas fa-share-alt"></i> Shared</button>
         <button class="gtab" data-gtab="parts"><i class="fas fa-wrench"></i> Saved Parts</button>
       </div>
-      <div class="gpanel active" id="gpanel-saved">
-        <div class="card-grid" id="savedGrid"></div>
-        <div class="garage-empty" id="savedEmpty"><i class="fas fa-bookmark"></i><h3>No saved builds yet</h3><p>Bookmark any build to find it here.</p></div>
-      </div>
-      <div class="gpanel" id="gpanel-liked">
+      <div class="gpanel active" id="gpanel-liked">
         <div class="card-grid" id="likedGrid"></div>
         <div class="garage-empty" id="likedEmpty"><i class="fas fa-heart"></i><h3>No liked builds yet</h3><p>Like any build to find it here.</p></div>
+      </div>
+      <div class="gpanel" id="gpanel-saved">
+        <div class="card-grid" id="savedGrid"></div>
+        <div class="garage-empty" id="savedEmpty"><i class="fas fa-bookmark"></i><h3>No saved builds yet</h3><p>Bookmark any build to find it here.</p></div>
       </div>
       <div class="gpanel" id="gpanel-shared">
         <div class="card-grid" id="sharedGrid"></div>
@@ -931,31 +930,30 @@
 
   <!-- MESSAGES PAGE -->
   <section class="page" id="page-messages">
-    <div class="messages-layout">
+    <div class="msg-wrap">
       <!-- Conversation list -->
       <div class="msg-list-col" id="msgListCol">
         <div class="msg-list-head">
-          <h2>Messages</h2>
-          <button class="btn-primary small" id="newDmBtn"><i class="fas fa-edit"></i> New Message</button>
+          <div class="msg-list-title">Messages</div>
+          <div class="msg-search-wrap">
+            <i class="fas fa-search"></i>
+            <input type="text" id="msgSearch" placeholder="Search conversations…"/>
+          </div>
         </div>
-        <div class="msg-search-wrap">
-          <i class="fas fa-search"></i>
-          <input type="text" id="msgSearch" placeholder="Search conversations…" class="msg-search-input"/>
-        </div>
-        <div id="msgConvList"><div class="msg-empty"><i class="fas fa-envelope-open"></i><p>No messages yet</p></div></div>
+        <button class="btn-primary small" id="newDmBtn" style="margin:10px 16px"><i class="fas fa-edit"></i> New Message</button>
+        <div class="msg-conv-list" id="msgConvList"><div class="msg-empty"><i class="fas fa-envelope-open"></i><p>No messages yet</p></div></div>
       </div>
       <!-- Chat window -->
       <div class="msg-chat-col" id="msgChatCol">
         <div id="msgNoneSelected" class="msg-none-selected">
           <i class="fas fa-comments"></i>
-          <h3>Select a conversation</h3>
-          <p>Choose someone to message from your contacts, or start a new conversation.</p>
+          <p>Select a conversation or start a new one</p>
         </div>
-        <div id="msgChatWrap" style="display:none">
+        <div id="msgChatWrap" style="display:none;flex-direction:column;height:100%">
           <div class="msg-chat-head">
             <button class="msg-back-btn" id="msgBackBtn"><i class="fas fa-arrow-left"></i></button>
             <div class="msg-chat-av" id="msgChatAv"></div>
-            <div class="msg-chat-head-info">
+            <div class="msg-chat-info">
               <div class="msg-chat-name" id="msgChatName"></div>
               <div class="msg-chat-status" id="msgChatStatus"></div>
             </div>
@@ -966,10 +964,12 @@
             <img id="msgImgPreview" src="" alt="" class="msg-img-preview"/>
             <button class="msg-img-remove" id="msgImgRemove"><i class="fas fa-times"></i></button>
           </div>
-          <div class="msg-chat-foot">
-            <button class="msg-attach-btn" id="msgAttachBtn" title="Send image"><i class="fas fa-image"></i></button>
+          <div class="msg-input-row">
+            <button class="msg-attach-btn icon-btn" id="msgAttachBtn" title="Send image"><i class="fas fa-image"></i></button>
             <input type="file" id="msgFileInput" accept="image/*" hidden/>
-            <input class="msg-input" type="text" id="msgInput" placeholder="Message…"/>
+            <div class="msg-input-wrap">
+              <input type="text" id="msgInput" placeholder="Type a message…"/>
+            </div>
             <button class="msg-send-btn" id="msgSendBtn"><i class="fas fa-paper-plane"></i></button>
           </div>
         </div>
