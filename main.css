@@ -9,9 +9,9 @@
   --card:    #ffffff;
   --raised:  #e5e8ed;
   --hover:   #d8dbe3;
-  --border:  #b8bcc8;
-  --mid:     #9da2b0;
-  --subtle:  #d8dbe4;
+  --border:  #dde1e7;
+  --mid:     #c8cdd6;
+  --subtle:  #eaecf0;
   --accent:      #3b82f6;
   --accent-dim:  #2563eb;
   --accent-glow: rgba(59,130,246,.20);
@@ -21,7 +21,7 @@
   --text:  #111827; --sec: #4b5563; --muted: #9ca3af;
   --disp:  'Bebas Neue', sans-serif;
   --cond:  'Barlow Condensed', sans-serif;
-  --body:  'Barlow', sans-serif;
+  --body:  'Inter', 'Barlow', sans-serif;
   --r-sm:3px; --r-md:6px; --r-lg:10px; --r-xl:16px; --r-img:5px;
   --tr: .22s cubic-bezier(.4,0,.2,1);
   --sh: 0 2px 16px rgba(0,0,0,.08);
@@ -297,15 +297,15 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 .lb-counter{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);font-family:var(--cond);font-size:.8rem;font-weight:700;color:rgba(255,255,255,.5);z-index:2}
 
 /* ─── PAGE LAYOUT ───────────────────────────────────────────── */
-.page-wrap{padding-top:62px;min-height:100vh}
-.page{display:none}
+.page-wrap{padding-top:62px;min-height:100vh;overflow-x:hidden;width:100%}
+.page{display:none;overflow-x:hidden;width:100%;box-sizing:border-box}
 .page.active{display:block;animation:slideUp .3s ease}
 .page-head{max-width:1440px;margin:0 auto;padding:58px 48px 28px}
 .page-head h1{font-size:clamp(2.5rem,5vw,4rem);margin-bottom:7px}
 .page-head p{color:var(--sec)}
 
 /* ─── HERO ───────────────────────────────────────────────────── */
-.hero{position:relative;min-height:580px;display:flex;align-items:center;overflow:hidden;padding:88px 0 50px}
+/* hero defined in redesign section below */
 .hero-orbs{position:absolute;inset:0;pointer-events:none}
 .orb{position:absolute;border-radius:50%;filter:blur(90px)}
 .orb1{width:550px;height:550px;background:radial-gradient(circle,rgba(59,130,246,.28) 0%,transparent 70%);top:-140px;left:-110px;animation:orbFloat 12s ease-in-out infinite alternate}
@@ -2171,7 +2171,7 @@ body.dark .card-poster { color:#e8e8e8 }
 
 /* Cover strip */
 .profile-cover{
-  height:180px;
+  height:240px;
   background:linear-gradient(135deg,#0a0a14 0%,#1a1a2e 40%,#0d1b3e 70%,#0a0a14 100%);
   position:relative;overflow:hidden;
 }
@@ -2199,14 +2199,14 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
   position:relative;
 }
 .profile-av-wrap{
-  margin-top:-44px;flex-shrink:0;
+  margin-top:-55px;flex-shrink:0;
   background:var(--surface);
   border-radius:50%;
   padding:3px;
 }
 .profile-av{
-  width:88px;height:88px;border-radius:50%;
-  font-family:var(--disp);font-size:2.2rem;
+  width:110px;height:110px;border-radius:50%;
+  font-family:var(--disp);font-size:2.8rem;
   display:flex;align-items:center;justify-content:center;
   color:#fff;flex-shrink:0;overflow:hidden;
   border:3px solid var(--surface);
@@ -2214,11 +2214,11 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
 }
 .profile-header-info{flex:1;padding:16px 0 20px;min-width:0}
 .profile-username{
-  font-family:var(--disp);font-size:1.9rem;letter-spacing:1px;
+  font-family:var(--disp);font-size:2.4rem;letter-spacing:1px;
   color:var(--text);margin:0 0 4px;line-height:1.1;
 }
 .profile-name-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
-.profile-bio{font-size:.88rem;color:var(--text);line-height:1.7;margin:0 0 8px;max-width:520px;font-style:normal}
+.profile-bio{font-size:.95rem;color:var(--sec);line-height:1.7;margin:0 0 10px;max-width:580px;font-style:normal}
 .profile-joined{font-size:.75rem;color:var(--muted);margin:0 0 10px;font-family:var(--cond);font-weight:700;letter-spacing:.5px;text-transform:uppercase}
 .profile-socials{display:flex;gap:7px;flex-wrap:wrap}
 .profile-header-actions{
@@ -2229,7 +2229,7 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
 /* Stats bar */
 .profile-stats-bar{
   max-width:1000px;margin:0 auto;
-  padding:0 48px;
+  padding:8px 48px 0;
   display:flex;gap:0;
   border-top:1px solid var(--subtle);
 }
@@ -2241,7 +2241,7 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
 }
 .pstat:last-child{border-right:none}
 .pstat-n{
-  font-family:var(--disp);font-size:1.5rem;letter-spacing:.5px;color:var(--text);line-height:1;
+  font-family:var(--disp);font-size:1.8rem;letter-spacing:.5px;color:var(--text);line-height:1;
 }
 .pstat-l{
   font-family:var(--cond);font-size:.68rem;font-weight:700;
@@ -2413,7 +2413,7 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
    ═══════════════════════════════════════════════════════════════ */
 .hot-slider{
   position:relative;width:100%;height:380px;overflow:hidden;background:var(--card);
-  border-radius:12px;
+  border-radius:var(--r-img);
   box-shadow:0 4px 40px rgba(0,0,0,.18);
 }
 .hot-slide{
@@ -3449,7 +3449,7 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
   .hero-title{font-size:clamp(2rem,8vw,3rem)}
   .hero-btns{justify-content:center}
   .hero-stats{justify-content:center}
-  .botw-card{display:none} /* hide BOTW on mobile — too complex */
+  .botw-card{display:none} /* hidden on small mobile, shown at 600px+ */
   .featured-members-strip{justify-content:center}
 
   /* ─── Hot Right Now ─── */
@@ -3624,7 +3624,7 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
   .hero-stats{gap:16px;margin-top:20px}
   .hstat-n{font-size:1.4rem}
   /* Hide BOTW on mobile */
-  .botw-card,.botw-wrap{display:none!important}
+  /* botw shown at 600px+ via media query below */
   /* Featured members */
   .featured-members-strip{margin-top:12px;gap:8px}
 }
@@ -3864,7 +3864,7 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
   width:100%;
   max-width:1440px;
   margin:0 auto;
-  padding:0 60px;
+  padding:0 48px;
   align-items:center;
   position:relative;z-index:2;
 }
@@ -3970,41 +3970,8 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
 }
 .botw-nav:hover{background:rgba(255,255,255,.2);color:#fff}
 
-/* ─── LIGHT MODE — all boxes have visible borders ─────────────── */
-body:not(.dark) * {
-  border-color: inherit;
-}
-body:not(.dark) .card,
-body:not(.dark) .widget,
-body:not(.dark) .botw-card,
-body:not(.dark) .lb-list,
-body:not(.dark) .cp-mod-section,
-body:not(.dark) .specs-table,
-body:not(.dark) .car-page-details,
-body:not(.dark) .wn-update-card,
-body:not(.dark) .msg-conv-item,
-body:not(.dark) .social-post-card,
-body:not(.dark) .cat-card,
-body:not(.dark) .member-card,
-body:not(.dark) .pm-item,
-body:not(.dark) .atg-card,
-body:not(.dark) .botm-cinematic,
-body:not(.dark) .onboarding-step,
-body:not(.dark) .challenge-pick-item,
-body:not(.dark) .video-preview-item,
-body:not(.dark) .auth-box,
-body:not(.dark) .filter-sidebar,
-body:not(.dark) .msg-wrap,
-body:not(.dark) .notif-drop,
-body:not(.dark) .av-drop {
-  border-color: #b0b4c0 !important;
-}
-body:not(.dark) .spec-row {
-  border-bottom-color: #c8ccd6 !important;
-}
-body:not(.dark) .lb-row {
-  border-bottom-color: #c8ccd6 !important;
-}
+/* ─── LIGHT MODE — selective border visibility ─────────────── */
+
 /* Light mode text improvements */
 body:not(.dark) .hero-title,
 body:not(.dark) .hero-sub,
@@ -4243,3 +4210,203 @@ body:not(.dark) .page-wrap {
 
 /* ─── GARAGE — liked before saved ───────────────────────────── */
 .garage-tabs{gap:6px}
+
+/* ─── PROFILE BANNER UPLOAD BUTTON ──────────────────────────── */
+.profile-banner-upload-btn{
+  position:absolute;bottom:12px;right:12px;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.2);border-radius:var(--r-sm);
+  color:#fff;padding:6px 14px;font-family:var(--cond);
+  font-size:.72rem;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;cursor:pointer;z-index:2;
+  display:flex;align-items:center;gap:7px;
+  transition:all var(--tr);
+}
+.profile-banner-upload-btn:hover{background:rgba(0,0,0,.8)}
+
+/* ─── PROFILE — cover image support ─────────────────────────── */
+.profile-cover{
+  background-size:cover !important;
+  background-position:center !important;
+}
+
+/* ─── MORE... TAB — fix floating ellipsis ────────────────────── */
+.nav-link[data-page="whatsnew"],
+.nav-link[data-page="whatsnew"] *{
+  letter-spacing:0 !important;
+  vertical-align:baseline !important;
+  display:inline !important;
+}
+.nav-link{display:inline-flex;align-items:center;white-space:nowrap}
+
+/* ─── FEATURED MEMBERS — always show below stats ─────────────── */
+.featured-members-strip{
+  display:flex !important;
+  align-items:center;
+  gap:12px;
+  margin-top:16px;
+  cursor:pointer;
+  min-height:44px;
+}
+.featured-members-strip[style*="display:none"]{display:none !important}
+
+/* ─── FOLLOW BUTTON improvements ─────────────────────────────── */
+#followBtn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:9px 20px;font-size:.82rem;
+}
+#followBtn.following{
+  background:transparent;border-color:var(--border);color:var(--sec);
+}
+#followBtn.following:hover{border-color:var(--red);color:var(--red)}
+
+/* ─── PROFILE STATS — follower/following ─────────────────────── */
+.pstat{cursor:default}
+.pstat:nth-child(3),.pstat:nth-child(4){cursor:pointer}
+.pstat:nth-child(3):hover .pstat-n,
+.pstat:nth-child(4):hover .pstat-n{color:var(--accent)}
+
+/* ─── HOT SLIDER radius fix ──────────────────────────────────── */
+.hot-slider{border-radius:var(--r-img) !important}
+
+/* ─── INTER FONT body ────────────────────────────────────────── */
+body{font-family:'Inter','Barlow',sans-serif}
+.site-nav .nav-link,
+.mob-link,
+.fpill,
+.lbtab,
+.soc-tab,
+.cptab,
+.gtab{font-family:'Barlow Condensed',sans-serif}
+
+/* ─── PROFILE PAGE MOBILE ────────────────────────────────────── */
+@media(max-width:768px){
+  .profile-cover{height:160px}
+  .profile-av{width:80px;height:80px;font-size:2rem}
+  .profile-av-wrap{margin-top:-40px}
+  .profile-username{font-size:1.7rem}
+  .profile-stats-bar{padding:0 12px;flex-wrap:wrap;gap:0}
+  .pstat{padding:10px 16px 10px 0;margin-right:16px}
+  .pstat-n{font-size:1.4rem}
+  .profile-body{padding:20px 12px 60px}
+  .profile-header-inner{padding:0 12px;gap:14px}
+  .profile-header-actions{flex-wrap:wrap;gap:8px;width:100%}
+  .profile-banner-upload-btn{bottom:8px;right:8px;padding:5px 10px;font-size:.65rem}
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COMPREHENSIVE OVERFLOW + CENTERING FIX
+   ═══════════════════════════════════════════════════════════════ */
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+}
+* { box-sizing: border-box; }
+
+/* Fix hero padding on all screens */
+.hero-inner {
+  padding-left: clamp(16px, 4vw, 60px) !important;
+  padding-right: clamp(16px, 4vw, 60px) !important;
+}
+.hero-content { padding: 60px 0; }
+
+/* Mobile — BOTM shows at 600px+ */
+@media(min-width:600px) {
+  .botw-card { display:flex !important; }
+}
+
+/* Feed grid — always centered */
+.feed-main { width:100%; min-width:0; }
+.card-grid {
+  width:100%;
+  margin:0 auto;
+}
+
+/* Mobile centering fix */
+@media(max-width:768px){
+  .feed-wrap {
+    padding: 12px !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+  .card-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+  }
+  .card { width: 100% !important; }
+  /* Fix hero on mobile */
+  .hero-content { padding: 48px 0 32px; }
+  .hero-title { font-size: 1.8rem !important; }
+  /* Ensure nothing bleeds */
+  .section-inner,
+  .lb-standalone-section,
+  .car-page-wrap,
+  .post-page-wrap,
+  .profile-body,
+  .profile-header-wrap,
+  .profile-header-inner,
+  .profile-stats-bar {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+  .lb-tabs { padding-left: 12px !important; padding-right: 12px !important; }
+  .lb-panel { padding-left: 12px !important; padding-right: 12px !important; }
+}
+
+@media(max-width:480px){
+  .card-grid { grid-template-columns: 1fr; }
+  .hero-title { font-size: 1.6rem !important; }
+  .hero-btns { flex-direction: column; }
+  .hero-btns .btn-primary,
+  .hero-btns .btn-ghost { width: 100%; justify-content: center; }
+}
+
+/* ─── SEO META + HEAD ─────────────────────────────────────────── */
+/* Nothing visual here — handled in app.js setMetaTags() */
+
+/* ─── BUILD TIMELINE — push notification indicator ───────────── */
+.notif-item{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:12px 16px;border-bottom:1px solid var(--subtle);
+  cursor:pointer;transition:background var(--tr);
+}
+.notif-item:hover{background:var(--raised)}
+.notif-item.unread{background:var(--accent-soft)}
+.notif-item-icon{
+  width:32px;height:32px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.78rem;flex-shrink:0;
+}
+.notif-item-icon.like{background:rgba(232,57,42,.1);color:var(--red)}
+.notif-item-icon.comment{background:rgba(59,130,246,.1);color:var(--accent)}
+.notif-item-icon.follow{background:rgba(34,197,94,.1);color:var(--green)}
+.notif-item-icon.message{background:rgba(139,92,246,.1);color:var(--purple)}
+.notif-item-content{flex:1;min-width:0}
+.notif-item-msg{font-size:.84rem;color:var(--text);line-height:1.4}
+.notif-item-time{font-size:.72rem;color:var(--muted);margin-top:3px;font-family:var(--cond);font-weight:700}
+
+/* ─── PUSH NOTIFICATION TOAST ────────────────────────────────── */
+.push-notif{
+  position:fixed;top:72px;right:16px;z-index:3000;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:12px 16px;
+  display:flex;align-items:center;gap:12px;
+  max-width:320px;min-width:260px;
+  box-shadow:0 8px 32px rgba(0,0,0,.2);
+  transform:translateX(120%);transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+  pointer-events:none;
+}
+.push-notif.show{transform:translateX(0);pointer-events:auto}
+.push-notif-av{
+  width:36px;height:36px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--disp);font-size:.9rem;color:#fff;overflow:hidden;
+}
+.push-notif-body{flex:1;min-width:0}
+.push-notif-text{font-size:.82rem;color:var(--text);line-height:1.4}
+.push-notif-close{
+  width:24px;height:24px;border-radius:50%;background:var(--raised);
+  border:none;cursor:pointer;color:var(--muted);font-size:.7rem;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}

@@ -62,8 +62,20 @@ function loadFromCache() {
     const uu = localStorage.getItem('dl_user_cache');
     if (cp) S.posts = JSON.parse(cp);
     if (cu) S.users = JSON.parse(cu);
-    if (uu) S.user  = JSON.parse(uu);
-    if (!cp) S._loading = true; // no cache — show skeletons
+    if (uu) {
+      S.user = JSON.parse(uu);
+      // Restore following list for this user
+      if (S.user?.username) {
+        const fl = localStorage.getItem('dl_following_'+S.user.username);
+        if (fl) S.following = JSON.parse(fl);
+      }
+    }
+    if (!cp) S._loading = true;
+    // Apply locally-saved featured list
+    try {
+      const featuredList = JSON.parse(localStorage.getItem('dl_featured_users') || '[]');
+      S.users.forEach(u => { if (featuredList.includes(u.username)) u.isFeatured = true; });
+    } catch(_) {}
   } catch(_) {}
 }
 
@@ -148,6 +160,11 @@ async function loadStorage() {
     try { localStorage.setItem('dl_users_cache', JSON.stringify(S.users)); } catch(_) {}
     // Cache avatar URLs for instant display on next load
     S.users.forEach(u => { if (u.avatarUrl) cacheAvatarUrl(u.username, u.avatarUrl); });
+    // Apply locally-saved featured list to users (in case Supabase column isn't set)
+    try {
+      const featuredList = JSON.parse(localStorage.getItem('dl_featured_users') || '[]');
+      S.users.forEach(u => { if (featuredList.includes(u.username)) u.isFeatured = true; });
+    } catch(_) {}
     if (S.user) {
       const fresh = S.users.find(u => u.username === S.user.username);
       if (fresh) {
@@ -266,16 +283,53 @@ function setupRealtimeSubscriptions() {
   _realtimeSubs.forEach(sub => { try { sub.unsubscribe?.(); } catch(_) {} });
   _realtimeSubs = [];
   if (!S.user) return;
-  // New messages — update DM badge
-  const msgSub = DB.subscribeToMessages(S.user.id, () => updateDmBadge());
+  // New messages
+  const msgSub = DB.subscribeToMessages(S.user.id, payload => {
+    updateDmBadge();
+    if (payload.new) {
+      const from = S.users.find(u=>u.id===payload.new.from_user_id)?.username || 'Someone';
+      if (from !== S.user.username && S.page !== 'messages') {
+        const thread = loadDmThread(from);
+        thread.push({from, text:payload.new.text||'', ts:new Date(payload.new.created_at).getTime(), read:false});
+        saveDmThread(from, thread);
+        updateDmBadge(); renderMessages();
+        showPushNotif(from, 'sent you a message', 'message');
+      }
+    }
+  });
   // New notifications
   const notifSub = DB.subscribeToNotifications(S.user.id, payload => {
     if (payload.new) {
-      S.notifs.unshift({ id:payload.new.id, type:payload.new.type, from:payload.new.from_username, msg:payload.new.message, link:payload.new.link||null, time:new Date(payload.new.created_at).getTime(), read:false });
+      const n = payload.new;
+      S.notifs.unshift({ id:n.id, type:n.type, from:n.from_username, msg:n.message, link:n.link||null, time:new Date(n.created_at).getTime(), read:false });
       updateNotifBadge();
+      renderNotifList();
+      showPushNotif(n.from_username, n.message, n.type);
     }
   });
   _realtimeSubs.push(msgSub, notifSub);
+}
+
+// ─── PUSH NOTIFICATION TOAST ──────────────────────────────────
+function showPushNotif(from, message, type) {
+  if (type === 'message' && S.page === 'messages') return;
+  let pn = document.getElementById('pushNotif');
+  if (!pn) {
+    pn = document.createElement('div');
+    pn.id = 'pushNotif'; pn.className = 'push-notif';
+    pn.innerHTML = `<div class="push-notif-av" id="pushNotifAv"></div>
+      <div class="push-notif-body"><div class="push-notif-text" id="pushNotifText"></div></div>
+      <button class="push-notif-close" id="pushNotifClose"><i class="fas fa-times"></i></button>`;
+    document.body.appendChild(pn);
+    document.getElementById('pushNotifClose').addEventListener('click', () => pn.classList.remove('show'));
+  }
+  const av = document.getElementById('pushNotifAv');
+  const url = getAvatarUrl(from);
+  if (url) { av.innerHTML=`<img src="${url}" alt="" class="av-photo"/>`; av.style.background='transparent'; }
+  else { av.innerHTML=(from||'?')[0].toUpperCase(); av.style.background=avColor(from||'?'); }
+  document.getElementById('pushNotifText').innerHTML = `<b>${esc(from||'Someone')}</b> ${(message||'').replace(/<[^>]*>/g,'')}`;
+  pn.classList.add('show');
+  clearTimeout(pn._t); pn._t = setTimeout(() => pn.classList.remove('show'), 5000);
 }
 
 // ─── NAVIGATION ───────────────────────────────────────────────
@@ -1747,8 +1801,9 @@ function handleNotifLink(link) {
 // ─── FOLLOW ───────────────────────────────────────────────────
 function isFollowing(u){return S.following.includes(u);}
 function toggleFollow(username) {
-  if(!S.user){toast('Sign in to follow members','err');return;}
+  if(!S.user){toast('Sign in to follow members','err'); el('authModal').classList.add('open'); return;}
   const idx=S.following.indexOf(username);
+  const isNowFollowing = idx < 0;
   if(idx>=0){
     S.following.splice(idx,1);
     toast(`Unfollowed ${username}`,'');
@@ -1756,12 +1811,17 @@ function toggleFollow(username) {
     S.following.push(username);
     toast(`Now following ${username}`,'ok');
     const otherUser = S.users.find(u=>u.username===username);
-    pushNotif('follow',S.user.username,'started following you','user:'+S.user.username, otherUser?.id);
+    // Push real notification
+    pushNotif('follow', S.user.username, `<b>${S.user.username}</b> started following you`, 'user:'+S.user.username, otherUser?.id);
   }
+  // Save per-user following list for follower counting
+  try { localStorage.setItem('dl_following_'+S.user.username, JSON.stringify(S.following)); } catch(_) {}
   // Persist to Supabase
   const other = S.users.find(u=>u.username===username);
-  if (other?.id) DB.toggleFollow(S.user.id, other.id).catch(()=>{});
+  if (other?.id && S.user?.id) DB.toggleFollow(S.user.id, other.id).catch(()=>{});
   save(); renderMembers(); updateFollowBtn(username);
+  // Re-render profile if viewing the followed user
+  if (S.page==='profile') viewMemberProfile(username);
 }
 function updateFollowBtn(username) {
   const fb=el('followBtn'); if(!fb)return;
@@ -2505,7 +2565,30 @@ function viewMemberProfile(username) {
   }
   // u is already declared above
   const posts=S.posts.filter(p=>p.user===username);
-  const likes=posts.reduce((a,p)=>a+p.likes,0), followers=Math.floor((u.totalLikes||0)/80);
+  const likes=posts.reduce((a,p)=>a+p.likes,0);
+  // Count actual followers — users who follow this person
+  const followers = S.users.reduce((count, su) => {
+    const theirFollowing = JSON.parse(localStorage.getItem('dl_following_'+su.username) || '[]');
+    return count + (theirFollowing.includes(username) ? 1 : 0);
+  }, 0);
+  // Following count — how many this user follows
+  const followingCount = S.following.length;
+  // Apply custom banner
+  const savedBanner = localStorage.getItem('dl_banner_'+username) || u.bannerUrl || null;
+  const coverEl = el('profileCover');
+  if (coverEl) {
+    if (savedBanner) {
+      coverEl.style.backgroundImage = `url(${savedBanner})`;
+      coverEl.style.backgroundSize = 'cover';
+      coverEl.style.backgroundPosition = 'center';
+    } else {
+      coverEl.style.backgroundImage = '';
+    }
+  }
+  // Show/hide banner upload button based on ownership
+  const bannerBtn = el('profileBannerUploadBtn');
+  if (bannerBtn) bannerBtn.style.display = S.user?.username === username ? 'flex' : 'none';
+
   const profUrl = getAvatarUrl(u.username);
   if (profUrl) {
     el('profileAv').innerHTML=`<img src="${profUrl}" alt="${esc(u.username)}" class="av-photo"/>`;
@@ -2522,7 +2605,12 @@ function viewMemberProfile(username) {
   const ageInfo=accountAge(u);
   el('profileJoined').innerHTML=`Member since ${u.joined} &nbsp;<span class="acct-age-badge"><i class="fas fa-clock"></i> ${ageInfo.full}</span>`;
   el('profileSocials').innerHTML=buildSocialLinks(u);
-  const stEl=el('profileStats'); if(stEl) stEl.innerHTML=`<div class="pstat"><span class="pstat-n">${posts.length}</span><span class="pstat-l">Builds</span></div><div class="pstat"><span class="pstat-n">${likes.toLocaleString()}</span><span class="pstat-l">Likes</span></div><div class="pstat"><span class="pstat-n">${followers}</span><span class="pstat-l">Followers</span></div>`;
+  const stEl=el('profileStats'); if(stEl) stEl.innerHTML=`
+    <div class="pstat"><span class="pstat-n">${posts.length}</span><span class="pstat-l">Builds</span></div>
+    <div class="pstat"><span class="pstat-n">${likes.toLocaleString()}</span><span class="pstat-l">Likes</span></div>
+    <div class="pstat"><span class="pstat-n">${followers}</span><span class="pstat-l">Followers</span></div>
+    <div class="pstat"><span class="pstat-n">${S.user?.username===username ? followingCount : '—'}</span><span class="pstat-l">Following</span></div>
+  `;
   el('profileActions').style.display='flex'; el('noLoginMsg').style.display='none'; el('profilePostsWrap').style.display='block';
   el('profileBuildsLabel').textContent=`${u.username}'s Builds`;
   updateFollowBtn(username); el('followBtn').onclick=()=>toggleFollow(username);
@@ -2534,10 +2622,36 @@ function viewMemberProfile(username) {
 // ─── PUBLIC PROFILE ROUTER ─────────────────────────────────────
 // Called when any avatar/username is clicked anywhere on the site.
 // Shows own editable profile for self, read-only view for others.
-function viewPublicProfile(username) {
+async function viewPublicProfile(username) {
   if (!username) return;
-  const u = S.users.find(x => x.username === username);
-  if (!u) { toast('User not found', 'err'); return; }
+  let u = S.users.find(x => x.username === username);
+  if (!u) {
+    // Try fetching from Supabase directly
+    try {
+      const profile = await DB.getProfileByUsername(username);
+      if (profile) {
+        u = dbUserToApp(profile);
+        S.users.push(u);
+      }
+    } catch(_) {}
+  }
+  if (!u) {
+    // Show not found instead of blank
+    goTo('profile');
+    const noMsg = el('noLoginMsg');
+    if (noMsg) {
+      noMsg.style.display = 'block';
+      noMsg.innerHTML = `<div class="profile-not-found">
+        <i class="fas fa-user-slash" style="font-size:3rem;color:var(--mid);display:block;margin-bottom:16px"></i>
+        <h2>Profile Not Found</h2>
+        <p>This account may not exist or was removed.</p>
+        <button class="btn-ghost small" onclick="goTo('home')" style="margin-top:12px"><i class="fas fa-home"></i> Go Home</button>
+      </div>`;
+      el('profilePostsWrap').style.display = 'none';
+      el('profileActions').style.display = 'none';
+    }
+    return;
+  }
   viewMemberProfile(username);
 }
 
@@ -2639,6 +2753,43 @@ function renderParts() {
 
 // ─── PROFILE (own) ────────────────────────────────────────────
 function updateProfilePage() {
+  // Wire banner upload button
+  const bannerUploadBtn = el('profileBannerUploadBtn');
+  const bannerInput     = el('profileBannerInput');
+  if (bannerUploadBtn && S.user) {
+    bannerUploadBtn.style.display = 'flex';
+    bannerUploadBtn.onclick = () => bannerInput?.click();
+    if (bannerInput && !bannerInput._bannerWired) {
+      bannerInput._bannerWired = true;
+      bannerInput.addEventListener('change', async () => {
+        const file = bannerInput.files[0]; if (!file) return;
+        if (file.size > 5*1024*1024) { toast('Max 5MB for banner','err'); return; }
+        bannerUploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        const reader = new FileReader();
+        reader.onload = async e => {
+          const dataUrl = e.target.result;
+          const coverEl = el('profileCover');
+          if (coverEl) {
+            coverEl.style.backgroundImage = `url(${dataUrl})`;
+            coverEl.style.backgroundSize = 'cover';
+            coverEl.style.backgroundPosition = 'center';
+          }
+          localStorage.setItem('dl_banner_'+S.user.username, dataUrl);
+          try {
+            const res = await DB.uploadBase64(S.user.id, dataUrl, 'banner');
+            if (res?.url) {
+              localStorage.setItem('dl_banner_'+S.user.username, res.url);
+              DB.updateProfile(S.user.id, { banner_url: res.url }).catch(()=>{});
+            }
+          } catch(_) {}
+          bannerUploadBtn.innerHTML = '<i class="fas fa-camera"></i> Change Cover';
+          toast('Cover photo updated!','ok');
+          bannerInput.value = '';
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  }
   if(!S.user){
     el('noLoginMsg').style.display='block'; el('profilePostsWrap').style.display='none'; el('profileActions').style.display='none';
     el('profileName').textContent='Sign in to view profile'; el('profileBio').textContent=''; el('profileJoined').textContent='';
@@ -2647,6 +2798,22 @@ function updateProfilePage() {
   }
   const u=S.user, posts=S.posts.filter(p=>p.user===u.username), likes=posts.reduce((a,p)=>a+p.likes,0);
   el('noLoginMsg').style.display='none'; el('profilePostsWrap').style.display='block'; el('profileActions').style.display='flex';
+  // Apply custom banner
+  const savedBanner = localStorage.getItem('dl_banner_'+username) || u.bannerUrl || null;
+  const coverEl = el('profileCover');
+  if (coverEl) {
+    if (savedBanner) {
+      coverEl.style.backgroundImage = `url(${savedBanner})`;
+      coverEl.style.backgroundSize = 'cover';
+      coverEl.style.backgroundPosition = 'center';
+    } else {
+      coverEl.style.backgroundImage = '';
+    }
+  }
+  // Show/hide banner upload button based on ownership
+  const bannerBtn = el('profileBannerUploadBtn');
+  if (bannerBtn) bannerBtn.style.display = S.user?.username === username ? 'flex' : 'none';
+
   const profUrl = getAvatarUrl(u.username);
   if (profUrl) {
     el('profileAv').innerHTML=`<img src="${profUrl}" alt="${esc(u.username)}" class="av-photo"/>`;
@@ -3491,7 +3658,7 @@ function renderMessages() {
     el('msgConvList').innerHTML = '<div class="msg-empty"><i class="fas fa-lock"></i><p>Sign in to view messages</p></div>';
     return;
   }
-  const q = (el('msgSearch').value||'').toLowerCase();
+  const q = (el('msgSearch')?.value||'').toLowerCase();
   const convs = getAllDmConversations().filter(c => !q || c.other.toLowerCase().includes(q));
   if (!convs.length) {
     el('msgConvList').innerHTML = '<div class="msg-empty"><i class="fas fa-envelope-open"></i><p>No messages yet. Start a conversation!</p></div>';
@@ -3830,7 +3997,14 @@ function toggleFeaturedUser(username) {
   const u = S.users.find(x=>x.username===username); if(!u) return;
   u.isFeatured = !u.isFeatured;
   // Persist to Supabase
-  DB.updateProfile(u.id||'', { is_featured: u.isFeatured }).catch(()=>{});
+  if (u.id) DB.updateProfile(u.id, { is_featured: u.isFeatured }).catch(()=>{});
+  // Also persist locally so it survives page reload
+  try {
+    const featuredList = JSON.parse(localStorage.getItem('dl_featured_users') || '[]');
+    if (u.isFeatured) { if (!featuredList.includes(username)) featuredList.push(username); }
+    else { const i = featuredList.indexOf(username); if (i>=0) featuredList.splice(i,1); }
+    localStorage.setItem('dl_featured_users', JSON.stringify(featuredList));
+  } catch(_) {}
   save(); renderAdminUsers(); renderFeaturedMembers();
   toast(`${u.isFeatured?'Added to':'Removed from'} Featured Members`, 'ok');
 }
@@ -5105,3 +5279,55 @@ window.addEventListener('popstate', e => {
   el('mobOverlay')?.classList.remove('open');
   document.body.style.overflow = '';
 });
+
+// ─── SOCIAL CARD HELPERS (used by search) ─────────────────────
+function renderSocialCard(p) {
+  if (!p) return '';
+  const media   = (p.media||[]).filter(Boolean);
+  const isVideo = media[0]?.type === 'video';
+  const user    = S.users.find(u=>u.username===p.user)||{};
+  const avUrl   = getAvatarUrl(p.user);
+  const avHTML  = avUrl
+    ? `<div class="soc-av has-photo"><img src="${avUrl}" alt="" class="av-photo"/></div>`
+    : `<div class="soc-av" style="background:${avColor(p.user)}">${(p.user||'?')[0].toUpperCase()}</div>`;
+  const cats = (p.tag && p.tag !== 'All') ? `<span class="cat-badge ${catCfg(p.tag).badge}" style="position:static">${p.tag}</span>` : '';
+  return `<article class="social-post-card" data-id="${p.id}">
+    <div class="soc-post-head">
+      ${avHTML}
+      <div class="soc-post-head-info">
+        <span class="soc-post-user clickable-user" data-user="${p.user}">${esc(p.user)}</span>
+        <span class="soc-post-time">${timeAgo(p.ts)}</span>
+      </div>
+      ${cats}
+    </div>
+    ${media.length ? `<div class="soc-post-media-wrap">${media.slice(0,4).map(m =>
+      m.type==='video'
+        ? `<video src="${m.url}" class="social-post-media" muted playsinline preload="metadata" controls></video>`
+        : `<img src="${m.url}" alt="" class="social-post-media" loading="lazy"/>`
+    ).join('')}</div>` : ''}
+    ${p.caption ? `<p class="soc-post-caption">${esc(p.caption)}</p>` : ''}
+    <div class="soc-post-actions">
+      <button class="soc-like-btn${(p.likedBy||[]).includes(S.user?.username)?' active':''}" data-id="${p.id}">
+        <i class="fas fa-heart"></i> <span>${(p.likedBy||[]).length}</span>
+      </button>
+      <button class="soc-comment-btn" data-id="${p.id}"><i class="fas fa-comment"></i> <span>${(p.comments||[]).length}</span></button>
+    </div>
+  </article>`;
+}
+
+function bindSocialCardEvents(wrap) {
+  if (!wrap) return;
+  wrap.querySelectorAll('.soc-like-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!S.user) { toast('Sign in to like','err'); return; }
+      const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+      const post = all.find(p=>p.id===btn.dataset.id); if(!post) return;
+      const liked = (post.likedBy||[]).includes(S.user.username);
+      if (liked) post.likedBy = (post.likedBy||[]).filter(u=>u!==S.user.username);
+      else { post.likedBy = [...(post.likedBy||[]), S.user.username]; }
+      localStorage.setItem('dl_social_posts', JSON.stringify(all));
+      btn.classList.toggle('active', !liked);
+      btn.querySelector('span').textContent = post.likedBy.length;
+    });
+  });
+}
