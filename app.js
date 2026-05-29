@@ -28,25 +28,45 @@ const S = {
 document.addEventListener('DOMContentLoaded', async () => {
   showBootLoader();
   applyPrefs();
-  initHeader(); initMobileNav(); initSearch(); initAuth();
-  initPostModal(); initCarModal(); initLightbox();
-  initGarage(); initEvents(); initMembers(); initNavLinks(); initFilterSidebar(); initMessages(); initCarPage();
-  initReactions(); initReport(); initCompare(); initInfiniteScroll(); initSocialPage(); initThemeToggle();
 
-  // ── Phase 1: Load cache instantly, render right away ──────
-  loadFromCache();
-  renderAll();
-  // Show auth state from cache immediately — no flicker
-  updateAuthUI(); updateNotifBadge();
-  hideBootLoader();
+  // Safety timeout — if anything crashes, hide loader after 3s max
+  const loaderTimeout = setTimeout(() => {
+    console.warn('DriveLog: Boot loader safety timeout triggered');
+    hideBootLoader();
+  }, 3000);
+
+  try {
+    // Init all UI — wrapped so a crash in one doesn't kill the page
+    const inits = [initHeader, initMobileNav, initSearch, initAuth,
+      initPostModal, initCarModal, initLightbox, initGarage, initEvents,
+      initMembers, initNavLinks, initFilterSidebar, initMessages, initCarPage,
+      initReactions, initReport, initCompare, initInfiniteScroll,
+      initSocialPage, initThemeToggle];
+    for (const fn of inits) {
+      try { fn(); } catch(e) { console.warn('Init failed:', fn.name, e); }
+    }
+
+    // ── Phase 1: Show cached data instantly ──────────────────
+    loadFromCache();
+    renderAll();
+    updateAuthUI(); updateNotifBadge();
+  } catch(e) {
+    console.error('Boot error:', e);
+  } finally {
+    // ALWAYS hide the loader — no matter what happened
+    clearTimeout(loaderTimeout);
+    hideBootLoader();
+  }
 
   // ── Phase 2: Refresh from Supabase in background ──────────
-  const prevUsername = S.user?.username;
-  await loadStorage();
-  renderAll();
-  // Only update auth UI if user state actually changed
-  updateAuthUI(); updateNotifBadge();
-  if (S.user) setupRealtimeSubscriptions();
+  try {
+    await loadStorage();
+    renderAll();
+    updateAuthUI(); updateNotifBadge();
+    if (S.user) setupRealtimeSubscriptions();
+  } catch(e) {
+    console.warn('Supabase load failed:', e);
+  }
 
   // Fade in hero video if present
   const heroVid = document.querySelector('.hero-bg-video');
@@ -429,7 +449,7 @@ function initHeader() {
     save();
     updateNotifBadge();
     // Clear the visible list immediately — all are read, show empty state
-    el('notifList').innerHTML = '<div class="notif-empty"><i class="fas fa-check-circle" style="color:var(--green);font-size:1.4rem"></i><p>All caught up!</p></div>';
+    if(el('notifList'))el('notifList').innerHTML = '<div class="notif-empty"><i class="fas fa-check-circle" style="color:var(--green);font-size:1.4rem"></i><p>All caught up!</p></div>';
   });
 }
 
@@ -446,7 +466,7 @@ function updateAuthUI() {
       avCircleEl.innerHTML = S.user.username[0].toUpperCase();
       avCircleEl.style.background = avColor(S.user.username);
     }
-    el('avName').textContent = S.user.username;
+    if(el('avName'))el('avName').textContent = S.user.username;
     // Admin panel — only visible to admin users
     const ddAdm = el('ddAdmin');
     if (ddAdm) ddAdm.style.display = S.user.isAdmin ? '' : 'none';
@@ -462,13 +482,13 @@ function updateAuthUI() {
 // ─── MOBILE NAV ───────────────────────────────────────────────
 function initMobileNav() {
   function openMobNav() {
-    el('mobNav')?.classList.add('open');
-    el('mobOverlay')?.classList.add('open');
+    el('mobNav') && el('mobNav').classList.add('open');
+    el('mobOverlay') && el('mobOverlay').classList.add('open');
     document.body.style.overflow = 'hidden';
   }
   function closeMobNav() {
-    el('mobNav')?.classList.remove('open');
-    el('mobOverlay')?.classList.remove('open');
+    el('mobNav') && el('mobNav').classList.remove('open');
+    el('mobOverlay') && el('mobOverlay').classList.remove('open');
     document.body.style.overflow = '';
   }
   el('hamburger')?.addEventListener('click', openMobNav);
@@ -555,8 +575,8 @@ function renderBOTW() {
     cur=idx; clearInterval(timer); timer=setInterval(()=>go((cur+1)%top5.length),4500);
   }
   dotsEl.querySelectorAll('.botw-dot').forEach(d=>d.addEventListener('click',()=>go(+d.dataset.i)));
-  el('botwPrev').addEventListener('click',()=>go((cur-1+top5.length)%top5.length));
-  el('botwNext').addEventListener('click',()=>go((cur+1)%top5.length));
+  el('botwPrev')?.addEventListener('click',()=>go((cur-1+top5.length)%top5.length));
+  el('botwNext')?.addEventListener('click',()=>go((cur+1)%top5.length));
   slidesEl.querySelectorAll('.botw-slide').forEach((s, i) => {
     s.style.cursor = 'pointer';
     const postId = top5[i]?.id;
@@ -684,11 +704,11 @@ function startHotProgress(dur) {
 // ─── SEARCH ───────────────────────────────────────────────────
 let _searchTimer;
 function initSearch() {
-  el('searchBtn').addEventListener('click', openSearch);
-  el('searchClose').addEventListener('click', closeSearch);
-  el('searchOverlay').addEventListener('click', e=>{if(e.target===el('searchOverlay'))closeSearch();});
+  el('searchBtn')?.addEventListener('click', openSearch);
+  el('searchClose')?.addEventListener('click', closeSearch);
+  el('searchOverlay')?.addEventListener('click', e=>{if(e.target===el('searchOverlay'))closeSearch();});
   document.addEventListener('keydown', e=>{if(e.key==='Escape')closeSearch();});
-  el('searchInput').addEventListener('input', ()=>{clearTimeout(_searchTimer); _searchTimer=setTimeout(doSearch,120);});
+  el('searchInput')?.addEventListener('input', ()=>{clearTimeout(_searchTimer); _searchTimer=setTimeout(doSearch,120);});
   document.querySelectorAll('.stag').forEach(t=>t.addEventListener('click',()=>{el('searchInput').value=t.dataset.q; doSearch();}));
 }
 function openSearch(){el('searchOverlay').classList.add('open'); setTimeout(()=>el('searchInput').focus(),80);}
@@ -797,10 +817,10 @@ function clearAuthErrs() {
 }
 
 function initAuth() {
-  el('openAuthBtn').addEventListener('click', ()=>{ clearAuthErrs(); el('authModal').classList.add('open'); });
-  el('openPostBtn').addEventListener('click', openPostModal);
-  el('authClose').addEventListener('click',  ()=>el('authModal').classList.remove('open'));
-  el('authModal').addEventListener('click',  e=>{if(e.target===el('authModal'))el('authModal').classList.remove('open');});
+  el('openAuthBtn')?.addEventListener('click', ()=>{ clearAuthErrs(); el('authModal').classList.add('open'); });
+  el('openPostBtn')?.addEventListener('click', openPostModal);
+  el('authClose')?.addEventListener('click',  ()=>el('authModal').classList.remove('open'));
+  el('authModal')?.addEventListener('click',  e=>{if(e.target===el('authModal'))el('authModal').classList.remove('open');});
 
   // Tab switching
   document.querySelectorAll('.mtab').forEach(t=>t.addEventListener('click',()=>{
@@ -816,10 +836,10 @@ function initAuth() {
   }));
 
   // Enter key support
-  el('loginEmail').addEventListener('keydown',    e=>{if(e.key==='Enter')el('doLogin').click();});
-  el('loginPassword').addEventListener('keydown', e=>{if(e.key==='Enter')el('doLogin').click();});
-  el('regEmail').addEventListener('keydown',      e=>{if(e.key==='Enter')el('doRegister').click();});
-  el('regPassword').addEventListener('keydown',   e=>{if(e.key==='Enter')el('doRegister').click();});
+  el('loginEmail')?.addEventListener('keydown',    e=>{if(e.key==='Enter')el('doLogin').click();});
+  el('loginPassword')?.addEventListener('keydown', e=>{if(e.key==='Enter')el('doLogin').click();});
+  el('regEmail')?.addEventListener('keydown',      e=>{if(e.key==='Enter')el('doRegister').click();});
+  el('regPassword')?.addEventListener('keydown',   e=>{if(e.key==='Enter')el('doRegister').click();});
 
   // ── Google Sign-In ──────────────────────────────────────────
   function handleGoogleSignIn(response) {
@@ -879,7 +899,7 @@ function initAuth() {
   });
 
   // ── SIGN IN ──
-  el('doLogin').addEventListener('click', async () => {
+  el('doLogin')?.addEventListener('click', async () => {
     clearAuthErrs();
     const email    = el('loginEmail').value.trim();
     const password = el('loginPassword').value;
@@ -919,7 +939,7 @@ function initAuth() {
   });
 
   // ── REGISTER ──
-  el('doRegister').addEventListener('click', async () => {
+  el('doRegister')?.addEventListener('click', async () => {
     clearAuthErrs();
     const username = el('regUser').value.trim();
     const email    = el('regEmail').value.trim();
@@ -972,7 +992,7 @@ function loginUser(username) {
     S.user = { username, posts:0, totalLikes:0, joined:new Date().toISOString().slice(0,7), joinedFull:new Date().toISOString(), bio:'', awards:[] };
   }
   // Always force-close auth modal
-  el('authModal')?.classList.remove('open');
+  el('authModal') && el('authModal').classList.remove('open');
   updateAuthUI(); updateProfilePage(); updateDmBadge();
   setupRealtimeSubscriptions();
   toastSignIn(username);
@@ -1038,10 +1058,10 @@ function showOnboarding(username) {
       </div>
     </div>`;
   document.body.appendChild(modal);
-  el('onboardPostBtn').addEventListener('click', () => {
+  el('onboardPostBtn')?.addEventListener('click', () => {
     modal.remove(); openPostModal();
   });
-  el('onboardExploreBtn').addEventListener('click', () => {
+  el('onboardExploreBtn')?.addEventListener('click', () => {
     modal.remove(); goTo('home');
   });
 }
@@ -1064,11 +1084,11 @@ let pendingImages=[];
 let pendingVideos=[];
 function initPostModal() {
   // Upload zone
-  el('uploadZone').addEventListener('click', ()=>el('fileInput').click());
-  el('uploadZone').addEventListener('dragover',  e=>{e.preventDefault(); el('uploadZone').classList.add('drag-over');});
-  el('uploadZone').addEventListener('dragleave', ()=>el('uploadZone').classList.remove('drag-over'));
-  el('uploadZone').addEventListener('drop', e=>{e.preventDefault(); el('uploadZone').classList.remove('drag-over'); addFiles(Array.from(e.dataTransfer.files));});
-  el('fileInput').addEventListener('change', ()=>addFiles(Array.from(el('fileInput').files)));
+  el('uploadZone')?.addEventListener('click', ()=>el('fileInput').click());
+  el('uploadZone')?.addEventListener('dragover',  e=>{e.preventDefault(); el('uploadZone').classList.add('drag-over');});
+  el('uploadZone')?.addEventListener('dragleave', ()=>el('uploadZone').classList.remove('drag-over'));
+  el('uploadZone')?.addEventListener('drop', e=>{e.preventDefault(); el('uploadZone').classList.remove('drag-over'); addFiles(Array.from(e.dataTransfer.files));});
+  el('fileInput')?.addEventListener('change', ()=>addFiles(Array.from(el('fileInput').files)));
   el('addMoreBtn')?.addEventListener('click', ()=>el('fileInput').click());
   el('submitPost')?.addEventListener('click', submitPost);
 
@@ -1524,13 +1544,13 @@ function resetPostForm() {
 
 // ─── CAR DETAIL MODAL ─────────────────────────────────────────
 function initCarModal() {
-  el('carClose').addEventListener('click', closeCarModal);
-  el('carModal').addEventListener('click', e=>{if(e.target===el('carModal'))closeCarModal();});
-  el('carLike').addEventListener('click',  handleLike);
-  el('carSave').addEventListener('click',  handleSave);
-  el('carShare').addEventListener('click', handleShare);
-  el('submitComment').addEventListener('click', submitComment);
-  el('commentInput').addEventListener('keydown', e=>{if(e.key==='Enter')submitComment();});
+  el('carClose')?.addEventListener('click', closeCarModal);
+  el('carModal')?.addEventListener('click', e=>{if(e.target===el('carModal'))closeCarModal();});
+  el('carLike')?.addEventListener('click',  handleLike);
+  el('carSave')?.addEventListener('click',  handleSave);
+  el('carShare')?.addEventListener('click', handleShare);
+  el('submitComment')?.addEventListener('click', submitComment);
+  el('commentInput')?.addEventListener('keydown', e=>{if(e.key==='Enter')submitComment();});
   document.querySelectorAll('.dtab').forEach(t=>t.addEventListener('click',()=>switchDetailTab(t.dataset.dtab)));
 }
 function openCarModal(post) {
@@ -1588,11 +1608,11 @@ function renderCarGallery(post) {
       mainEl.innerHTML=`<video id="mainGallVideo" class="gallery-video" controls preload="metadata" playsinline><source src="${item.src}" type="video/mp4"/></video>${nav}`;
     } else {
       mainEl.innerHTML=`<img src="${item.src}" alt="${post.title}" style="cursor:zoom-in" id="mainGallImg" loading="eager"/>${nav}`;
-      el('mainGallImg').addEventListener('click',()=>openLightbox(imgs,imgs.findIndex(s=>s===item.src)));
+      el('mainGallImg')?.addEventListener('click',()=>openLightbox(imgs,imgs.findIndex(s=>s===item.src)));
     }
     if(media.length>1){
-      el('galPrev').addEventListener('click',e=>{e.stopPropagation();setMain((idx-1+media.length)%media.length);updateStrip();});
-      el('galNext').addEventListener('click',e=>{e.stopPropagation();setMain((idx+1)%media.length);updateStrip();});
+      el('galPrev')?.addEventListener('click',e=>{e.stopPropagation();setMain((idx-1+media.length)%media.length);updateStrip();});
+      el('galNext')?.addEventListener('click',e=>{e.stopPropagation();setMain((idx+1)%media.length);updateStrip();});
     }
     updateStrip();
   }
@@ -1679,10 +1699,10 @@ function addTimelineEntry(postId) {
 
 // ─── LIGHTBOX ─────────────────────────────────────────────────
 function initLightbox() {
-  el('lbClose').addEventListener('click',    closeLightbox);
-  el('lbBackdrop').addEventListener('click', closeLightbox);
-  el('lbPrev').addEventListener('click',     ()=>lbGo(S.lbIdx-1));
-  el('lbNext').addEventListener('click',     ()=>lbGo(S.lbIdx+1));
+  el('lbClose')?.addEventListener('click',    closeLightbox);
+  el('lbBackdrop')?.addEventListener('click', closeLightbox);
+  el('lbPrev')?.addEventListener('click',     ()=>lbGo(S.lbIdx-1));
+  el('lbNext')?.addEventListener('click',     ()=>lbGo(S.lbIdx+1));
   document.addEventListener('keydown', e=>{
     if(!el('lightbox').classList.contains('open'))return;
     if(e.key==='Escape')    closeLightbox();
@@ -2031,16 +2051,16 @@ function initFilterSidebar() {
   }));
 
   // Make select
-  el('fsMake').addEventListener('change', ()=>{ S.filters.make = el('fsMake').value; });
+  el('fsMake')?.addEventListener('change', ()=>{ S.filters.make = el('fsMake').value; });
 
   // Year sliders — clamp each other, display real year value
-  el('fsYearMin').addEventListener('input', ()=>{
+  el('fsYearMin')?.addEventListener('input', ()=>{
     let v = +el('fsYearMin').value;
     if (v > S.filters.yearMax) { v = S.filters.yearMax; el('fsYearMin').value = v; }
     S.filters.yearMin = v;
     el('fsYearMinVal').textContent = v;
   });
-  el('fsYearMax').addEventListener('input', ()=>{
+  el('fsYearMax')?.addEventListener('input', ()=>{
     let v = +el('fsYearMax').value;
     if (v < S.filters.yearMin) { v = S.filters.yearMin; el('fsYearMax').value = v; }
     S.filters.yearMax = v;
@@ -2048,14 +2068,14 @@ function initFilterSidebar() {
   });
 
   // HP slider — shows real hp value extracted from post data range
-  el('fsHP').addEventListener('input', ()=>{
+  el('fsHP')?.addEventListener('input', ()=>{
     const v = +el('fsHP').value;
     S.filters.hp = v;
     el('fsHPVal').textContent = v > 0 ? v + '+ hp' : 'Any';
   });
 
   // Likes slider — shows real like counts from posts
-  el('fsLikes').addEventListener('input', ()=>{
+  el('fsLikes')?.addEventListener('input', ()=>{
     const v = +el('fsLikes').value;
     S.filters.likes = v;
     el('fsLikesVal').textContent = v > 0 ? v + '+' : 'Any';
@@ -2231,7 +2251,7 @@ function renderCategories() {
     el('catFeedGrid').innerHTML=posts.length?posts.map((p,i)=>cardHTML(p,i)).join(''):'<p class="cat-empty">No builds yet.</p>';
     attachCardEvents(el('catFeedGrid'));
   }));
-  el('backToCats').addEventListener('click',()=>{el('catGrid').style.display=''; el('catFeedWrap').style.display='none';});
+  el('backToCats')?.addEventListener('click',()=>{el('catGrid').style.display=''; el('catFeedWrap').style.display='none';});
 }
 
 // ─── LEADERBOARD ──────────────────────────────────────────────
@@ -2408,12 +2428,12 @@ function renderLbAtg() {
 
 // ─── EVENTS ───────────────────────────────────────────────────
 function initEvents() {
-  el('createEvtBtn').addEventListener('click',()=>{
+  el('createEvtBtn')?.addEventListener('click',()=>{
     if(!S.user){toast('Sign in to create events','err');return;}
     el('createEvtForm').style.display=el('createEvtForm').style.display==='none'?'block':'none';
   });
-  el('createEvtClose').addEventListener('click',()=>el('createEvtForm').style.display='none');
-  el('submitEvt').addEventListener('click',()=>{
+  el('createEvtClose')?.addEventListener('click',()=>el('createEvtForm').style.display='none');
+  el('submitEvt')?.addEventListener('click',()=>{
     const title=val('evtTitle'),type=el('evtType').value,loc=val('evtLocation'),date=val('evtDate');
     if(!title||!type||!loc||!date){toast('Fill in title, type, location, and date','err');return;}
     const evt={id:'ev'+Date.now(),title,type,location:loc,date,time:val('evtTime'),desc:val('evtDesc'),cap:val('evtCap'),host:S.user.username,attendees:[S.user.username]};
@@ -2936,7 +2956,7 @@ function initCarPage() {
   el('cpSave')?.addEventListener('click', cpHandleSave);
   el('cpShare')?.addEventListener('click', cpHandleShare);
   el('cpSubmitComment')?.addEventListener('click', cpSubmitComment);
-  el('cpCommentInput').addEventListener('keydown', e => { if(e.key==='Enter') cpSubmitComment(); });
+  el('cpCommentInput')?.addEventListener('keydown', e => { if(e.key==='Enter') cpSubmitComment(); });
   document.querySelectorAll('.cptab').forEach(t => t.addEventListener('click', () => switchCpTab(t.dataset.cptab)));
 }
 
@@ -3204,12 +3224,12 @@ function cpRenderGallery(post) {
       mainEl.innerHTML = `
         <img src="${item.src}" alt="${esc(post.title)}" style="cursor:zoom-in" id="cpMainImg" loading="eager"/>
         ${navBtns}`;
-      el('cpMainImg').addEventListener('click', () => openLightbox(imgs, idx));
+      el('cpMainImg')?.addEventListener('click', () => openLightbox(imgs, idx));
     }
 
     if (media.length > 1) {
-      el('cpGalPrev').addEventListener('click', e => { e.stopPropagation(); setMain((idx-1+media.length)%media.length); upStrip(); });
-      el('cpGalNext').addEventListener('click', e => { e.stopPropagation(); setMain((idx+1)%media.length); upStrip(); });
+      el('cpGalPrev')?.addEventListener('click', e => { e.stopPropagation(); setMain((idx-1+media.length)%media.length); upStrip(); });
+      el('cpGalNext')?.addEventListener('click', e => { e.stopPropagation(); setMain((idx+1)%media.length); upStrip(); });
     }
     upStrip();
   }
@@ -3638,7 +3658,7 @@ function initMessages() {
   el('msgBackBtn')?.addEventListener('click', () => {
     el('msgChatWrap').style.display='none';
     el('msgNoneSelected').style.display='flex';
-    el('msgChatCol')?.classList.remove('active');
+    el('msgChatCol') && el('msgChatCol').classList.remove('active');
     S.openDm = null;
     el('msgListCol').classList.remove('msg-hide-list');
   });
@@ -3649,7 +3669,7 @@ function initMessages() {
     // View the OTHER person's profile, not our own
     if (S.user && S.openDm === S.user.username) { goTo('profile'); return; }
     viewMemberProfile(S.openDm);
-    el('notifDrop')?.classList.remove('open');
+    el('notifDrop') && el('notifDrop').classList.remove('open');
   });
 }
 
@@ -3700,7 +3720,7 @@ async function openDmWith(username) {
   const age = otherUser ? accountAge(otherUser) : null;
   el('msgChatStatus').textContent = age ? `Member · ${age.short}` : 'Member';
   el('msgListCol').classList.add('msg-hide-list');
-  el('msgChatCol')?.classList.add('active');
+  el('msgChatCol') && el('msgChatCol').classList.add('active');
   renderDmMessages(username);
   renderMessages();
   if (S.page !== 'messages') goTo('messages');
@@ -5157,11 +5177,11 @@ function showUploadSuccess(post) {
   requestAnimationFrame(() => popup.classList.add('open'));
 
   // Wire buttons
-  el('usViewBuild').addEventListener('click', () => {
+  el('usViewBuild')?.addEventListener('click', () => {
     popup.classList.remove('open');
     setTimeout(() => { popup.remove(); if (post?.id) { const p=S.posts.find(x=>x.id===post.id); if(p) openCarPage(p); } }, 250);
   });
-  el('usGoHome').addEventListener('click', () => {
+  el('usGoHome')?.addEventListener('click', () => {
     popup.classList.remove('open');
     setTimeout(() => popup.remove(), 250);
   });
@@ -5275,8 +5295,8 @@ window.addEventListener('popstate', e => {
   const pageEl = el('page-'+page);
   if (pageEl) { pageEl.classList.add('active'); S.page = page; }
   // Close mob nav if open
-  el('mobNav')?.classList.remove('open');
-  el('mobOverlay')?.classList.remove('open');
+  el('mobNav') && el('mobNav').classList.remove('open');
+  el('mobOverlay') && el('mobOverlay').classList.remove('open');
   document.body.style.overflow = '';
 });
 
