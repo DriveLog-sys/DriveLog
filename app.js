@@ -131,13 +131,9 @@ async function loadStorage() {
     try { return JSON.parse(localStorage.getItem('dl_user_cache') || localStorage.getItem('dl_user') || 'null'); } catch(_) { return null; }
   })();
 
-  // ── Fire EVERYTHING in parallel — don't wait for auth before fetching posts ──
-  const [sessionResult, postsResult, usersResult, evtsResult] = await Promise.allSettled([
-
-    // Session restore (may be slow on cold start — runs in parallel now)
-    DB.getSession(),
-
-    // Posts — render immediately when they arrive
+  // ── Only await CRITICAL: session + posts ─────────────────────
+  const [sessionResult, postsResult] = await Promise.allSettled([
+    DB.getSession().catch(() => null),
     DB.getPosts({ limit: 60 }).then(rows => {
       const freshPosts = rows.map(dbPostToApp).filter(Boolean);
       freshPosts.forEach(fp => {
@@ -152,85 +148,69 @@ async function loadStorage() {
       try { localStorage.setItem('dl_posts_cache', JSON.stringify(S.posts)); } catch(_) {}
       renderFeed(); renderSidebar(); renderBOTW(); renderHotPanel(); animateStats();
       return rows;
-    }),
-
-    DB.getAllProfiles(),
-    DB.getEvents(),
+    }).catch(() => []),
   ]);
 
-  // Process session result (now that it's done)
-  if (sessionResult.status === 'fulfilled' && sessionResult.value) {
-    const session  = sessionResult.value;
-    const authUser = dbUserToApp(session);
-    if (cachedUser && cachedUser.username === authUser.username) {
-      S.user = { ...authUser, ...cachedUser, id: authUser.id };
-    } else {
-      S.user = authUser;
-    }
+  // Process session
+  if (sessionResult.value) {
+    const authUser = dbUserToApp(sessionResult.value);
+    S.user = (cachedUser?.username === authUser.username)
+      ? { ...authUser, ...cachedUser, id: authUser.id }
+      : authUser;
     localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
     localStorage.setItem('dl_user', JSON.stringify(S.user));
-  } else if (sessionResult.status === 'fulfilled' && !sessionResult.value) {
+  } else if (sessionResult.status === 'fulfilled' && !sessionResult.value && !cachedUser) {
     S.user = null;
-    localStorage.removeItem('dl_user_cache');
-    localStorage.removeItem('dl_user');
   }
+  updateAuthUI(); updateNotifBadge();
 
-  if (usersResult.status === 'fulfilled') {
-    S.users = usersResult.value.map(dbUserToApp).filter(Boolean);
-    try { localStorage.setItem('dl_users_cache', JSON.stringify(S.users)); } catch(_) {}
-    // Cache avatar URLs for instant display on next load
+  // ── Fire non-critical in background without blocking ──────────
+  DB.getAllProfiles().then(profiles => {
+    if (!profiles?.length) return;
+    S.users = profiles.map(dbUserToApp).filter(Boolean);
     S.users.forEach(u => { if (u.avatarUrl) cacheAvatarUrl(u.username, u.avatarUrl); });
-    // Apply locally-saved featured list to users (in case Supabase column isn't set)
     try {
-      const featuredList = JSON.parse(localStorage.getItem('dl_featured_users') || '[]');
-      S.users.forEach(u => { if (featuredList.includes(u.username)) u.isFeatured = true; });
+      const fl = JSON.parse(localStorage.getItem('dl_featured_users') || '[]');
+      S.users.forEach(u => { if (fl.includes(u.username)) u.isFeatured = true; });
+      localStorage.setItem('dl_users_cache', JSON.stringify(S.users));
     } catch(_) {}
     if (S.user) {
       const fresh = S.users.find(u => u.username === S.user.username);
       if (fresh) {
         const localAvatar = localStorage.getItem('dl_avatar_url') || S.user.avatarUrl || null;
-        S.user = {
-          ...fresh,
-          ...S.user,
-          avatarUrl:  localAvatar || fresh.avatarUrl || null,
-          bio:        S.user.bio       || fresh.bio       || '',
-          instagram:  S.user.instagram || fresh.instagram || '',
-          tiktok:     S.user.tiktok    || fresh.tiktok    || '',
-          youtube:    S.user.youtube   || fresh.youtube   || '',
-          website:    S.user.website   || fresh.website   || '',
-          location:   S.user.location  || fresh.location  || '',
-          id:         fresh.id         || S.user.id,
-          isAdmin:    fresh.isAdmin    || S.user.isAdmin  || false,
-          awards:     (fresh.awards||[]).length ? fresh.awards : (S.user.awards || []),
+        S.user = { ...fresh, ...S.user,
+          avatarUrl: localAvatar || fresh.avatarUrl || null,
+          bio: S.user.bio || fresh.bio || '',
+          instagram: S.user.instagram || fresh.instagram || '',
+          tiktok: S.user.tiktok || fresh.tiktok || '',
+          youtube: S.user.youtube || fresh.youtube || '',
+          website: S.user.website || fresh.website || '',
+          location: S.user.location || fresh.location || '',
+          id: fresh.id || S.user.id,
+          isAdmin: fresh.isAdmin || S.user.isAdmin || false,
+          awards: (fresh.awards||[]).length ? fresh.awards : (S.user.awards||[]),
         };
         localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
         localStorage.setItem('dl_user', JSON.stringify(S.user));
-        updateAuthUI();
       }
     }
-  }
+    updateAuthUI(); renderFeaturedMembers(); renderMembers();
+    if (S.page === 'profile') updateProfilePage();
+  }).catch(() => {});
 
-  if (evtsResult.status === 'fulfilled') {
-    S.events = evtsResult.value.map(e => ({
-      id:e.id, title:e.title, type:e.type, location:e.location,
-      date:e.date, time:e.time||'', description:e.description||'',
-      host:e.host_username, capacity:e.capacity||null, attendees:e.attendees||[],
-    }));
-  }
+  DB.getEvents().then(evts => {
+    if (!evts?.length) return;
+    S.events = evts.map(e => ({ id:e.id, title:e.title, type:e.type, location:e.location, date:e.date, time:e.time||'', description:e.description||'', host:e.host_username, capacity:e.capacity||null, attendees:e.attendees||[] }));
+  }).catch(() => {});
 
-  // ── STEP 4: Per-user data (only if logged in) ──────────────
-  if (S.user) {
-    const [followResult, notifResult] = await Promise.allSettled([
-      DB.getFollowing(S.user.id),
-      DB.getNotifications(S.user.id),
-    ]);
-    if (followResult.status === 'fulfilled') S.following = followResult.value;
-    if (notifResult.status === 'fulfilled') {
-      S.notifs = notifResult.value.map(n => ({
-        id:n.id, type:n.type, from:n.from_username, msg:n.message,
-        link:n.link||null, time:new Date(n.created_at).getTime(), read:n.read,
-      }));
-    }
+  if (S.user?.id) {
+    DB.getFollowing(S.user.id).then(f => { if (f) S.following = f; }).catch(() => {});
+    DB.getNotifications(S.user.id).then(notifs => {
+      if (!notifs?.length) return;
+      S.notifs = notifs.map(n => ({ id:n.id, type:n.type, from:n.from_username, msg:n.message, link:n.link||null, time:new Date(n.created_at).getTime(), read:n.read }));
+      updateNotifBadge();
+    }).catch(() => {});
+    setupRealtimeSubscriptions();
   }
 }
 
@@ -456,27 +436,46 @@ function initHeader() {
 function updateAuthUI() {
   updateDmBadge();
   if (S.user) {
-    el('openAuthBtn').style.display='none'; el('avWrap').style.display='block';
+    el('openAuthBtn') && (el('openAuthBtn').style.display='none');
+    el('avWrap') && (el('avWrap').style.display='block');
     const avCircleEl = el('avCircle');
     const avatarUrl = getAvatarUrl(S.user.username);
-    if (avatarUrl) {
-      avCircleEl.innerHTML = `<img src="${avatarUrl}" alt="" class="av-photo"/>`;
-      avCircleEl.style.background = 'transparent';
-    } else {
-      avCircleEl.innerHTML = S.user.username[0].toUpperCase();
-      avCircleEl.style.background = avColor(S.user.username);
+    if (avCircleEl) {
+      if (avatarUrl) {
+        avCircleEl.innerHTML = `<img src="${avatarUrl}" alt="" class="av-photo"/>`;
+        avCircleEl.style.background = 'transparent';
+      } else {
+        avCircleEl.innerHTML = S.user.username[0].toUpperCase();
+        avCircleEl.style.background = avColor(S.user.username);
+      }
     }
     if(el('avName'))el('avName').textContent = S.user.username;
-    // Admin panel — only visible to admin users
     const ddAdm = el('ddAdmin');
     if (ddAdm) ddAdm.style.display = S.user.isAdmin ? '' : 'none';
     const mobAdm = document.querySelector('.mob-link[data-page="admin"]');
     if (mobAdm) mobAdm.style.display = S.user.isAdmin ? '' : 'none';
+    hideSignupNudge();
   } else {
-    el('openAuthBtn').style.display=''; el('avWrap').style.display='none';
+    el('openAuthBtn') && (el('openAuthBtn').style.display='');
+    el('avWrap') && (el('avWrap').style.display='none');
     const ddAdm = el('ddAdmin');
     if (ddAdm) ddAdm.style.display = 'none';
+    setTimeout(showSignupNudge, 2500);
   }
+}
+
+function showSignupNudge() {
+  if (S.user) return;
+  const nudge = el('signupNudge');
+  if (!nudge || localStorage.getItem('dl_nudge_dismissed') === '1') return;
+  nudge.style.display = 'block';
+  requestAnimationFrame(() => requestAnimationFrame(() => nudge.classList.add('show')));
+}
+function hideSignupNudge() {
+  const nudge = el('signupNudge');
+  if (!nudge) return;
+  nudge.classList.remove('show');
+  setTimeout(() => { if (nudge) nudge.style.display = 'none'; }, 400);
 }
 
 // ─── MOBILE NAV ───────────────────────────────────────────────
@@ -820,6 +819,16 @@ function initAuth() {
   el('openAuthBtn')?.addEventListener('click', ()=>{ clearAuthErrs(); el('authModal').classList.add('open'); });
   el('openPostBtn')?.addEventListener('click', openPostModal);
   el('authClose')?.addEventListener('click',  ()=>el('authModal').classList.remove('open'));
+  // Signup nudge banner buttons
+  el('signupNudgeBtn')?.addEventListener('click', () => {
+    hideSignupNudge();
+    el('authModal')?.classList.add('open');
+    setTimeout(() => document.querySelector('.auth-tab[data-tab="register"]')?.click(), 50);
+  });
+  el('signupNudgeClose')?.addEventListener('click', () => {
+    hideSignupNudge();
+    localStorage.setItem('dl_nudge_dismissed', '1');
+  });
   el('authModal')?.addEventListener('click',  e=>{if(e.target===el('authModal'))el('authModal').classList.remove('open');});
 
   // Tab switching

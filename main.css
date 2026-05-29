@@ -4415,3 +4415,58 @@ html, body {
   border:none;cursor:pointer;color:var(--muted);font-size:.7rem;
   display:flex;align-items:center;justify-content:center;flex-shrink:0;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   SIGN UP NUDGE BANNER
+   ═══════════════════════════════════════════════════════════════ */
+.signup-nudge{
+  position:fixed;bottom:0;left:0;right:0;z-index:1500;
+  background:linear-gradient(135deg,#1a1f35 0%,#111827 100%);
+  border-top:1px solid rgba(59,130,246,.3);
+  box-shadow:0 -4px 32px rgba(0,0,0,.4);
+  padding:14px 24px;
+  transform:translateY(100%);
+  transition:transform .4s cubic-bezier(.34,1.56,.64,1);
+}
+.signup-nudge.show{transform:translateY(0)}
+.signup-nudge-inner{
+  max-width:1000px;margin:0 auto;
+  display:flex;align-items:center;gap:20px;
+}
+.signup-nudge-text{
+  flex:1;min-width:0;
+  display:flex;flex-direction:column;gap:2px;
+}
+.signup-nudge-title{
+  font-family:var(--cond);font-size:.95rem;font-weight:700;
+  letter-spacing:.5px;color:#fff;
+}
+.signup-nudge-sub{
+  font-size:.8rem;color:rgba(255,255,255,.55);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.signup-nudge-btn{
+  background:var(--accent);color:#fff;
+  font-family:var(--cond);font-size:.82rem;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;
+  padding:9px 24px;border-radius:var(--r-sm);border:none;
+  cursor:pointer;white-space:nowrap;flex-shrink:0;
+  transition:all var(--tr);
+}
+.signup-nudge-btn:hover{background:var(--accent-dim);transform:scale(1.03)}
+.signup-nudge-close{
+  width:32px;height:32px;border-radius:50%;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+  color:rgba(255,255,255,.5);cursor:pointer;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.75rem;transition:all var(--tr);
+}
+.signup-nudge-close:hover{background:rgba(255,255,255,.15);color:#fff}
+
+@media(max-width:600px){
+  .signup-nudge{padding:12px 16px}
+  .signup-nudge-inner{gap:12px}
+  .signup-nudge-sub{display:none}
+  .signup-nudge-title{font-size:.88rem}
+  .signup-nudge-btn{padding:8px 16px;font-size:.76rem}
+}
