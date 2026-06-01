@@ -131,6 +131,18 @@ function gateMsg() {
 // This makes the site feel instant on repeat visits.
 
 async function loadStorage() {
+  // Wait for Supabase to be initialized (it loads from CDN)
+  let sbWait = 0;
+  while (!_sbOk() && sbWait < 10) {
+    await new Promise(r => setTimeout(r, 200));
+    sbWait++;
+    _initSb(); // retry init
+  }
+  if (!_sbOk()) {
+    console.warn('Supabase not available after wait — running offline');
+    return;
+  }
+
   const cachedUser = (() => {
     try { return JSON.parse(localStorage.getItem('dl_user_cache') || localStorage.getItem('dl_user') || 'null'); } catch(_) { return null; }
   })();
@@ -825,6 +837,11 @@ function clearAuthErrs() {
 function initAuth() {
   el('openAuthBtn')?.addEventListener('click', ()=>{ clearAuthErrs(); el('authModal').classList.add('open'); });
   el('openPostBtn')?.addEventListener('click', openPostModal);
+  // Mobile: Post Build also in burger menu
+  el('mobPostBuildBtn')?.addEventListener('click', () => {
+    closeMobNav();
+    openPostModal();
+  });
   el('authClose')?.addEventListener('click',  ()=>el('authModal').classList.remove('open'));
   // Signup nudge banner buttons
   el('signupNudgeBtn')?.addEventListener('click', () => {
@@ -2664,6 +2681,15 @@ function viewMemberProfile(username) {
   `;
   el('profileActions').style.display='flex'; el('noLoginMsg').style.display='none'; el('profilePostsWrap').style.display='block';
   el('profileBuildsLabel').textContent=`${u.username}'s Builds`;
+  // Show/hide Edit Profile button based on ownership
+  const editProfBtn = el('editProfileBtn');
+  const profDmBtn   = el('profileDmBtn');
+  const isOwn = S.user?.username === username;
+  if (editProfBtn) editProfBtn.style.display = isOwn ? 'inline-flex' : 'none';
+  if (profDmBtn) {
+    profDmBtn.style.display = (!isOwn && S.user) ? 'inline-flex' : 'none';
+    profDmBtn.onclick = () => { openDmWith(username); };
+  }
   updateFollowBtn(username); el('followBtn').onclick=()=>toggleFollow(username);
   const grid=el('profileGrid');
   if(posts.length){el('noBuilds').style.display='none';grid.innerHTML=posts.map((p,i)=>cardHTML(p,i)).join('');attachCardEvents(grid);}
@@ -2886,7 +2912,12 @@ function updateProfilePage() {
   const notice=el('profileAgeNotice'); if(notice) notice.style.display='none';
 
   const ownStEl=el('profileStats'); if(ownStEl) ownStEl.innerHTML=`<div class="pstat"><span class="pstat-n">${posts.length}</span><span class="pstat-l">Builds</span></div><div class="pstat"><span class="pstat-n">${likes.toLocaleString()}</span><span class="pstat-l">Likes</span></div><div class="pstat"><span class="pstat-n">${posts.reduce((a,p)=>a+(p.comments||[]).length,0)}</span><span class="pstat-l">Comments</span></div>`;
-  el('followBtn').style.display='none'; el('profileBuildsLabel').textContent='Your Builds';
+  el('followBtn').style.display='none';
+  el('profileBuildsLabel').textContent='Your Builds';
+  const ownEditBtn = el('editProfileBtn');
+  const ownDmBtn   = el('profileDmBtn');
+  if (ownEditBtn) ownEditBtn.style.display = 'inline-flex';
+  if (ownDmBtn)   ownDmBtn.style.display = 'none';
   const grid=el('profileGrid');
   if(posts.length){el('noBuilds').style.display='none';grid.innerHTML=posts.map((p,i)=>cardHTML(p,i)).join('');attachCardEvents(grid);}
   else{grid.innerHTML='';el('noBuilds').style.display='block';}

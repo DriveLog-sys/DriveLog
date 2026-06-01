@@ -4651,3 +4651,164 @@ html, body {
   .signup-nudge { padding: 10px 14px; }
   .signup-nudge-inner { gap: 10px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE HEADER — hide Post Build text/button, keep icon-only or move to nav
+   ═══════════════════════════════════════════════════════════════ */
+@media(max-width:768px){
+  /* Hide +Post Build from top nav on mobile */
+  #openPostBtn { display: none !important; }
+
+  /* ─── POST FORM on mobile — correct order ─── */
+  .post-page-layout {
+    grid-template-columns: 1fr !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  .post-page-left  { order: 1; }  /* Vehicle info FIRST */
+  .post-page-right { order: 2; }  /* Photos/Videos SECOND */
+  .post-page-right .post-section:first-child { order: 1; }
+  .post-page-right .post-section:last-child  { order: 2; }
+
+  /* ─── SEARCH OVERLAY — mobile ─── */
+  .search-overlay {
+    padding: 60px 14px 20px !important;
+    align-items: flex-start;
+  }
+  .search-bar {
+    padding: 12px 16px !important;
+  }
+  .search-bar input { font-size: 1rem !important; }
+
+  /* ─── PROFILE — mobile ─── */
+  .profile-cover { height: 140px !important; }
+  .profile-av-wrap { margin-top: -40px !important; }
+  .profile-av {
+    width: 76px !important;
+    height: 76px !important;
+    font-size: 1.8rem !important;
+  }
+  .profile-header-inner {
+    padding: 0 14px 0 !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+  .profile-header-left { flex-direction: row; align-items: center; gap: 14px; }
+  .profile-header-right { width: 100%; }
+  .profile-username { font-size: 1.4rem !important; }
+  .profile-bio { font-size: .85rem !important; }
+  .profile-header-actions {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    padding-bottom: 14px !important;
+  }
+  .profile-header-actions .btn-primary,
+  .profile-header-actions .btn-ghost,
+  .profile-header-actions a.btn-ghost {
+    flex: 1;
+    min-width: 100px;
+    justify-content: center;
+    text-align: center;
+  }
+  .profile-stats-bar {
+    padding: 0 14px !important;
+    gap: 0 !important;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .profile-stats-bar::-webkit-scrollbar { display: none; }
+  .pstat {
+    padding: 10px 16px !important;
+    flex-shrink: 0;
+  }
+  .pstat-n { font-size: 1.3rem !important; }
+  .pstat-l { font-size: .6rem !important; }
+  .profile-body { padding: 16px 14px 80px !important; }
+  .profile-socials { gap: 6px !important; }
+  .prof-social { padding: 6px 12px !important; font-size: .76rem !important; }
+  .profile-media-grid { grid-template-columns: repeat(3, 1fr) !important; gap: 6px !important; }
+  .profile-builds-head { padding: 0 0 10px !important; }
+  .card-grid { gap: 10px; }
+
+  /* ─── SETTINGS on mobile ─── */
+  .settings-wrap {
+    grid-template-columns: 1fr !important;
+    padding: 12px !important;
+  }
+  .settings-sidebar {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 4px !important;
+    padding: 0 0 8px !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border) !important;
+    margin-bottom: 16px !important;
+    scrollbar-width: none;
+  }
+  .settings-sidebar::-webkit-scrollbar { display: none; }
+  .settings-nav-item {
+    white-space: nowrap !important;
+    padding: 8px 14px !important;
+    font-size: .75rem !important;
+    flex-shrink: 0 !important;
+    border-radius: var(--r-sm) !important;
+    border-left: none !important;
+  }
+  .settings-nav-item.active {
+    background: var(--accent-soft) !important;
+    color: var(--accent) !important;
+    border-bottom: 2px solid var(--accent) !important;
+  }
+  .settings-content { padding: 0 !important; }
+  .s-section { padding: 16px !important; }
+
+  /* ─── SEARCH BAR MODAL ─── */
+  .search-inner { max-width: 100%; }
+  .search-close-btn { top: 12px; right: 12px; width: 36px; height: 36px; }
+  .sr-item { padding: 8px 10px; }
+  .sr-thumb { width: 44px; height: 32px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SEARCH OVERLAY — refined look
+   ═══════════════════════════════════════════════════════════════ */
+.search-overlay {
+  background: rgba(5,7,15,.95) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.search-bar {
+  background: rgba(255,255,255,.06) !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  border-radius: 12px !important;
+  padding: 16px 22px !important;
+  transition: border-color .2s, box-shadow .2s;
+}
+.search-bar:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 8px 32px rgba(0,0,0,.4) !important;
+}
+.search-bar i { color: rgba(255,255,255,.4) !important; font-size: 1.1rem; }
+.search-bar input {
+  color: #fff !important;
+  font-size: 1.15rem !important;
+  font-family: 'Inter', var(--body) !important;
+}
+.search-bar input::placeholder { color: rgba(255,255,255,.3) !important; }
+.search-eyebrow { color: rgba(255,255,255,.35) !important; letter-spacing: 3px; }
+.sr-item { border-radius: 8px; transition: background .15s; }
+.sr-item:hover { background: rgba(255,255,255,.07) !important; }
+.sr-title { color: #fff !important; }
+.sr-meta { color: rgba(255,255,255,.45) !important; }
+.sr-count { color: rgba(255,255,255,.3); font-size: .72rem; font-family: var(--cond); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+.sr-section-label { color: rgba(255,255,255,.3); font-family: var(--cond); font-size: .68rem; letter-spacing: 2px; text-transform: uppercase; padding: 12px 12px 4px; }
+.sr-user-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; transition: background .15s; }
+.sr-user-item:hover { background: rgba(255,255,255,.07); }
+.sr-user-av { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .9rem; color: #fff; font-family: var(--disp); flex-shrink: 0; }
+.stag { background: rgba(255,255,255,.06) !important; border-color: rgba(255,255,255,.1) !important; color: rgba(255,255,255,.5) !important; }
+.stag:hover { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; }
+.search-none { color: rgba(255,255,255,.35) !important; }
