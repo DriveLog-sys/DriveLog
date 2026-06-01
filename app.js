@@ -26,46 +26,49 @@ const S = {
 
 // ─── BOOT ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  // Show loader FIRST — before anything else runs
   showBootLoader();
+
+  // Apply theme before render to avoid flash
   applyPrefs();
 
-  // Safety timeout — if anything crashes, hide loader after 3s max
-  const loaderTimeout = setTimeout(() => {
-    console.warn('DriveLog: Boot loader safety timeout triggered');
-    hideBootLoader();
-  }, 3000);
+  // Safety net — hide loader after 5s no matter what
+  const loaderTimeout = setTimeout(() => hideBootLoader(), 5000);
 
-  try {
-    // Init all UI — wrapped so a crash in one doesn't kill the page
-    const inits = [initHeader, initMobileNav, initSearch, initAuth,
-      initPostModal, initCarModal, initLightbox, initGarage, initEvents,
-      initMembers, initNavLinks, initFilterSidebar, initMessages, initCarPage,
-      initReactions, initReport, initCompare, initInfiniteScroll,
-      initSocialPage, initThemeToggle];
-    for (const fn of inits) {
-      try { fn(); } catch(e) { console.warn('Init failed:', fn.name, e); }
-    }
-
-    // ── Phase 1: Show cached data instantly ──────────────────
-    loadFromCache();
-    renderAll();
-    updateAuthUI(); updateNotifBadge();
-  } catch(e) {
-    console.error('Boot error:', e);
-  } finally {
-    // ALWAYS hide the loader — no matter what happened
-    clearTimeout(loaderTimeout);
-    hideBootLoader();
+  // Init all UI modules (errors in one don't stop others)
+  const inits = [initHeader, initMobileNav, initSearch, initAuth,
+    initPostModal, initCarModal, initLightbox, initGarage, initEvents,
+    initMembers, initNavLinks, initFilterSidebar, initMessages, initCarPage,
+    initReactions, initReport, initCompare, initInfiniteScroll,
+    initSocialPage, initThemeToggle];
+  for (const fn of inits) {
+    try { fn(); } catch(e) { console.warn('Init failed:', fn.name, e); }
   }
 
-  // ── Phase 2: Refresh from Supabase in background ──────────
-  try {
-    await loadStorage();
+  // Phase 1 — load from localStorage cache (instant)
+  loadFromCache();
+  updateAuthUI(); updateNotifBadge();
+
+  // If we have cached posts, render and hide loader quickly
+  if (S.posts.length > 0) {
     renderAll();
-    updateAuthUI(); updateNotifBadge();
+    clearTimeout(loaderTimeout);
+    hideBootLoader();
+    // Phase 2 silently in background
+    loadStorage().then(() => {
+      renderAll(); updateAuthUI(); updateNotifBadge();
+      if (S.user) setupRealtimeSubscriptions();
+    }).catch(()=>{});
+  } else {
+    // No cache — keep loader visible until Supabase responds
+    renderAll(); // show skeleton state
+    try {
+      await loadStorage();
+    } catch(e) { console.warn('Load failed:', e); }
+    clearTimeout(loaderTimeout);
+    hideBootLoader();
+    renderAll(); updateAuthUI(); updateNotifBadge();
     if (S.user) setupRealtimeSubscriptions();
-  } catch(e) {
-    console.warn('Supabase load failed:', e);
   }
 
   // Fade in hero video if present
@@ -83,8 +86,9 @@ function loadFromCache() {
     if (cp) S.posts = JSON.parse(cp);
     if (cu) S.users = JSON.parse(cu);
     if (uu) {
-      S.user = JSON.parse(uu);
-      // Restore following list for this user
+      const cachedUser = JSON.parse(uu);
+      // Only restore if this is the same session (not a logged-out state)
+      S.user = cachedUser;
       if (S.user?.username) {
         const fl = localStorage.getItem('dl_following_'+S.user.username);
         if (fl) S.following = JSON.parse(fl);
@@ -267,13 +271,16 @@ function showBootLoader() {
     bl = document.createElement('div');
     bl.id = 'bootLoader';
     bl.innerHTML = `<div class="boot-logo">DRIVE<span>LOG</span></div><div class="boot-dots"><span></span><span></span><span></span></div>`;
-    document.body.appendChild(bl);
+    document.body.prepend(bl); // prepend so it's above everything
   }
+  bl.classList.remove('hiding');
   bl.style.display = 'flex';
 }
 function hideBootLoader() {
   const bl = el('bootLoader');
-  if (bl) { bl.style.opacity='0'; bl.style.pointerEvents='none'; setTimeout(()=>bl.remove(),400); }
+  if (!bl) return;
+  bl.classList.add('hiding');
+  setTimeout(() => { if (bl.parentNode) bl.parentNode.removeChild(bl); }, 350);
 }
 
 // ─── REALTIME SUBSCRIPTIONS ────────────────────────────────────
@@ -1082,10 +1089,18 @@ function makeNewUser(username) {
 
 async function logout() {
   await DB.signOut().catch(()=>{});
+  // Clear ALL user data from localStorage so it doesn't reappear
   S.user=null; S.following=[]; S.notifs=[];
+  localStorage.removeItem('dl_user_cache');
+  localStorage.removeItem('dl_user');
+  localStorage.removeItem('dl_avatar_url');
+  // Clear any cached user-specific data
+  const username = localStorage.getItem('dl_last_user');
+  if (username) localStorage.removeItem('dl_following_' + username);
+  localStorage.removeItem('dl_last_user');
   updateAuthUI(); updateProfilePage(); updateDmBadge();
   toast('Signed out','');
-  if(S.page==='profile'||S.page==='garage') goTo('home');
+  goTo('home');
 }
 
 // ─── POST BUILD PAGE ─────────────────────────────────────────
@@ -1718,6 +1733,13 @@ function initLightbox() {
     if(e.key==='ArrowLeft') lbGo(S.lbIdx-1);
     if(e.key==='ArrowRight')lbGo(S.lbIdx+1);
   });
+  // Touch swipe for mobile
+  let _lbTouchX = 0;
+  el('lightbox')?.addEventListener('touchstart', e => { _lbTouchX = e.touches[0].clientX; }, {passive:true});
+  el('lightbox')?.addEventListener('touchend',   e => {
+    const dx = e.changedTouches[0].clientX - _lbTouchX;
+    if (Math.abs(dx) > 40) lbGo(dx < 0 ? S.lbIdx+1 : S.lbIdx-1);
+  }, {passive:true});
 }
 function openLightbox(imgs,idx){S.lbImages=imgs; el('lightbox').classList.add('open'); document.body.style.overflow='hidden'; lbGo(idx||0);}
 function closeLightbox(){el('lightbox').classList.remove('open'); document.body.style.overflow='';}
@@ -3195,6 +3217,24 @@ function renderCarPage(post) {
 }
 
 function cpRenderGallery(post) {
+  // Add touch swipe support after rendering
+  const gallMain = el('cpGallMain');
+  if (gallMain && !gallMain._swipeWired) {
+    gallMain._swipeWired = true;
+    let _swipeStartX = 0, _swipeStartY = 0;
+    gallMain.addEventListener('touchstart', e => {
+      _swipeStartX = e.touches[0].clientX;
+      _swipeStartY = e.touches[0].clientY;
+    }, { passive: true });
+    gallMain.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - _swipeStartX;
+      const dy = e.changedTouches[0].clientY - _swipeStartY;
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
+        if (dx < 0) el('cpGallNext')?.click();
+        else el('cpGallPrev')?.click();
+      }
+    }, { passive: true });
+  }
   const imgs   = post.images || [];
   const vids   = post.videos || [];
   const mainEl = el('cpGallMain');

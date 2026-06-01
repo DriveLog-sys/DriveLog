@@ -4470,3 +4470,184 @@ html, body {
   .signup-nudge-title{font-size:.88rem}
   .signup-nudge-btn{padding:8px 16px;font-size:.76rem}
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   LOADING SCREEN — always visible, semi-transparent
+   ═══════════════════════════════════════════════════════════════ */
+#bootLoader {
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(8, 10, 18, 0.88) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  z-index: 99999 !important;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  transition: opacity .3s ease;
+}
+#bootLoader.hiding { opacity: 0 !important; pointer-events: none !important; }
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE HEADER — fully fixed, fits within screen
+   ═══════════════════════════════════════════════════════════════ */
+@media(max-width:768px) {
+  .site-header {
+    padding: 0 !important;
+    height: 54px;
+  }
+  .header-inner {
+    padding: 0 10px !important;
+    height: 54px;
+    gap: 8px !important;
+    width: 100%;
+    overflow: hidden;
+  }
+  /* Logo — smaller on mobile */
+  .site-logo { font-size: 1.1rem !important; letter-spacing: 1px; }
+  .logo-log { font-size: 1.1rem !important; }
+  /* Hide desktop nav completely */
+  .site-nav { display: none !important; }
+  /* Right actions — compact */
+  .header-right { gap: 4px !important; flex-shrink: 0; }
+  .icon-btn {
+    width: 34px !important;
+    height: 34px !important;
+    font-size: .78rem !important;
+  }
+  /* Avatar chip — smaller */
+  .av-chip {
+    padding: 3px 8px 3px 3px !important;
+    gap: 5px !important;
+  }
+  .av-chip .av-chip-av {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: .7rem !important;
+  }
+  .av-chip > span { font-size: .75rem !important; max-width: 70px; overflow: hidden; text-overflow: ellipsis; }
+  /* Post build button — icon only on mobile */
+  .header-post-btn {
+    padding: 6px 10px !important;
+    font-size: 0 !important; /* hide text */
+    gap: 0 !important;
+    min-width: 34px;
+    justify-content: center;
+  }
+  .header-post-btn i { font-size: .85rem !important; margin: 0 !important; }
+  /* Hamburger always visible */
+  .hamburger { display: flex !important; }
+}
+
+@media(max-width:380px) {
+  .header-inner { padding: 0 6px !important; gap: 4px !important; }
+  .av-chip > span { display: none; } /* hide username, show avatar only */
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FEATURED MEMBERS — between buttons and stats
+   ═══════════════════════════════════════════════════════════════ */
+.hero-btns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.featured-members-strip.hero-featured {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 0 4px;
+}
+.featured-members-strip.hero-featured[style*="display:none"] {
+  display: none !important;
+}
+.featured-members-strip.hero-featured .featured-members-label {
+  font-family: var(--cond);
+  font-size: .65rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.4);
+  white-space: nowrap;
+}
+
+/* Mobile — featured members on new row below buttons */
+@media(max-width:768px) {
+  .hero-btns {
+    gap: 8px;
+  }
+  .featured-members-strip.hero-featured {
+    width: 100%;
+    margin: 4px 0 0;
+    order: 3;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GENERAL MOBILE POLISH
+   ═══════════════════════════════════════════════════════════════ */
+@media(max-width:768px) {
+  /* Page wrap — account for smaller header */
+  .page-wrap { padding-top: 54px; }
+  .filter-bar { top: 54px; }
+
+  /* Feed cards — ensure they fill correctly */
+  .feed-wrap {
+    padding: 12px 12px 80px !important;
+    box-sizing: border-box;
+    width: 100%;
+  }
+  .card-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    width: 100%;
+  }
+
+  /* Hero — mobile layout */
+  .hero-inner {
+    grid-template-columns: 1fr !important;
+    padding: 0 16px !important;
+    gap: 0;
+  }
+  .hero-content { padding: 52px 0 32px; }
+  .hero-title { font-size: 1.9rem !important; line-height: 1.05; }
+  .hero-sub { font-size: .82rem; max-width: 100%; }
+  .hero-btns .btn-primary.large,
+  .hero-btns .btn-ghost.large {
+    padding: 10px 18px;
+    font-size: .8rem;
+  }
+  /* Hide BOTW on mobile */
+  .botw-card { display: none !important; }
+
+  /* Stats bar */
+  .hero-stats { gap: 16px; padding-top: 20px; }
+  .hstat-n { font-size: 1.3rem; }
+  .hstat-l { font-size: .58rem; }
+
+  /* Car page gallery swipe hint */
+  .car-page-gallery-main::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    pointer-events: none;
+  }
+}
+
+@media(max-width:480px) {
+  .card-grid { grid-template-columns: 1fr; }
+  .hero-title { font-size: 1.6rem !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SIGN UP NUDGE — above mobile bottom actions
+   ═══════════════════════════════════════════════════════════════ */
+@media(max-width:768px) {
+  .signup-nudge { padding: 10px 14px; }
+  .signup-nudge-inner { gap: 10px; }
+}
