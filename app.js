@@ -45,31 +45,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { fn(); } catch(e) { console.warn('Init failed:', fn.name, e); }
   }
 
-  // Phase 1 — load from localStorage cache (instant)
+  // Phase 1 — show cached data instantly (no waiting)
   loadFromCache();
+  renderAll();
   updateAuthUI(); updateNotifBadge();
 
-  // If we have cached posts, render and hide loader quickly
-  if (S.posts.length > 0) {
-    renderAll();
-    clearTimeout(loaderTimeout);
-    hideBootLoader();
-    // Phase 2 silently in background
-    loadStorage().then(() => {
-      renderAll(); updateAuthUI(); updateNotifBadge();
-      if (S.user) setupRealtimeSubscriptions();
-    }).catch(()=>{});
-  } else {
-    // No cache — keep loader visible until Supabase responds
-    renderAll(); // show skeleton state
-    try {
-      await loadStorage();
-    } catch(e) { console.warn('Load failed:', e); }
-    clearTimeout(loaderTimeout);
-    hideBootLoader();
+  // Always hide loader quickly after cache render
+  clearTimeout(loaderTimeout);
+  hideBootLoader();
+
+  // Phase 2 — always fetch from Supabase in background
+  // Don't skip this even if we have cache — cache may be stale
+  loadStorage().then(() => {
     renderAll(); updateAuthUI(); updateNotifBadge();
     if (S.user) setupRealtimeSubscriptions();
-  }
+  }).catch(e => { console.warn('Supabase load failed:', e); });
 
   // Fade in hero video if present
   const heroVid = document.querySelector('.hero-bg-video');
@@ -131,15 +121,17 @@ function gateMsg() {
 // This makes the site feel instant on repeat visits.
 
 async function loadStorage() {
-  // Wait for Supabase to be initialized (it loads from CDN)
+  // Wait for Supabase CDN to load — up to 8 seconds
   let sbWait = 0;
-  while (!_sbOk() && sbWait < 10) {
+  while (!_sbOk() && sbWait < 40) {
     await new Promise(r => setTimeout(r, 200));
     sbWait++;
-    _initSb(); // retry init
+    _initSb();
   }
   if (!_sbOk()) {
-    console.warn('Supabase not available after wait — running offline');
+    console.warn('Supabase unavailable — showing cached data only');
+    S._loading = false;
+    renderFeed(); // show whatever cache we have
     return;
   }
 
@@ -1532,6 +1524,7 @@ async function submitPost() {
       videos: pendingVideos.map(v=>v.dataUrl),
       liked_by:[], saved_by:[], reactions:{},
       showSocials: el('postShowSocials')?.checked ?? true,
+      state: el('postState')?.value || '',
     });
 
     const { data: newPost, error: postErr } = await DB.createPost(S.user.id, S.user.username, postData);
@@ -2690,7 +2683,7 @@ function viewMemberProfile(username) {
     profDmBtn.style.display = (!isOwn && S.user) ? 'inline-flex' : 'none';
     profDmBtn.onclick = () => { openDmWith(username); };
   }
-  updateFollowBtn(username); el('followBtn').onclick=()=>toggleFollow(username);
+  updateFollowBtn(username); if(el('followBtn'))el('followBtn').onclick=()=>toggleFollow(username);
   const grid=el('profileGrid');
   if(posts.length){el('noBuilds').style.display='none';grid.innerHTML=posts.map((p,i)=>cardHTML(p,i)).join('');attachCardEvents(grid);}
   else{grid.innerHTML='';el('noBuilds').style.display='block';}

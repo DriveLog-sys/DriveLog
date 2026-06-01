@@ -554,6 +554,7 @@ function appPostToDb(post) {
     quarter_mile: post.quarterMile || '',
     top_speed:    post.topSpeed    || '',
     show_socials: post.showSocials !== false,
+    state:        post.state || '',
     liked_by:     post.likedBy     || [],
     saved_by:     post.savedBy     || [],
     reactions:    post.reactions   || {},

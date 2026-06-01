@@ -4812,3 +4812,9 @@ html, body {
 .stag { background: rgba(255,255,255,.06) !important; border-color: rgba(255,255,255,.1) !important; color: rgba(255,255,255,.5) !important; }
 .stag:hover { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; }
 .search-none { color: rgba(255,255,255,.35) !important; }
+
+/* ─── Social links recommended text ─────────────────────────── */
+.post-social-recommended {
+  color: #22c55e;
+  font-weight: 600;
+}
