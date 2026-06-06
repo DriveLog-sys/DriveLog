@@ -85,11 +85,12 @@ const DB = {
 
   // ─── PROFILES ──────────────────────────────────────────────
   async getProfile(userId) {
-    const { data } = await _sb
+    const { data, error } = await _sb
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();
+    if (error && error.code !== 'PGRST116') console.error('DriveLog getProfile error:', error.message, error.code);
     return data;
   },
 
@@ -104,10 +105,12 @@ const DB = {
 
   async getAllProfiles() {
     if (!_sbOk()) return [];
-    const { data } = await _sb
+    const { data, error } = await _sb
       .from('profiles')
       .select('*')
       .order('joined_at', { ascending: true });
+    if (error) console.error('DriveLog getAllProfiles error:', error.message, error.code);
+    if (data) console.log('DriveLog: got', data.length, 'profiles');
     return data || [];
   },
 
@@ -146,14 +149,16 @@ const DB = {
 
   // ─── POSTS ─────────────────────────────────────────────────
   async getPosts({ limit = 50, offset = 0, category = null } = {}) {
-    if (!_sbOk()) return [];
+    if (!_sbOk()) { console.warn('DriveLog: Supabase not ready'); return []; }
     let q = _sb
       .from('posts')
       .select('*')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
     if (category) q = q.contains('categories', [category]);
-    const { data } = await q;
+    const { data, error } = await q;
+    if (error) console.error('DriveLog getPosts error:', error.message, error.code, error.details);
+    if (data) console.log('DriveLog getPosts returned', data.length, 'posts');
     return data || [];
   },
 
