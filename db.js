@@ -72,9 +72,15 @@ const DB = {
   async getSession() {
     if (!_sbOk()) return null;
     const { data } = await _sb.auth.getSession();
-    if (!data.session) return null;
-    const profile = await DB.getProfile(data.session.user.id);
-    return profile ? { ...data.session.user, ...profile } : null;
+    if (!data?.session) return null;
+    // Try to get profile, but don't require it — session is valid regardless
+    try {
+      const profile = await DB.getProfile(data.session.user.id);
+      if (profile) return { ...data.session.user, ...profile };
+    } catch(_) {}
+    // Profile fetch failed (likely RLS) — return auth user with username from metadata
+    const meta = data.session.user.user_metadata || {};
+    return { ...data.session.user, username: meta.username || data.session.user.email?.split('@')[0] || 'User' };
   },
 
   // ─── PROFILES ──────────────────────────────────────────────
@@ -222,20 +228,63 @@ const DB = {
   },
 
   // ─── IMAGE UPLOAD ───────────────────────────────────────────
-  async uploadImage(userId, file) {
-    const ext  = file.name?.split('.').pop() || 'jpg';
-    const path = `${userId}/${Date.now()}.${ext}`;
-    const { data, error } = await _sb.storage
-      .from(STORAGE_BUCKET)
-      .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
+  // Upload any File object to a specific bucket
+  async _uploadFile(bucket, path, file) {
+    const { error } = await _sb.storage
+      .from(bucket)
+      .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: true });
     if (error) return { error };
-    const { data: urlData } = _sb.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    const { data: urlData } = _sb.storage.from(bucket).getPublicUrl(path);
     return { url: urlData.publicUrl };
   },
 
-  // Upload a base64 data URL (from canvas compression)
+  async uploadImage(userId, file) {
+    const ext  = file.name?.split('.').pop() || 'jpg';
+    const path = `${userId}/${Date.now()}.${ext}`;
+    return DB._uploadFile(STORAGE_BUCKET, path, file);
+  },
+
+  // Upload avatar — goes to avatars bucket, overwrites previous
+  async uploadAvatar(userId, base64DataUrl) {
+    if (!_sbOk()) return { url: null };
+    try {
+      const arr   = base64DataUrl.split(',');
+      const mime  = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+      const bstr  = atob(arr[1]);
+      const bytes = new Uint8Array(bstr.length);
+      for (let i = 0; i < bstr.length; i++) bytes[i] = bstr.charCodeAt(i);
+      const file = new File([bytes], 'avatar.jpg', { type: mime });
+      // Overwrite same path so URL is stable across updates
+      const path = `${userId}/avatar.jpg`;
+      const res  = await DB._uploadFile('avatars', path, file);
+      if (res?.url) {
+        // Also save URL to profile
+        await DB.updateProfile(userId, { avatar_url: res.url });
+      }
+      return res;
+    } catch(e) { return { error: e }; }
+  },
+
+  // Upload banner — goes to avatars bucket (banners subfolder)
+  async uploadBanner(userId, base64DataUrl) {
+    if (!_sbOk()) return { url: null };
+    try {
+      const arr   = base64DataUrl.split(',');
+      const mime  = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+      const bstr  = atob(arr[1]);
+      const bytes = new Uint8Array(bstr.length);
+      for (let i = 0; i < bstr.length; i++) bytes[i] = bstr.charCodeAt(i);
+      const file = new File([bytes], 'banner.jpg', { type: mime });
+      const path = `${userId}/banner.jpg`;
+      const res  = await DB._uploadFile('avatars', path, file);
+      if (res?.url) await DB.updateProfile(userId, { banner_url: res.url });
+      return res;
+    } catch(e) { return { error: e }; }
+  },
+
+  // Upload a base64 data URL for post images
   async uploadBase64(userId, base64DataUrl, index) {
-    if (!_sbOk()) return { url: base64DataUrl }; // fallback: keep base64
+    if (!_sbOk()) return { url: base64DataUrl };
     const arr   = base64DataUrl.split(',');
     const mime  = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
     const bstr  = atob(arr[1]);

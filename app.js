@@ -143,7 +143,8 @@ async function loadStorage() {
   const [sessionResult, postsResult] = await Promise.allSettled([
     DB.getSession().catch(() => null),
     DB.getPosts({ limit: 60 }).then(rows => {
-      const freshPosts = rows.map(dbPostToApp).filter(Boolean);
+      if (!rows?.length) console.warn('DriveLog: 0 posts returned from Supabase. Check RLS policies — run fix_all.sql in Supabase SQL Editor.');
+      const freshPosts = (rows||[]).map(dbPostToApp).filter(Boolean);
       freshPosts.forEach(fp => {
         const local = S.posts.find(p => p.id === fp.id);
         if (local) {
@@ -161,14 +162,28 @@ async function loadStorage() {
 
   // Process session
   if (sessionResult.value) {
+    // Supabase confirmed a live session — use it, merge with cache
     const authUser = dbUserToApp(sessionResult.value);
     S.user = (cachedUser?.username === authUser.username)
       ? { ...authUser, ...cachedUser, id: authUser.id }
       : authUser;
     localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
     localStorage.setItem('dl_user', JSON.stringify(S.user));
-  } else if (sessionResult.status === 'fulfilled' && !sessionResult.value && !cachedUser) {
-    S.user = null;
+  } else if (sessionResult.status === 'fulfilled' && !sessionResult.value) {
+    // Supabase says no session — but only clear if the auth token is truly gone
+    // Check if Supabase auth itself has a session (not just the profile fetch)
+    const rawSession = await (async () => {
+      try { const { data } = await _sb?.auth?.getSession(); return data?.session || null; }
+      catch(_) { return null; }
+    })();
+    if (!rawSession) {
+      // Truly logged out — clear everything
+      S.user = null;
+      localStorage.removeItem('dl_user_cache');
+      localStorage.removeItem('dl_user');
+    }
+    // If rawSession exists but profile fetch failed (RLS issue), keep cached user
+    // The user IS logged in, the DB just can't read the profile yet
   }
   updateAuthUI(); updateNotifBadge();
 
@@ -1033,10 +1048,11 @@ async function registerUser(username, email, password, googleId) {
   S.users.push(S.user);
   localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
   localStorage.setItem('dl_user', JSON.stringify(S.user));
+  localStorage.setItem('dl_last_user', username);
   el('authModal').classList.remove('open');
-  updateAuthUI(); updateProfilePage();
-  // Send welcome notification
-  pushNotif('welcome', 'DriveLog', `Welcome to DriveLog, <b>${username}</b>! 🎉 Start by posting your first build.`, null, null);
+  updateAuthUI(); updateProfilePage(); updateNotifBadge();
+  // Reload from Supabase so posts appear immediately for new account
+  loadStorage().catch(()=>{});
   // Show onboarding modal
   showOnboarding(username);
 }
@@ -2773,6 +2789,9 @@ function renderGarage() {
   // Saved Parts
   if (el('partsPanel')) renderParts();
 
+  // Saved Socials
+  if (el('socialsPanel')) renderSavedSocials();
+
   // Wire tabs
   document.querySelectorAll('.gtab').forEach(t => {
     t.onclick = () => {
@@ -2781,7 +2800,68 @@ function renderGarage() {
       t.classList.add('active');
       const panel = el('gpanel-'+t.dataset.gtab);
       if (panel) panel.classList.add('active');
+      if (t.dataset.gtab === 'socials') renderSavedSocials();
+      if (t.dataset.gtab === 'parts')   renderParts();
     };
+  });
+}
+
+// ─── SAVED SOCIALS ─────────────────────────────────────────────
+function getSavedSocials() {
+  try { return JSON.parse(localStorage.getItem('dl_socials_'+(S.user?.username||''))||'[]'); } catch(_) { return []; }
+}
+
+function saveSocial(entry) {
+  if (!S.user) { toast('Sign in to save socials','err'); el('authModal')?.classList.add('open'); return; }
+  const uname = S.user.username;
+  const all = getSavedSocials();
+  if (all.find(s => s.platform === entry.platform && s.handle === entry.handle)) {
+    toast('Already saved!',''); return;
+  }
+  all.unshift({ ...entry, ts: Date.now() });
+  localStorage.setItem('dl_socials_'+uname, JSON.stringify(all));
+  toast(entry.platform + ' saved to your Garage ✓', 'ok');
+  if (S.page === 'garage') renderSavedSocials();
+}
+
+const SOCIAL_PLATFORM_ICONS  = { Instagram:'fab fa-instagram', TikTok:'fab fa-tiktok', YouTube:'fab fa-youtube', Website:'fas fa-globe', Twitter:'fab fa-x-twitter' };
+const SOCIAL_PLATFORM_COLORS = { Instagram:'#e1306c', TikTok:'#69c9d0', YouTube:'#ff0000', Website:'#3b82f6', Twitter:'#000' };
+
+function renderSavedSocials() {
+  const panel = el('socialsPanel'); if (!panel || !S.user) return;
+  const socials = getSavedSocials();
+  panel.innerHTML = `
+    <div class="parts-section">
+      <div class="parts-header"><h3>Saved Socials</h3><p>Social media accounts you've saved from build pages.</p></div>
+      ${socials.length ? `<div class="saved-socials-grid">${socials.map((s,i) => `
+        <div class="saved-social-card">
+          <div class="saved-social-icon" style="background:${(SOCIAL_PLATFORM_COLORS[s.platform]||'#666')}22;color:${SOCIAL_PLATFORM_COLORS[s.platform]||'#888'}">
+            <i class="${SOCIAL_PLATFORM_ICONS[s.platform]||'fas fa-link'}"></i>
+          </div>
+          <div class="saved-social-info">
+            <div class="saved-social-platform">${esc(s.platform)}</div>
+            <div class="saved-social-handle">${esc(s.handle)}</div>
+            <div class="saved-social-from">from <b>${esc(s.fromUser||'')}</b> &middot; ${timeAgo(s.ts)}</div>
+          </div>
+          <div class="saved-social-actions">
+            <a href="${esc(s.url)}" target="_blank" rel="noopener" class="btn-primary small">
+              <i class="fas fa-external-link-alt"></i> Visit
+            </a>
+            <button class="saved-social-rm" data-i="${i}" title="Remove"><i class="fas fa-times"></i></button>
+          </div>
+        </div>`).join('')}</div>` : `
+      <div class="parts-empty">
+        <i class="fab fa-instagram"></i>
+        <p>No saved socials yet. On any build page, hover over the social links and click the save icon.</p>
+      </div>`}
+    </div>`;
+  panel.querySelectorAll('.saved-social-rm').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const all = getSavedSocials();
+      all.splice(+btn.dataset.i,1);
+      localStorage.setItem('dl_socials_'+S.user.username, JSON.stringify(all));
+      renderSavedSocials();
+    });
   });
 }
 
@@ -2846,10 +2926,10 @@ function updateProfilePage() {
           }
           localStorage.setItem('dl_banner_'+S.user.username, dataUrl);
           try {
-            const res = await DB.uploadBase64(S.user.id, dataUrl, 'banner');
+            const res = await DB.uploadBanner(S.user.id, dataUrl);
             if (res?.url) {
               localStorage.setItem('dl_banner_'+S.user.username, res.url);
-              DB.updateProfile(S.user.id, { banner_url: res.url }).catch(()=>{});
+              // profile already updated inside uploadBanner
             }
           } catch(_) {}
           bannerUploadBtn.innerHTML = '<i class="fas fa-camera"></i> Change Cover';
@@ -2938,19 +3018,24 @@ function toast(msg,type=''){
 // Returns the avatar URL for a user if they have one, otherwise null
 function getAvatarUrl(username) {
   if (!username) return null;
-  // Check S.users first (loaded from Supabase)
+  // 1. S.users (from Supabase) — most authoritative for cross-device
   const u = S.users.find(x => x.username === username);
-  if (u?.avatarUrl) return u.avatarUrl;
-  // Fallback: check avatar cache in localStorage (set when user uploads avatar)
+  if (u?.avatarUrl && u.avatarUrl.startsWith('http')) return u.avatarUrl;
+  // 2. Own user object (may have been updated this session)
+  if (S.user?.username === username && S.user.avatarUrl?.startsWith('http')) return S.user.avatarUrl;
+  // 3. Local avatar_url key (set right after upload)
   if (S.user?.username === username) {
     const local = localStorage.getItem('dl_avatar_url');
-    if (local) return local;
+    if (local?.startsWith('http')) return local;
   }
-  // Try per-user cache
+  // 4. Per-user avatar cache (only Supabase URLs, not base64)
   try {
     const cache = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
-    if (cache[username]) return cache[username];
+    const cached = cache[username];
+    if (cached?.startsWith('http')) return cached;
   } catch(_) {}
+  // 5. Any URL in S.users even if non-http (last resort)
+  if (u?.avatarUrl) return u.avatarUrl;
   return null;
 }
 
@@ -3085,10 +3170,22 @@ function renderCarPage(post) {
   el('cpPosterName').className = 'car-page-poster-name clickable-user';
   el('cpPosterDate').textContent = fmtDate(post.date);
   el('cpSocials').innerHTML = [
-    usr.instagram ? `<a class="soc-btn ig" href="https://instagram.com/${usr.instagram}" target="_blank" rel="noopener"><i class="fab fa-instagram"></i></a>` : '',
-    usr.tiktok    ? `<a class="soc-btn tt" href="https://tiktok.com/@${usr.tiktok}" target="_blank" rel="noopener"><i class="fab fa-tiktok"></i></a>` : '',
-    usr.youtube   ? `<a class="soc-btn yt" href="https://youtube.com/@${usr.youtube}" target="_blank" rel="noopener"><i class="fab fa-youtube"></i></a>` : '',
-    usr.website   ? `<a class="soc-btn wb" href="${usr.website}" target="_blank" rel="noopener"><i class="fas fa-globe"></i></a>` : '',
+    usr.instagram ? `<div class="soc-btn-wrap">
+      <a class="soc-btn ig" href="https://instagram.com/${usr.instagram}" target="_blank" rel="noopener"><i class="fab fa-instagram"></i></a>
+      <button class="soc-save-btn" title="Save to Garage" onclick="saveSocial({platform:'Instagram',handle:'${usr.instagram}',url:'https://instagram.com/${usr.instagram}',fromUser:'${esc(post.user)}'})"><i class="fas fa-bookmark"></i></button>
+    </div>` : '',
+    usr.tiktok ? `<div class="soc-btn-wrap">
+      <a class="soc-btn tt" href="https://tiktok.com/@${usr.tiktok}" target="_blank" rel="noopener"><i class="fab fa-tiktok"></i></a>
+      <button class="soc-save-btn" title="Save to Garage" onclick="saveSocial({platform:'TikTok',handle:'${usr.tiktok}',url:'https://tiktok.com/@${usr.tiktok}',fromUser:'${esc(post.user)}'})"><i class="fas fa-bookmark"></i></button>
+    </div>` : '',
+    usr.youtube ? `<div class="soc-btn-wrap">
+      <a class="soc-btn yt" href="https://youtube.com/@${usr.youtube}" target="_blank" rel="noopener"><i class="fab fa-youtube"></i></a>
+      <button class="soc-save-btn" title="Save to Garage" onclick="saveSocial({platform:'YouTube',handle:'${usr.youtube}',url:'https://youtube.com/@${usr.youtube}',fromUser:'${esc(post.user)}'})"><i class="fas fa-bookmark"></i></button>
+    </div>` : '',
+    usr.website ? `<div class="soc-btn-wrap">
+      <a class="soc-btn wb" href="${usr.website}" target="_blank" rel="noopener"><i class="fas fa-globe"></i></a>
+      <button class="soc-save-btn" title="Save to Garage" onclick="saveSocial({platform:'Website',handle:'${usr.website}',url:'${usr.website}',fromUser:'${esc(post.user)}'})"><i class="fas fa-bookmark"></i></button>
+    </div>` : '',
   ].join('');
   // DM button — show if logged in and not own post
   const dmBtn = el('cpDmBtn');
@@ -3890,9 +3987,16 @@ async function sendDmMessage() {
   }
   renderDmMessages(S.openDm);
   renderMessages();
+  // Push notification to RECIPIENT only — never to self
   const notifTxt = txt || '📷 Image';
   const otherU = S.users.find(u=>u.username===S.openDm);
-  pushNotif('dm', S.user.username, `sent you a message: "${notifTxt.length>40?notifTxt.slice(0,40)+'…':notifTxt}"`, 'page:messages', otherU?.id);
+  if (otherU?.id && otherU.id !== S.user.id) {
+    // Send server-side notification to recipient (they'll get it via realtime)
+    DB.pushNotification(otherU.id, 'message', S.user.username,
+      `sent you a message: "${notifTxt.length>40?notifTxt.slice(0,40)+'…':notifTxt}"`,
+      'page:messages'
+    ).catch(()=>{});
+  }
 }
 
 function openNewDm() {
@@ -4687,16 +4791,16 @@ window.addEventListener('storage', e => {
       S.users = S.users.map(u => u.username === S.user.username ? { ...u, avatarUrl: newAvatarUrl } : u);
       cacheAvatarUrl(S.user.username, newAvatarUrl);
       updateAuthUI(); updateProfilePage(); renderFeed();
-      // Push to Supabase Storage in background
+      // Push to Supabase Storage in background — use dedicated avatar bucket
       if (newAvatarUrl.startsWith('data:')) {
-        DB.uploadBase64(S.user.id, newAvatarUrl, 'avatar').then(res => {
+        DB.uploadAvatar(S.user.id, newAvatarUrl).then(res => {
           if (res?.url) {
             S.user.avatarUrl = res.url;
             S.users = S.users.map(u => u.username === S.user.username ? { ...u, avatarUrl: res.url } : u);
-            DB.updateProfile(S.user.id, { avatar_url: res.url }).catch(()=>{});
+            cacheAvatarUrl(S.user.username, res.url);
             localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
             localStorage.setItem('dl_avatar_url', res.url);
-            updateAuthUI();
+            updateAuthUI(); updateProfilePage();
           }
         }).catch(()=>{});
       }
