@@ -2949,7 +2949,7 @@ function updateProfilePage() {
   const u=S.user, posts=S.posts.filter(p=>p.user===u.username), likes=posts.reduce((a,p)=>a+p.likes,0);
   el('noLoginMsg').style.display='none'; el('profilePostsWrap').style.display='block'; el('profileActions').style.display='flex';
   // Apply custom banner
-  const savedBanner = localStorage.getItem('dl_banner_'+username) || u.bannerUrl || null;
+  const savedBanner = localStorage.getItem('dl_banner_'+u.username) || u.bannerUrl || null;
   const coverEl = el('profileCover');
   if (coverEl) {
     if (savedBanner) {
@@ -2960,9 +2960,9 @@ function updateProfilePage() {
       coverEl.style.backgroundImage = '';
     }
   }
-  // Show/hide banner upload button based on ownership
+  // Show/hide banner upload button — always show on own profile
   const bannerBtn = el('profileBannerUploadBtn');
-  if (bannerBtn) bannerBtn.style.display = S.user?.username === username ? 'flex' : 'none';
+  if (bannerBtn) bannerBtn.style.display = 'flex';
 
   const profUrl = getAvatarUrl(u.username);
   if (profUrl) {
