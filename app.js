@@ -26,16 +26,14 @@ const S = {
 
 // ─── BOOT ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
-  // Show loader FIRST — before anything else runs
-  showBootLoader();
+  // Loader is already in HTML — just make sure it's showing
+  const bl = el('bootLoader');
+  if (bl) { bl.classList.remove('hiding'); bl.style.display = 'flex'; }
 
-  // Apply theme before render to avoid flash
+  // Apply theme immediately to avoid flash
   applyPrefs();
 
-  // Safety net — hide loader after 5s no matter what
-  const loaderTimeout = setTimeout(() => hideBootLoader(), 5000);
-
-  // Init all UI modules (errors in one don't stop others)
+  // Init all UI modules — errors in one don't stop others
   const inits = [initHeader, initMobileNav, initSearch, initAuth,
     initPostModal, initCarModal, initLightbox, initGarage, initEvents,
     initMembers, initNavLinks, initFilterSidebar, initMessages, initCarPage,
@@ -45,26 +43,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { fn(); } catch(e) { console.warn('Init failed:', fn.name, e); }
   }
 
-  // Phase 1 — show cached data instantly (no waiting)
+  // Phase 1: render from cache instantly (feed appears behind loader)
   loadFromCache();
-  renderAll();
   updateAuthUI(); updateNotifBadge();
+  renderAll();
 
-  // Always hide loader quickly after cache render
-  clearTimeout(loaderTimeout);
-  hideBootLoader();
-
-  // Phase 2 — always fetch from Supabase in background
-  // Don't skip this even if we have cache — cache may be stale
-  loadStorage().then(() => {
+  // If we have cached posts, hide loader now and refresh in background
+  if (S.posts.length > 0) {
+    hideBootLoader();
+    loadStorage().then(() => {
+      renderAll(); updateAuthUI(); updateNotifBadge();
+      if (S.user) setupRealtimeSubscriptions();
+    }).catch(() => {});
+  } else {
+    // No cache — keep loader visible, wait for Supabase
+    // Safety: hide after 6s no matter what
+    const fallback = setTimeout(() => hideBootLoader(), 6000);
+    try {
+      await loadStorage();
+      clearTimeout(fallback);
+    } catch(e) {
+      clearTimeout(fallback);
+      console.warn('Supabase load error:', e);
+    }
+    hideBootLoader();
     renderAll(); updateAuthUI(); updateNotifBadge();
     if (S.user) setupRealtimeSubscriptions();
-  }).catch(e => { console.warn('Supabase load failed:', e); });
-
-  // Fade in hero video if present
-  const heroVid = document.querySelector('.hero-bg-video');
-  if (heroVid && heroVid.src) {
-    heroVid.addEventListener('canplay', () => heroVid.classList.add('loaded'), { once:true });
   }
 });
 
@@ -121,9 +125,10 @@ function gateMsg() {
 // This makes the site feel instant on repeat visits.
 
 async function loadStorage() {
-  // Wait for Supabase CDN to load — up to 8 seconds
+  // Supabase CDN is in <head> — usually ready immediately
+  // Poll briefly just in case (max 3s)
   let sbWait = 0;
-  while (!_sbOk() && sbWait < 40) {
+  while (!_sbOk() && sbWait < 15) {
     await new Promise(r => setTimeout(r, 200));
     sbWait++;
     _initSb();
@@ -131,7 +136,7 @@ async function loadStorage() {
   if (!_sbOk()) {
     console.warn('Supabase unavailable — showing cached data only');
     S._loading = false;
-    renderFeed(); // show whatever cache we have
+    renderFeed();
     return;
   }
 
@@ -588,7 +593,7 @@ function renderBOTW() {
       <div class="botw-rank">${i+1}</div>
       <div class="botw-info">
         <div class="botw-title">${p.title}</div>
-        <div class="botw-meta"><span>by <span class="clickable-user" data-user="${p.user}">${p.user}</span></span><span class="botw-likes">♥ ${p.likes.toLocaleString()}</span><span class="cat-badge ${cfg.badge}">${p.category}</span></div>
+        <div class="botw-meta"><span>by <span class="clickable-user" data-user="${p.user}">${p.user}</span></span><span class="botw-likes">♥ ${p.likes.toLocaleString()}</span></div>
       </div></div>`;
   }).join('');
 
@@ -2928,10 +2933,19 @@ function updateProfilePage() {
           try {
             const res = await DB.uploadBanner(S.user.id, dataUrl);
             if (res?.url) {
+              // Save the NEW URL — overwrite any previous
               localStorage.setItem('dl_banner_'+S.user.username, res.url);
-              // profile already updated inside uploadBanner
+              S.user.bannerUrl = res.url;
+              localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
+              localStorage.setItem('dl_user', JSON.stringify(S.user));
+            } else {
+              // Supabase upload failed — keep base64 in localStorage as fallback
+              localStorage.setItem('dl_banner_'+S.user.username, dataUrl);
             }
-          } catch(_) {}
+          } catch(e) {
+            console.warn('Banner upload failed, keeping local:', e);
+            localStorage.setItem('dl_banner_'+S.user.username, dataUrl);
+          }
           bannerUploadBtn.innerHTML = '<i class="fas fa-camera"></i> Change Cover';
           toast('Cover photo updated!','ok');
           bannerInput.value = '';
@@ -3092,8 +3106,16 @@ function initCarPage() {
     // fallback: just go home if no history
     goTo(S._prevPage || 'home');
   });
-  el('cpLike')?.addEventListener('click', cpHandleLike);
-  el('cpSave')?.addEventListener('click', cpHandleSave);
+  el('cpLike')?.addEventListener('click', () => {
+    cpHandleLike();
+    const btn = el('cpLike');
+    if (btn) { btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop'); setTimeout(() => btn.classList.remove('pop'), 400); }
+  });
+  el('cpSave')?.addEventListener('click', () => {
+    cpHandleSave();
+    const btn = el('cpSave');
+    if (btn) { btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop'); setTimeout(() => btn.classList.remove('pop'), 400); }
+  });
   el('cpShare')?.addEventListener('click', cpHandleShare);
   el('cpSubmitComment')?.addEventListener('click', cpSubmitComment);
   el('cpCommentInput')?.addEventListener('keydown', e => { if(e.key==='Enter') cpSubmitComment(); });
@@ -3324,7 +3346,6 @@ function renderCarPage(post) {
   // Like / save state
   syncCpActions(post);
   // Reactions — only in the actions row
-  renderReactions(post, 'cpReactionsRow');
   // Videos in specs right panel
   renderCpVideos(post);
   // Compare button
@@ -4159,8 +4180,16 @@ function submitReport() {
     status: 'pending',
   });
   localStorage.setItem('dl_reports', JSON.stringify(reports));
-  // Also save to Supabase
+  // Save to Supabase
   DB.submitReport(S.user.id, S.user.username, _reportTarget.type, _reportTarget.id, reason, details).catch(e => console.warn('Report sync', e));
+  // Notify all admins immediately
+  S.users.filter(u => u.isAdmin && u.id).forEach(admin => {
+    DB.pushNotification(
+      admin.id, 'report', S.user.username,
+      `⚠️ reported ${_reportTarget.type} "${_reportTarget.context||_reportTarget.id}" — Reason: ${reason}`,
+      'admin'
+    ).catch(()=>{});
+  });
   el('reportModal').classList.remove('open');
   toast('Report submitted — thank you 🙏', 'ok');
 }
