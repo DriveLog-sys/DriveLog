@@ -5396,3 +5396,119 @@ body:not(.dark) .save-btn {
 #cpReactionsRow, .reactions-row, .cp-reactions {
   display: none !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   DEFAULT GREY AVATAR — person silhouette
+   ═══════════════════════════════════════════════════════════════ */
+.av-default, .av-circle {
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+.av-default svg, .av-circle svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.av-circle.has-photo {
+  background: transparent !important;
+}
+/* Make sure all avatar containers are proper circles */
+.av-circle, .av-chip-av, .comment-av, .msg-bubble-av,
+.msg-conv-av, .msg-chat-av, .lb-thumb.lb-av-th,
+.profile-av, .profileAv, .soc-av, .evt-host-av {
+  border-radius: 50% !important;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.av-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MESSAGES PAGE — wider, better layout
+   ═══════════════════════════════════════════════════════════════ */
+#page-messages {
+  height: calc(100dvh - 54px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0 !important;
+}
+.msg-wrap {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 320px 1fr !important;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Make chat side feel roomier */
+.msg-chat-body {
+  padding: 24px 32px !important;
+  gap: 6px !important;
+}
+.msg-bubble {
+  max-width: 520px;
+}
+.msg-bubble-group {
+  max-width: 60%;
+}
+.msg-input-row {
+  padding: 14px 24px !important;
+}
+
+/* Empty state — centered nicely */
+.msg-none-selected {
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+}
+
+@media(max-width:768px) {
+  .msg-wrap { grid-template-columns: 1fr !important; }
+  .msg-chat-body { padding: 14px 14px !important; }
+  .msg-bubble-group { max-width: 80%; }
+  .msg-input-row { padding: 8px 12px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BOTW CARD — ensure slides show
+   ═══════════════════════════════════════════════════════════════ */
+.botw-card {
+  position: relative !important;
+  overflow: hidden !important;
+}
+.botw-slides-wrap, .botw-slides {
+  position: absolute;
+  inset: 0;
+}
+.botw-slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity .55s ease;
+  pointer-events: none;
+}
+.botw-slide.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+.botw-slide > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.botw-slide .botw-ph {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

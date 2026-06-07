@@ -464,6 +464,41 @@ function initHeader() {
   });
 }
 
+function avColor(username) { return '#6b7280'; }
+
+// Render a default grey person SVG
+function _defaultAvSVG() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" style="width:100%;height:100%;display:block">
+    <circle cx="20" cy="20" r="20" fill="#6b7280"/>
+    <circle cx="20" cy="16" r="7" fill="#d1d5db"/>
+    <ellipse cx="20" cy="34" rx="11" ry="9" fill="#d1d5db"/>
+  </svg>`;
+}
+
+// Set an avatar DOM element — shows photo or default grey SVG
+function setAvEl(domEl, username) {
+  if (!domEl) return;
+  const url = getAvatarUrl(username);
+  if (url) {
+    domEl.innerHTML = `<img src="${url}" alt="" class="av-photo" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block"/>`;
+    domEl.style.background = 'transparent';
+  } else {
+    domEl.innerHTML = _defaultAvSVG();
+    domEl.style.background = 'transparent';
+  }
+}
+
+// Return avatar HTML string — shows photo or default grey SVG
+function renderAv(username, size, extraClass) {
+  const url = getAvatarUrl(username);
+  const cls = [extraClass||''].filter(Boolean).join(' ');
+  const s = size || 40;
+  if (url) {
+    return `<div class="${cls} has-photo" style="width:${s}px;height:${s}px;border-radius:50%;overflow:hidden;flex-shrink:0"><img src="${url}" alt="" class="av-photo" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`;
+  }
+  return `<div class="${cls}" style="width:${s}px;height:${s}px;border-radius:50%;overflow:hidden;flex-shrink:0;background:transparent">${_defaultAvSVG()}</div>`;
+}
+
 function updateAuthUI() {
   updateDmBadge();
   if (S.user) {
@@ -471,15 +506,7 @@ function updateAuthUI() {
     el('avWrap') && (el('avWrap').style.display='block');
     const avCircleEl = el('avCircle');
     const avatarUrl = getAvatarUrl(S.user.username);
-    if (avCircleEl) {
-      if (avatarUrl) {
-        avCircleEl.innerHTML = `<img src="${avatarUrl}" alt="" class="av-photo"/>`;
-        avCircleEl.style.background = 'transparent';
-      } else {
-        avCircleEl.innerHTML = S.user.username[0].toUpperCase();
-        avCircleEl.style.background = avColor(S.user.username);
-      }
-    }
+    if (avCircleEl) setAvEl(avCircleEl, S.user.username);
     if(el('avName'))el('avName').textContent = S.user.username;
     const ddAdm = el('ddAdmin');
     if (ddAdm) ddAdm.style.display = S.user.isAdmin ? '' : 'none';
@@ -815,7 +842,7 @@ function renderSearchResults(allPosts, memberHits, q) {
     }).join('') +
     (memberHits.length ? `<div class="sr-section-label">Members</div>` + memberHits.map(u => `
       <div class="sr-user-item" data-user="${u.username}">
-        <div class="sr-user-av" style="background:${avColor(u.username)}">${u.username[0].toUpperCase()}</div>
+        <div class="sr-user-av" style="background:#6b7280">${u.username[0].toUpperCase()}</div>
         <div><div class="sr-title">${esc(u.username)}</div><div class="sr-meta">${u.posts||0} builds${u.bio?' · '+(u.bio.slice(0,36))+(u.bio.length>36?'…':''):''}</div></div>
       </div>`).join('') : '');
 
@@ -1615,7 +1642,7 @@ function openCarModal(post) {
   const cfg=catCfg(post.category);
   el('carCatBar').innerHTML=`<span class="cat-badge ${cfg.badge}">${post.category}</span>`;
   const usr=S.users.find(u=>u.username===post.user)||{};
-  el('carPosterAv').textContent=post.user[0].toUpperCase(); el('carPosterAv').style.background=avColor(post.user);
+  setAvEl(el('carPosterAv'), post.user);
   el('carPosterName').textContent=post.user; el('carPosterDate').textContent=fmtDate(post.date);
   el('carPosterSocials').innerHTML=[
     usr.instagram?`<a class="soc-btn ig" href="https://instagram.com/${usr.instagram}" target="_blank" rel="noopener"><i class="fab fa-instagram"></i></a>`:'',
@@ -2263,7 +2290,7 @@ function renderSidebar() {
   const badges=['gold','silver','bronze'];
   el('topMembersList').innerHTML=topM.map((u,i)=>`
     <div class="top-member">
-      <div class="tm-av clickable-user" data-user="${u.username}" style="background:${avColor(u.username)}">${u.username[0].toUpperCase()}</div>
+      <div class="tm-av clickable-user" data-user="${u.username}" style="background:#6b7280">${u.username[0].toUpperCase()}</div>
       <div><div class="tm-name">${esc(u.username)}</div><div class="tm-sub">${u.posts||0} builds · ${(u.totalLikes||0).toLocaleString()} likes</div></div>
       ${i<3?`<span class="tm-badge ${badges[i]}">#${i+1}</span>`:''}
     </div>`).join('');
@@ -2334,7 +2361,7 @@ function renderLeaderboard() {
   el('lbMembers').innerHTML=`<div class="lb-list">${topM.map((u,i)=>`
     <div class="lb-row${i===0?' gold':i===1?' silver':i===2?' bronze':''}">
       <div class="lb-pos${i===0?' p1':i===1?' p2':i===2?' p3':' pn'}">${i+1}</div>
-      <div class="lb-thumb lb-av-th clickable-user" data-user="${u.username}" style="background:${avColor(u.username)}">${u.username[0].toUpperCase()}</div>
+      <div class="lb-thumb lb-av-th clickable-user" data-user="${u.username}" style="background:#6b7280">${u.username[0].toUpperCase()}</div>
       <div class="lb-info"><div class="lb-title">${esc(u.username)}</div><div class="lb-meta">${u.posts||0} builds · Joined ${u.joined}</div></div>
       <div class="lb-score"><div class="lb-num">${(u.totalLikes||0).toLocaleString()}</div><div class="lb-lbl">Likes</div></div>
     </div>`).join('')}</div>`;
@@ -2360,7 +2387,7 @@ function renderLeaderboard() {
     const pCount=S.posts.filter(p=>p.user===u.username).length;
     return `<div class="lb-row${i===0?' gold':i===1?' silver':i===2?' bronze':''}">
       <div class="lb-pos${i===0?' p1':i===1?' p2':i===2?' p3':' pn'}">${i+1}</div>
-      <div class="lb-thumb lb-av-th clickable-user" data-user="${u.username}" style="background:${avColor(u.username)}">${u.username[0].toUpperCase()}</div>
+      <div class="lb-thumb lb-av-th clickable-user" data-user="${u.username}" style="background:#6b7280">${u.username[0].toUpperCase()}</div>
       <div class="lb-info"><div class="lb-title">${esc(u.username)}</div><div class="lb-meta">Member since ${u.joined} · ${pCount} builds posted</div></div>
       <div class="lb-score"><div class="lb-num">${pCount}</div><div class="lb-lbl">Posts</div></div>
     </div>`;
@@ -2375,7 +2402,7 @@ function renderLeaderboard() {
     const age=accountAge(u);
     return `<div class="lb-row${i===0?' gold':i===1?' silver':i===2?' bronze':''}">
       <div class="lb-pos${i===0?' p1':i===1?' p2':i===2?' p3':' pn'}">${i+1}</div>
-      <div class="lb-thumb lb-av-th clickable-user" data-user="${u.username}" style="background:${avColor(u.username)}">${u.username[0].toUpperCase()}</div>
+      <div class="lb-thumb lb-av-th clickable-user" data-user="${u.username}" style="background:#6b7280">${u.username[0].toUpperCase()}</div>
       <div class="lb-info"><div class="lb-title">${esc(u.username)}</div><div class="lb-meta">Joined ${fmtDate(u.joinedFull||u.joined+'-01')}</div></div>
       <div class="lb-score"><div class="lb-num">${age.short}</div><div class="lb-lbl">Account Age</div></div>
     </div>`;
@@ -2601,9 +2628,7 @@ function renderMembers() {
         ${rank<3?`<div class="member-rank rank${rank+1}">#${rank+1}</div>`:''}
       </div>
       <div class="member-body">
-        <div class="member-av" style="background:${avColor(u.username)}">${
-          u.avatarUrl
-            ? `<img src="${u.avatarUrl}" alt="" class="av-photo"/>`
+        <div class="member-av" style="background:transparent">${ u.avatarUrl ? `<img src="${u.avatarUrl}" alt="" class="av-photo"/>`
             : u.username[0].toUpperCase()
         }</div>
         <div class="member-info">
@@ -2677,7 +2702,7 @@ function viewMemberProfile(username) {
     el('profileAv').style.background='transparent';
   } else {
     el('profileAv').innerHTML=u.username[0].toUpperCase();
-    el('profileAv').style.background=avColor(u.username);
+    setAvEl(el('profileAv'), u.username);
   }
   el('profileName').textContent=u.username;
   // Awards inline next to name
@@ -2984,7 +3009,7 @@ function updateProfilePage() {
     el('profileAv').style.background='transparent';
   } else {
     el('profileAv').innerHTML=u.username[0].toUpperCase();
-    el('profileAv').style.background=avColor(u.username);
+    setAvEl(el('profileAv'), u.username);
   }
   el('profileName').textContent=u.username;
   // Awards next to name
@@ -3035,22 +3060,22 @@ function getAvatarUrl(username) {
   // 1. S.users (from Supabase) — most authoritative for cross-device
   const u = S.users.find(x => x.username === username);
   if (u?.avatarUrl && u.avatarUrl.startsWith('http')) return u.avatarUrl;
-  // 2. Own user object (may have been updated this session)
+  // 2. Own user object
   if (S.user?.username === username && S.user.avatarUrl?.startsWith('http')) return S.user.avatarUrl;
-  // 3. Local avatar_url key (set right after upload)
+  // 3. Local avatar_url key (set right after upload on this device)
   if (S.user?.username === username) {
     const local = localStorage.getItem('dl_avatar_url');
     if (local?.startsWith('http')) return local;
   }
-  // 4. Per-user avatar cache (only Supabase URLs, not base64)
+  // 4. Per-user avatar cache
   try {
     const cache = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
     const cached = cache[username];
     if (cached?.startsWith('http')) return cached;
   } catch(_) {}
-  // 5. Any URL in S.users even if non-http (last resort)
+  // 5. Any URL even non-http
   if (u?.avatarUrl) return u.avatarUrl;
-  return null;
+  return null; // null = use default grey SVG avatar
 }
 
 // Called when we know an avatar URL — cache it for instant display
@@ -3501,7 +3526,7 @@ function cpRenderComments(post) {
   el('cpCommentCount').textContent = count > 0 ? `(${count})` : '';
   // Update avatar
   const av = el('cpCommentAv');
-  if (S.user) { av.textContent = S.user.username[0].toUpperCase(); av.style.background = avColor(S.user.username); }
+  if (S.user) setAvEl(av, S.user.username);
   // Show image attach button only if this is the post owner's post
   const imgAttachBtn = el('cpCommentImgBtn');
   const imgInput     = el('cpCommentImgInput');
@@ -3879,7 +3904,7 @@ function renderMessages() {
     const preview = c.last.text.length > 40 ? c.last.text.slice(0,40)+'…' : c.last.text;
     const isMe = c.last.from === S.user.username;
     return `<div class="msg-conv-item${S.openDm===c.other?' active':''}${c.unread?' unread':''}" data-user="${c.other}">
-      ${(()=>{const _mu=getAvatarUrl(c.other);return _mu?`<div class="msg-conv-av av-circle has-photo"><img src="${_mu}" alt="" class="av-photo"/></div>`:`<div class="msg-conv-av av-circle" style="background:${avColor(c.other)}">${c.other[0].toUpperCase()}</div>`;})()}
+      ${(()=>{const _mu=getAvatarUrl(c.other);return _mu?`<div class="msg-conv-av av-circle has-photo"><img src="${_mu}" alt="" class="av-photo"/></div>`:renderAv(c.other, 42, 'msg-conv-av');})()}
       <div class="msg-conv-info">
         <div class="msg-conv-name">${esc(c.other)}${c.unread?`<span class="msg-unread-dot">${c.unread}</span>`:''}</div>
         <div class="msg-conv-preview">${isMe?'You: ':''}${esc(preview)}</div>
@@ -3904,8 +3929,7 @@ async function openDmWith(username) {
   el('msgNoneSelected').style.display = 'none';
   el('msgChatWrap').style.display = 'flex';
   const _mcu = getAvatarUrl(username);
-  if (_mcu) { el('msgChatAv').innerHTML=`<img src="${_mcu}" alt="" class="av-photo"/>`; el('msgChatAv').style.background='transparent'; }
-  else { el('msgChatAv').innerHTML=username[0].toUpperCase(); el('msgChatAv').style.background=avColor(username); }
+  setAvEl(el('msgChatAv'), username);
   el('msgChatName').textContent = username;
   const otherUser = S.users.find(u => u.username === username);
   const age = otherUser ? accountAge(otherUser) : null;
@@ -3960,9 +3984,7 @@ function renderDmMessages(username) {
     const prevMsg = msgs[i-1];
     const showName = !mine && (!prevMsg || prevMsg.from !== m.from || prevMsg.ts < m.ts - 120000);
     const avUrl  = getAvatarUrl(m.from);
-    const avHTML = avUrl
-      ? `<div class="msg-bubble-av has-photo"><img src="${avUrl}" alt="" class="av-photo"/></div>`
-      : `<div class="msg-bubble-av" style="background:${avColor(m.from)}">${m.from[0].toUpperCase()}</div>`;
+    const avHTML = renderAv(m.from, 28, 'msg-bubble-av');
     const imgHTML = m.image
       ? `<img src="${m.image}" class="msg-bubble-img" alt="image" onclick="this.classList.toggle('expanded')" loading="lazy"/>`
       : '';
@@ -4036,7 +4058,7 @@ function renderNewDmSearch() {
   el('msgNewResults').innerHTML = members.length
     ? members.map(u => `
       <div class="msg-new-result" data-user="${u.username}">
-        <div class="msg-conv-av" style="background:${avColor(u.username)}">${u.username[0].toUpperCase()}</div>
+        <div class="msg-conv-av" style="background:#6b7280">${u.username[0].toUpperCase()}</div>
         <div><div class="msg-conv-name">${esc(u.username)}</div><div class="msg-conv-preview">${u.bio?(u.bio.length>40?u.bio.slice(0,40)+'…':u.bio):'DriveLog member'}</div></div>
       </div>`).join('')
     : '<p class="msg-empty-sm">No members found</p>';
@@ -4725,7 +4747,7 @@ function _renderAdminUsersList() {
     const posts = S.posts.filter(p=>p.user===u.username).length;
     const age = accountAge(u);
     return `<div class="admin-user-row">
-      <div class="admin-user-av clickable-user" data-user="${u.username}" style="background:${avColor(u.username)}">${u.username[0].toUpperCase()}</div>
+      <div class="admin-user-av clickable-user" data-user="${u.username}" style="background:#6b7280">${u.username[0].toUpperCase()}</div>
       <div class="admin-user-info">
         <div class="admin-user-name">${esc(u.username)}</div>
         <div class="admin-user-meta">${posts} posts · ${age.short} old · Joined ${u.joined}</div>
@@ -5305,7 +5327,7 @@ function renderSocialSidebar() {
   else {
     wrap.innerHTML=suggestions.map(u=>`
       <div class="social-suggest-row">
-        <div class="social-suggest-av clickable-user" data-user="${u.username}" style="background:${avColor(u.username)}">${u.username[0].toUpperCase()}</div>
+        <div class="social-suggest-av clickable-user" data-user="${u.username}" style="background:#6b7280">${u.username[0].toUpperCase()}</div>
         <div class="social-suggest-info">
           <div class="social-suggest-name clickable-user" data-user="${u.username}">${esc(u.username)}</div>
           <div class="social-suggest-meta">${S.posts.filter(p=>p.user===u.username).length} builds</div>
