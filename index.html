@@ -270,51 +270,65 @@
 
   <!-- HOME -->
   <section class="page active" id="page-home">
-    <div class="hero">
-      <!-- Cinematic video background -->
-      <div class="hero-bg-video-wrap">
-        <video class="hero-bg-video" autoplay muted loop playsinline poster="">
-          <!-- Add hero-bg.mp4 to your DriveLog folder to activate -->
-        </video>
-        <div class="hero-bg-overlay"></div>
+
+    <!-- HERO — Content first, no intro text -->
+    <div class="hero2">
+      <!-- Left: Featured build — full bleed image -->
+      <div class="hero2-feature" id="hero2Feature">
+        <div class="hero2-feature-img" id="hero2Img">
+          <div class="hero2-skeleton"></div>
+        </div>
+        <div class="hero2-feature-overlay"></div>
+        <div class="hero2-feature-content">
+          <div class="hero2-eyebrow"><span class="pulse-dot"></span> Build of the Week</div>
+          <div class="hero2-title" id="hero2Title">Loading…</div>
+          <div class="hero2-meta" id="hero2Meta"></div>
+          <button class="hero2-view-btn" id="hero2ViewBtn"><i class="fas fa-eye"></i> View Build</button>
+        </div>
+        <!-- Slide indicators -->
+        <div class="hero2-dots" id="hero2Dots"></div>
+        <button class="hero2-nav hero2-prev" id="hero2Prev"><i class="fas fa-chevron-left"></i></button>
+        <button class="hero2-nav hero2-next" id="hero2Next"><i class="fas fa-chevron-right"></i></button>
       </div>
-      <div class="hero-orbs">
-        <div class="orb orb1"></div><div class="orb orb2"></div><div class="orb orb3"></div>
-      </div>
-      <div class="hero-inner">
-        <div class="hero-content">
-          <p class="hero-eyebrow"><span class="pulse-dot"></span> The Community For Car Enthusiasts</p>
-          <h1 class="hero-title">Built by Enthusiasts.<br/><em class="accent-text">For Enthusiasts.</em></h1>
-          <p class="hero-sub">Come share the cars that turn heads, spark conversations, and tell a story.</p>
-          <div class="hero-btns">
-            <button class="btn-primary large" id="heroPostBtn"><i class="fas fa-camera"></i> Share Your Build</button>
-            <button class="btn-ghost large" id="heroExploreBtn">Explore Builds</button>
-            <!-- Featured Members — desktop: inline with buttons; mobile: below buttons -->
-            <div class="featured-members-strip hero-featured" id="featuredMembersStrip" style="display:none">
-              <span class="featured-members-label">Featured</span>
-              <div class="featured-members-avatars" id="featuredMembersAvatars"></div>
-            </div>
-          </div>
-          <div class="hero-stats">
-            <div class="hstat"><span class="hstat-n" id="statBuilds">0</span><span class="hstat-l">Builds</span></div>
-            <div class="hstat-div"></div>
-            <div class="hstat"><span class="hstat-n" id="statMembers">0</span><span class="hstat-l">Members</span></div>
-            <div class="hstat-div"></div>
-            <div class="hstat"><span class="hstat-n" id="statLikes">0</span><span class="hstat-l">Likes</span></div>
+
+      <!-- Right: Sidebar panel -->
+      <div class="hero2-sidebar">
+        <!-- Community stats -->
+        <div class="hero2-stats">
+          <div class="hero2-stat"><span class="hero2-stat-n" id="statBuilds">0</span><span class="hero2-stat-l">Builds</span></div>
+          <div class="hero2-stat-div"></div>
+          <div class="hero2-stat"><span class="hero2-stat-n" id="statMembers">0</span><span class="hero2-stat-l">Members</span></div>
+          <div class="hero2-stat-div"></div>
+          <div class="hero2-stat"><span class="hero2-stat-n" id="statLikes">0</span><span class="hero2-stat-l">Likes</span></div>
+        </div>
+
+        <!-- Post build CTA -->
+        <button class="hero2-post-btn" id="heroPostBtn">
+          <i class="fas fa-camera"></i>
+          <span>Post Your Build</span>
+          <i class="fas fa-arrow-right hero2-arrow"></i>
+        </button>
+
+        <!-- Featured Members -->
+        <div class="hero2-members" id="featuredMembersStrip" style="display:none">
+          <div class="hero2-members-label">Featured Builders</div>
+          <div class="hero2-members-avatars" id="featuredMembersAvatars"></div>
+        </div>
+
+        <!-- Recent builds quick list -->
+        <div class="hero2-recent">
+          <div class="hero2-recent-label">Latest Builds</div>
+          <div class="hero2-recent-list" id="hero2RecentList">
+            <div class="hero2-recent-skeleton"></div>
+            <div class="hero2-recent-skeleton"></div>
+            <div class="hero2-recent-skeleton"></div>
           </div>
         </div>
-        <!-- BOTW — right side of hero, full image -->
-        <div class="botw-card" id="botwCard">
-          <div class="botw-slides-wrap">
-            <div class="botw-slides" id="botwSlides"></div>
-          </div>
-          <div class="botw-badge"><i class="fas fa-star"></i> Build of the Week</div>
-          <div class="botw-dots" id="botwDots"></div>
-          <div class="botw-nav-row">
-            <button class="botw-nav" id="botwPrev"><i class="fas fa-chevron-left"></i></button>
-            <button class="botw-nav" id="botwNext"><i class="fas fa-chevron-right"></i></button>
-          </div>
-        </div>
+
+        <!-- Explore link -->
+        <button class="hero2-explore-btn" id="heroExploreBtn">
+          Browse All Builds <i class="fas fa-arrow-right"></i>
+        </button>
       </div>
     </div>
 

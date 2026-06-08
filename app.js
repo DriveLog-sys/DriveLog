@@ -559,12 +559,13 @@ function closeMobNav() { el('mobNav').classList.remove('open'); el('mobOverlay')
 // ─── ANIMATED STATS ───────────────────────────────────────────
 function animateStats() {
   const tl = S.posts.reduce((a,p)=>a+p.likes,0);
-  countUp('statBuilds',S.posts.length,1200); countUp('statMembers',S.users.length,1500); countUp('statLikes',tl,1800);
+  countUp('statBuilds',S.posts.length,1000); countUp('statMembers',S.users.length,1200); countUp('statLikes',tl,1400);
   renderFeaturedMembers();
+  renderHero2Recent();
 }
 
 function renderFeaturedMembers() {
-  const strip    = el('featuredMembersStrip');
+  const strip     = el('featuredMembersStrip');
   const avatarsEl = el('featuredMembersAvatars');
   if (!strip || !avatarsEl) return;
   const featured = S.users.filter(u => u.isFeatured);
@@ -575,8 +576,10 @@ function renderFeaturedMembers() {
   const extra = featured.length - MAX_SHOW;
   avatarsEl.innerHTML = shown.map(u => {
     const url = getAvatarUrl(u.username);
-    const bg  = url ? 'transparent' : avColor(u.username);
-    const img = url ? `<img src="${url}" alt="" class="av-photo"/>` : u.username[0].toUpperCase();
+    const bg  = url ? 'transparent' : '#6b7280';
+    const img = url
+      ? `<img src="${url}" alt="" class="av-photo"/>`
+      : _defaultAvSVG();
     return `<div class="fm-av clickable-user" data-user="${u.username}" title="${esc(u.username)}" style="background:${bg}">${img}</div>`;
   }).join('') + (extra > 0
     ? `<div class="fm-av fm-av-more" onclick="goTo('members')">+${Math.min(extra,9)}${extra>=9?'+':''}</div>`
@@ -607,44 +610,106 @@ function getBotwPosts() {
 }
 
 function renderBOTW() {
-  const top5=getBotwPosts(), slidesEl=el('botwSlides'), dotsEl=el('botwDots');
-  if (!slidesEl||!top5.length) return;
-  let cur=0, timer;
+  const top5 = getBotwPosts();
+  // Render hero2 recent list (always runs)
+  renderHero2Recent();
+  if (!top5.length) {
+    // No posts yet — show placeholder
+    const imgEl = el('hero2Img');
+    if (imgEl) imgEl.innerHTML = '<div class="hero2-skeleton"></div>';
+    if (el('hero2Title')) el('hero2Title').textContent = 'No builds yet';
+    if (el('hero2Meta'))  el('hero2Meta').innerHTML = '';
+    return;
+  }
 
-  slidesEl.innerHTML=top5.map((p,i)=>{
-    const cfg=catCfg(p.category), img=p.images?.[0];
-    return `<div class="botw-slide${i===0?' active':''}" data-id="${p.id}">
-      ${img?`<img src="${img}" alt="" loading="lazy"/>`:`<div class="botw-ph" style="background:${phBg(p.id)}"><span>${p.make.toUpperCase()}</span></div>`}
-      <div class="botw-overlay"></div>
-      <div class="botw-badge"><i class="fas fa-star"></i> Featured</div>
-      <div class="botw-rank">${i+1}</div>
-      <div class="botw-info">
-        <div class="botw-title">${p.title}</div>
-        <div class="botw-meta"><span>by <span class="clickable-user" data-user="${p.user}">${p.user}</span></span><span class="botw-likes">♥ ${p.likes.toLocaleString()}</span></div>
-      </div></div>`;
-  }).join('');
+  let cur = 0, timer;
 
-  dotsEl.innerHTML=top5.map((_,i)=>`<div class="botw-dot${i===0?' active':''}" data-i="${i}"></div>`).join('');
+  function renderSlide(idx) {
+    const p   = top5[idx];
+    const img = p.images?.[0];
+    const imgEl  = el('hero2Img');
+    const titleEl= el('hero2Title');
+    const metaEl = el('hero2Meta');
+    const dotsEl = el('hero2Dots');
+    const viewBtn= el('hero2ViewBtn');
+
+    if (imgEl) {
+      imgEl.innerHTML = img
+        ? `<img src="${img}" alt="${esc(p.title)}" class="hero2-slide-img"/>`
+        : `<div class="hero2-slide-ph" style="background:${phBg(p.id)}"></div>`;
+    }
+    if (titleEl) titleEl.textContent = p.title;
+    if (metaEl)  metaEl.innerHTML = `
+      <span class="cat-badge ${catCfg(p.category).badge}">${p.category}</span>
+      <span>by <span class="clickable-user hero2-user" data-user="${p.user}">${esc(p.user)}</span></span>
+      ${p.year ? `<span>${p.year}</span>` : ''}
+      ${p.hp   ? `<span>${esc(p.hp)}</span>` : ''}
+      <span class="hero2-likes">♥ ${p.likes.toLocaleString()}</span>`;
+    if (dotsEl) dotsEl.innerHTML = top5.map((_,i)=>`<button class="hero2-dot${i===idx?' active':''}" data-i="${i}" aria-label="Slide ${i+1}"></button>`).join('');
+    if (viewBtn) viewBtn.onclick = () => openCarPage(top5[cur]);
+
+    // Re-wire dots
+    el('hero2Dots')?.querySelectorAll('.hero2-dot').forEach(d =>
+      d.addEventListener('click', () => go(+d.dataset.i))
+    );
+    // Wire user links
+    el('hero2Meta')?.querySelectorAll('.clickable-user').forEach(u =>
+      u.addEventListener('click', () => viewPublicProfile(u.dataset.user))
+    );
+  }
 
   function go(idx) {
-    slidesEl.querySelectorAll('.botw-slide').forEach((s,i)=>s.classList.toggle('active',i===idx));
-    dotsEl.querySelectorAll('.botw-dot').forEach((d,i)=>d.classList.toggle('active',i===idx));
-    cur=idx; clearInterval(timer); timer=setInterval(()=>go((cur+1)%top5.length),4500);
+    cur = ((idx % top5.length) + top5.length) % top5.length;
+    renderSlide(cur);
+    clearInterval(timer);
+    timer = setInterval(() => go(cur + 1), 5500);
   }
-  dotsEl.querySelectorAll('.botw-dot').forEach(d=>d.addEventListener('click',()=>go(+d.dataset.i)));
-  el('botwPrev')?.addEventListener('click',()=>go((cur-1+top5.length)%top5.length));
-  el('botwNext')?.addEventListener('click',()=>go((cur+1)%top5.length));
-  slidesEl.querySelectorAll('.botw-slide').forEach((s, i) => {
-    s.style.cursor = 'pointer';
-    const postId = top5[i]?.id;
-    s.addEventListener('click', e => {
-      if (e.target.closest('.clickable-user') || e.target.closest('.botw-dot')) return;
-      // Find by ID from current S.posts — works even after cache refreshes
-      const p = S.posts.find(x=>x.id===postId) || top5[i];
-      if (p) openCarPage(p);
-    });
+
+  // Wire feature panel click
+  el('hero2Feature')?.addEventListener('click', e => {
+    if (e.target.closest('button') || e.target.closest('.clickable-user') || e.target.closest('.hero2-dot')) return;
+    openCarPage(top5[cur]);
   });
-  timer=setInterval(()=>go((cur+1)%top5.length),4500);
+  el('hero2Prev')?.addEventListener('click', e => { e.stopPropagation(); go(cur - 1); });
+  el('hero2Next')?.addEventListener('click', e => { e.stopPropagation(); go(cur + 1); });
+  // Touch swipe on feature panel
+  let _h2tx = 0;
+  el('hero2Feature')?.addEventListener('touchstart', e => { _h2tx = e.touches[0].clientX; }, {passive:true});
+  el('hero2Feature')?.addEventListener('touchend',   e => {
+    const dx = e.changedTouches[0].clientX - _h2tx;
+    if (Math.abs(dx) > 40) go(dx < 0 ? cur+1 : cur-1);
+  }, {passive:true});
+
+  go(0);
+  timer = setInterval(() => go(cur + 1), 5500);
+}
+
+function renderHero2Recent() {
+  const listEl = el('hero2RecentList');
+  if (!listEl) return;
+  const recent = [...S.posts].sort((a,b) => new Date(b.createdAt||b.date) - new Date(a.createdAt||a.date)).slice(0, 4);
+  if (!recent.length) {
+    listEl.innerHTML = '<p style="color:var(--muted);font-size:.8rem;padding:8px 0">No builds yet — be the first!</p>';
+    return;
+  }
+  listEl.innerHTML = recent.map(p => {
+    const img = p.images?.[0];
+    return `<div class="hero2-recent-item" data-id="${p.id}">
+      <div class="hero2-recent-thumb" style="${img?'':'background:'+phBg(p.id)}">
+        ${img ? `<img src="${img}" alt="" loading="lazy"/>` : ''}
+      </div>
+      <div class="hero2-recent-info">
+        <div class="hero2-recent-title">${esc(p.title)}</div>
+        <div class="hero2-recent-meta">${esc(p.user)} · ♥ ${p.likes}</div>
+      </div>
+    </div>`;
+  }).join('');
+  listEl.querySelectorAll('.hero2-recent-item').forEach(item =>
+    item.addEventListener('click', () => {
+      const p = S.posts.find(x => x.id === item.dataset.id);
+      if (p) openCarPage(p);
+    })
+  );
 }
 
 // ─── HOT RIGHT NOW MOSAIC ─────────────────────────────────────
