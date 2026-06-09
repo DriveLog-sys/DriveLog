@@ -64,15 +64,16 @@
   <nav class="mob-links">
     <a class="mob-link active" data-page="home"><i class="fas fa-home"></i> Feed</a>
     <a class="mob-link" data-page="social"><i class="fas fa-film"></i> Social</a>
-    <a class="mob-link" data-page="categories"><i class="fas fa-th-large"></i> Categories</a>
+    <a class="mob-link" data-page="members"><i class="fas fa-users"></i> Members</a>
     <a class="mob-link" data-page="leaderboard"><i class="fas fa-trophy"></i> Leaderboard</a>
     <a class="mob-link" data-page="garage"><i class="fas fa-warehouse"></i> Garage</a>
     <a class="mob-link" data-page="messages"><i class="fas fa-envelope"></i> Messages <span class="nav-dm-badge" id="mobDmBadge" style="display:none"></span></a>
-    <a class="mob-link" data-page="whatsnew"><i class="fas fa-star"></i> More...</a>
+    <a class="mob-link" data-page="explore"><i class="fas fa-compass"></i> Explore</a>
     <a class="mob-link" data-page="admin"><i class="fas fa-shield-alt"></i> Admin</a>
     <a class="mob-link" data-page="profile"><i class="fas fa-user"></i> Profile</a>
   </nav>
   <div class="mob-nav-foot">
+    <button class="mob-theme-toggle" id="mobThemeToggle"><i class="fas fa-moon"></i> Toggle Dark/Light Mode</button>
     <button class="btn-primary full" id="mobPostBuildBtn" style="margin-bottom:8px"><i class="fas fa-camera"></i> + Post Build</button>
     <a href="settings.html" class="mob-link"><i class="fas fa-cog"></i> Settings</a>
   </div>
@@ -221,11 +222,11 @@
     <nav class="main-nav">
       <a class="nav-link active" data-page="home">Feed</a>
       <a class="nav-link" data-page="social">Social</a>
-      <a class="nav-link" data-page="categories">Categories</a>
+      <a class="nav-link" data-page="members">Members</a>
       <a class="nav-link" data-page="leaderboard">Leaderboard</a>
       <a class="nav-link" data-page="garage">Garage</a>
       <a class="nav-link" data-page="messages">Messages <span class="nav-dm-badge" id="navDmBadge" style="display:none"></span></a>
-      <a class="nav-link" data-page="whatsnew">More...</a>
+      <a class="nav-link" data-page="explore">Explore</a>
     </nav>
     <div class="header-right">
       <button class="icon-btn" id="searchBtn"><i class="fas fa-search"></i></button>
@@ -252,7 +253,7 @@
           <div class="av-drop-item" id="ddGarage"><i class="fas fa-warehouse"></i> My Garage</div>
           <div class="av-drop-item" id="ddMessages"><i class="fas fa-envelope"></i> Messages</div>
           <div class="av-drop-item" id="ddMembers"><i class="fas fa-users"></i> Members</div>
-          <div class="av-drop-item" id="ddChallenges"><i class="fas fa-trophy"></i> Challenges</div>
+          <div class="av-drop-item" id="ddEvents"><i class="fas fa-calendar-alt"></i> Events</div>
           <div class="av-drop-item" id="ddCompare"><i class="fas fa-balance-scale"></i> Compare Builds</div>
           <div class="av-drop-item" id="ddAdmin"><i class="fas fa-shield-alt"></i> Admin Panel</div>
           <div class="av-drop-divider"></div>
@@ -524,6 +525,7 @@
           <div class="social-feed-tabs">
             <button class="soc-tab active" data-soctab="foryou">For You</button>
             <button class="soc-tab" data-soctab="following">Following</button>
+            <button class="soc-tab" data-soctab="builds">Builds</button>
           </div>
           <button class="social-upload-btn btn-primary small" id="socialUploadBtn">
             <i class="fas fa-plus"></i> Post
@@ -543,16 +545,18 @@
       <!-- Right: sidebar -->
       <div class="social-sidebar-col">
         <div class="widget">
-          <div class="widget-title"><i class="fas fa-users widget-icon"></i>Who to Follow</div>
+          <div class="widget-title"><i class="fas fa-users widget-icon"></i> Who to Follow</div>
           <div id="socialWhoToFollow"></div>
         </div>
         <div class="widget">
-          <div class="widget-title"><i class="fas fa-fire widget-icon"></i>Trending Tags</div>
-          <div class="social-tags" id="socialTags"></div>
+          <div class="widget-title"><i class="fas fa-calendar-alt widget-icon"></i> Upcoming Events
+            <a class="widget-see-all" onclick="goTo('events')">See all</a>
+          </div>
+          <div id="socialEventsPreview"></div>
         </div>
         <div class="widget">
-          <div class="widget-title"><i class="fas fa-hashtag widget-icon"></i>Trending Hashtags</div>
-          <div class="social-hashtags" id="socialHashtags"></div>
+          <div class="widget-title"><i class="fas fa-fire widget-icon"></i> Trending Tags</div>
+          <div class="social-tags" id="socialTags"></div>
         </div>
       </div>
     </div>
@@ -651,6 +655,7 @@
             <div id="profileAwards" class="profile-awards-row"></div>
           </div>
           <p class="profile-bio" id="profileBio"></p>
+          <div class="profile-specialties" id="profileSpecialties"></div>
           <p class="profile-joined" id="profileJoined"></p>
           <div class="profile-socials" id="profileSocials"></div>
         </div>
@@ -939,6 +944,7 @@
             <button class="act-btn report-btn" id="cpReport" title="Report this build"><i class="fas fa-flag"></i></button>
             <button class="act-btn delete-btn" id="cpDelete" title="Delete this build" style="display:none"><i class="fas fa-trash-alt"></i></button>
           </div>
+          <button class="botm-vote-btn" id="cpBotmVote"><i class="fas fa-crown"></i> Nominate for Build of the Month</button>
           <div class="reactions-row" id="cpReactionsRow"></div>
         </div>
       </div>
@@ -974,6 +980,36 @@
         </div>
         <div id="cptab-timeline" class="cptab-panel" style="display:none">
           <div id="cpTimelineContent"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- EXPLORE PAGE -->
+  <section class="page" id="page-explore">
+    <div class="explore-wrap">
+      <div class="explore-header">
+        <h1 class="explore-title">Explore</h1>
+        <p class="explore-sub">Discover builds, tags, and builders</p>
+      </div>
+      <div class="explore-body">
+        <div class="explore-main">
+          <div class="explore-section-label">Trending Builds</div>
+          <div class="card-grid" id="exploreTrendingGrid"></div>
+          <div class="explore-section-label" style="margin-top:32px">Discover Builders</div>
+          <div class="explore-builders-grid" id="exploreBuilders"></div>
+          <div class="explore-section-label" style="margin-top:32px">Browse by Tag</div>
+          <div class="explore-tags-grid" id="exploreTagsGrid"></div>
+        </div>
+        <div class="explore-side">
+          <div class="widget">
+            <div class="widget-title"><i class="fas fa-calendar-alt widget-icon"></i> Upcoming Events</div>
+            <div id="exploreEvents"></div>
+          </div>
+          <div class="widget">
+            <div class="widget-title"><i class="fas fa-fire widget-icon"></i> Hot This Week</div>
+            <div id="exploreHot"></div>
+          </div>
         </div>
       </div>
     </div>

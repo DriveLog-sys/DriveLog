@@ -376,7 +376,7 @@ function initNavLinks() {
   el('ddMembers')?.addEventListener('click', ()=>goTo('members'));
   el('ddLogout')?.addEventListener('click',  logout);
   const ddMsgs = el('ddMessages'); if(ddMsgs) ddMsgs.addEventListener('click', ()=>goTo('messages'));
-  const ddChal = el('ddChallenges'); if(ddChal) ddChal.addEventListener('click', ()=>goTo('challenges'));
+  const ddChal = el('ddEvents'); if(ddChal) ddChal.addEventListener('click', ()=>goTo('challenges'));
   const ddCmp = el('ddCompare'); if(ddCmp) ddCmp.addEventListener('click', ()=>goTo('compare'));
   const ddAdm = el('ddAdmin'); if(ddAdm) ddAdm.addEventListener('click', ()=>goTo('admin'));
   el('profileSignInBtn')?.addEventListener('click', ()=>el('authModal').classList.add('open'));
@@ -413,7 +413,9 @@ function goTo(page) {
     S.openDm = null;
   }
   if (page==='whatsnew')    renderWhatsNew();
+  if (page==='explore')     renderExplorePage();
   if (page==='compare')     renderComparePage();
+  if (page==='explore')     renderExplorePage();
   if (page==='admin')       renderAdmin();
   updateDmBadge();
 }
@@ -954,6 +956,16 @@ function initAuth() {
   el('openAuthBtn')?.addEventListener('click', ()=>{ clearAuthErrs(); el('authModal').classList.add('open'); });
   el('openPostBtn')?.addEventListener('click', openPostModal);
   // Mobile: Post Build also in burger menu
+  el('mobThemeToggle')?.addEventListener('click', () => {
+    document.body.classList.toggle('dark');
+    const isDark = document.body.classList.contains('dark');
+    try {
+      const p = JSON.parse(localStorage.getItem('dl_prefs')||'{}');
+      p.theme = isDark ? 'dark' : 'light';
+      localStorage.setItem('dl_prefs', JSON.stringify(p));
+    } catch(_) {}
+    el('mobThemeToggle').innerHTML = isDark ? '<i class="fas fa-sun"></i> Light Mode' : '<i class="fas fa-moon"></i> Dark Mode';
+  });
   el('mobPostBuildBtn')?.addEventListener('click', () => {
     closeMobNav();
     openPostModal();
@@ -2395,6 +2407,113 @@ function renderSidebar() {
   el('tagCloud').querySelectorAll('.tag').forEach(t=>t.addEventListener('click',()=>{el('searchInput').value=t.textContent; openSearch(); doSearch();}));
 }
 
+
+// ─── EXPLORE PAGE ─────────────────────────────────────────────
+function renderExplorePage() {
+  // Trending builds — sorted by likes, varied layout via CSS
+  const trending = [...S.posts].sort((a,b)=>b.likes-a.likes).slice(0,9);
+  const tGrid = el('exploreTrendingGrid');
+  if (tGrid) {
+    tGrid.innerHTML = trending.map((p,i) => cardHTML(p,i)).join('');
+    attachCardEvents(tGrid);
+  }
+
+  // Discover builders — suggested follows for logged-in users
+  const builders = el('exploreBuilders');
+  if (builders) {
+    const suggestions = S.users
+      .filter(u => u.username !== S.user?.username && !S.following.includes(u.username))
+      .sort((a,b) => (b.totalLikes||0) - (a.totalLikes||0))
+      .slice(0,6);
+    if (suggestions.length) {
+      builders.innerHTML = suggestions.map(u => {
+        const url = getAvatarUrl(u.username);
+        return `<div class="explore-builder-card">
+          <div class="explore-builder-av" data-user="${u.username}">${renderAv(u.username, 48, 'clickable-user')}</div>
+          <div class="explore-builder-info">
+            <div class="explore-builder-name clickable-user" data-user="${u.username}">${esc(u.username)}</div>
+            <div class="explore-builder-meta">${u.posts||0} builds · ♥ ${(u.totalLikes||0).toLocaleString()}</div>
+          </div>
+          <button class="btn-ghost small explore-follow-btn${S.following.includes(u.username)?' following':''}"
+            data-user="${u.username}">
+            ${S.following.includes(u.username)?'Following':'+ Follow'}
+          </button>
+        </div>`;
+      }).join('');
+      builders.querySelectorAll('.explore-follow-btn').forEach(btn =>
+        btn.addEventListener('click', () => {
+          toggleFollow(btn.dataset.user);
+          btn.textContent = S.following.includes(btn.dataset.user) ? 'Following' : '+ Follow';
+          btn.classList.toggle('following', S.following.includes(btn.dataset.user));
+        })
+      );
+    } else {
+      builders.innerHTML = '<p style="color:var(--muted);font-size:.85rem">You\'re following everyone! Check back when new members join.</p>';
+    }
+  }
+
+  // Browse by tag
+  const tagMap = {};
+  S.posts.forEach(p => {
+    const cats = Array.isArray(p.categories) && p.categories.length ? p.categories : [p.category].filter(Boolean);
+    cats.forEach(c => { tagMap[c] = (tagMap[c]||0)+1; });
+    // Also extract hashtags from descriptions
+    const tags = (p.desc||'').match(/#[\w]+/g) || [];
+    tags.forEach(t => { tagMap[t] = (tagMap[t]||0)+1; });
+  });
+  const tagsGrid = el('exploreTagsGrid');
+  if (tagsGrid) {
+    tagsGrid.innerHTML = Object.entries(tagMap)
+      .sort((a,b)=>b[1]-a[1]).slice(0,20)
+      .map(([tag,count]) => `<div class="explore-tag-pill" data-tag="${esc(tag)}">
+        ${esc(tag)} <span class="explore-tag-count">${count}</span>
+      </div>`).join('');
+    tagsGrid.querySelectorAll('.explore-tag-pill').forEach(pill =>
+      pill.addEventListener('click', () => {
+        // Search for this tag
+        el('searchInput').value = pill.dataset.tag;
+        openSearch(); doSearch();
+      })
+    );
+  }
+
+  // Events sidebar
+  const eventsEl = el('exploreEvents');
+  if (eventsEl) {
+    const upcoming = S.events?.slice(0,3) || [];
+    eventsEl.innerHTML = upcoming.length
+      ? upcoming.map(e => `<div class="explore-event-item" onclick="goTo('events')">
+          <div class="explore-event-date">${fmtDate(e.date)}</div>
+          <div class="explore-event-name">${esc(e.title)}</div>
+          <div class="explore-event-loc">${esc(e.location||'')}</div>
+        </div>`).join('')
+      : `<p style="color:var(--muted);font-size:.82rem">No upcoming events. <span class="link-text" onclick="goTo('events')">View all →</span></p>`;
+  }
+
+  // Hot this week sidebar
+  const hotEl = el('exploreHot');
+  if (hotEl) {
+    const cutoff = Date.now() - 7*24*60*60*1000;
+    const hot = [...S.posts]
+      .filter(p => new Date(p.date).getTime() > cutoff)
+      .sort((a,b) => b.likes-a.likes).slice(0,4);
+    hotEl.innerHTML = hot.length
+      ? hot.map((p,i) => `<div class="explore-hot-item" data-id="${p.id}">
+          <span class="explore-hot-rank">${i+1}</span>
+          <div class="explore-hot-info">
+            <div class="explore-hot-title">${esc(p.title.length>28?p.title.slice(0,28)+'…':p.title)}</div>
+            <div class="explore-hot-meta">by ${esc(p.user)} · ♥ ${p.likes}</div>
+          </div>
+        </div>`).join('')
+      : '<p style="color:var(--muted);font-size:.82rem">Check back after more posts!</p>';
+    hotEl.querySelectorAll('.explore-hot-item').forEach(item =>
+      item.addEventListener('click', () => {
+        const p = S.posts.find(x=>x.id===item.dataset.id); if(p) openCarPage(p);
+      })
+    );
+  }
+}
+
 // ─── CATEGORIES ───────────────────────────────────────────────
 function renderCategories() {
   el('catGrid').innerHTML=CATS.map(c=>{
@@ -2421,7 +2540,42 @@ function renderCategories() {
       const cats=Array.isArray(p.categories)&&p.categories.length?p.categories:[p.category].filter(Boolean);
       return cats.includes(card.dataset.cat);
     });
-    el('catFeedGrid').innerHTML=posts.length?posts.map((p,i)=>cardHTML(p,i)).join(''):'<p class="cat-empty">No builds yet.</p>';
+    // Stats bar
+    const totalLikes = posts.reduce((a,p)=>a+p.likes,0);
+    const catStatsEl = el('catFeedStats') || (() => {
+      const d = document.createElement('div'); d.id = 'catFeedStats'; d.className = 'cat-feed-stats';
+      el('catFeedWrap').insertBefore(d, el('catFeedGrid'));
+      return d;
+    })();
+    catStatsEl.innerHTML = `
+      <div class="cat-feed-stat"><span class="cat-feed-stat-n">${posts.length}</span><span class="cat-feed-stat-l">Builds</span></div>
+      <div class="cat-feed-stat-div"></div>
+      <div class="cat-feed-stat"><span class="cat-feed-stat-n">${totalLikes.toLocaleString()}</span><span class="cat-feed-stat-l">Total Likes</span></div>
+    `;
+    // Top 3 featured builds
+    const top3 = [...posts].sort((a,b)=>b.likes-a.likes).slice(0,3);
+    const top3El = el('catFeedTop3') || (() => {
+      const d = document.createElement('div'); d.id = 'catFeedTop3'; d.className = 'cat-feed-top3';
+      el('catFeedWrap').insertBefore(d, el('catFeedGrid'));
+      return d;
+    })();
+    top3El.innerHTML = top3.map(p => {
+      const img = p.images?.[0];
+      return `<div class="cat-top3-item" data-id="${p.id}">
+        ${img?`<img src="${img}" alt="${esc(p.title)}" loading="lazy"/>`:`<div style="width:100%;height:100%;background:${phBg(p.id)}"></div>`}
+        <div class="cat-top3-overlay"></div>
+        <div class="cat-top3-info">
+          <div class="cat-top3-title">${esc(p.title)}</div>
+          <div class="cat-top3-meta">by ${esc(p.user)} · ♥ ${p.likes}</div>
+        </div>
+      </div>`;
+    }).join('');
+    top3El.querySelectorAll('.cat-top3-item').forEach(item =>
+      item.addEventListener('click', () => {
+        const p = posts.find(x=>x.id===item.dataset.id); if(p) openCarPage(p);
+      })
+    );
+    el('catFeedGrid').innerHTML=posts.length?posts.map((p,i)=>cardHTML(p,i)).join(''):'<p class="cat-empty">No builds yet in this category.</p>';
     attachCardEvents(el('catFeedGrid'));
   }));
   el('backToCats')?.addEventListener('click',()=>{el('catGrid').style.display=''; el('catFeedWrap').style.display='none';});
@@ -2508,6 +2662,54 @@ function renderLeaderboard() {
     const panel = el('lb-'+t.dataset.lb);
     if (panel) panel.classList.add('active');
   }));
+}
+
+
+// ─── BOTM COMMUNITY VOTING ────────────────────────────────────
+// Voting window: 1st - 25th of each month. Top voted post wins.
+function getBotmVoteKey() {
+  const now = new Date();
+  return `dl_botm_votes_${now.getFullYear()}_${now.getMonth()}`;
+}
+
+function getUserBotmVote() {
+  try { return JSON.parse(localStorage.getItem(getBotmVoteKey()) || 'null'); } catch(_) { return null; }
+}
+
+function castBotmVote(postId) {
+  if (!S.user) { toast('Sign in to vote','err'); el('authModal')?.classList.add('open'); return; }
+  const now = new Date();
+  if (now.getDate() > 25) { toast('Voting closes on the 25th each month',''); return; }
+  const existing = getUserBotmVote();
+  if (existing === postId) { toast('Already voted for this build!',''); return; }
+  // Save vote
+  localStorage.setItem(getBotmVoteKey(), postId);
+  // Persist to Supabase — votes table (simple: just count votes per post per month)
+  const voteKey = `botm_${now.getFullYear()}_${String(now.getMonth()+1).padStart(2,'0')}`;
+  DB.castBotmVote?.(postId, S.user.id, voteKey).catch(()=>{});
+  toast('Vote cast! ✓ Check back on the 26th to see the winner.','ok');
+  // Update UI immediately
+  renderBotmVoteBtn(postId);
+}
+
+function renderBotmVoteBtn(postId) {
+  const btns = document.querySelectorAll(`.botm-vote-btn[data-id="${postId}"]`);
+  const voted = getUserBotmVote();
+  btns.forEach(btn => {
+    btn.classList.toggle('voted', voted === postId);
+    btn.innerHTML = voted === postId
+      ? '<i class="fas fa-check"></i> Voted'
+      : '<i class="fas fa-crown"></i> Nominate for BOTM';
+  });
+}
+
+// Get current month's BOTM winner from votes
+function getBotmWinner() {
+  // Admin override still possible
+  const adminPick = JSON.parse(localStorage.getItem('dl_botm') || 'null');
+  if (adminPick?.postId) return S.posts.find(p => p.id === adminPick.postId) || null;
+  // Otherwise use community votes (stored locally for demo)
+  return null; // Real voting requires Supabase aggregation
 }
 
 // ─── BUILD OF THE MONTH ────────────────────────────────────────
@@ -2806,6 +3008,17 @@ async function viewMemberProfile(username) {
   const awardsEl2 = el('profileAwards');
   if (awardsEl2) awardsEl2.innerHTML = renderAwards(u, true);
   el('profileBio').textContent=truncateBio(u.bio||'');
+  // Specialties — top categories from user's posts
+  const specEl = el('profileSpecialties');
+  if (specEl) {
+    const catCounts = {};
+    posts.forEach(p => {
+      const pc = Array.isArray(p.categories)&&p.categories.length?p.categories:[p.category].filter(Boolean);
+      pc.forEach(c => { catCounts[c]=(catCounts[c]||0)+1; });
+    });
+    const topCats = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0,4);
+    specEl.innerHTML = topCats.map(([c]) => `<span class="profile-specialty-tag cat-badge ${catCfg(c).badge}" style="position:static;font-size:.7rem">${c}</span>`).join('');
+  }
   const ageInfo=accountAge(u);
   el('profileJoined').innerHTML=`Member since ${u.joined} &nbsp;<span class="acct-age-badge"><i class="fas fa-clock"></i> ${ageInfo.full}</span>`;
   el('profileSocials').innerHTML=buildSocialLinks(u);
@@ -3204,6 +3417,13 @@ function initCarPage() {
     const btn = el('cpLike');
     if (btn) { btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop'); setTimeout(() => btn.classList.remove('pop'), 400); }
   });
+  // BOTM vote button — appears on each post
+  const botmBtn = el('cpBotmVote');
+  if (botmBtn) {
+    botmBtn.dataset.id = post.id;
+    renderBotmVoteBtn(post.id);
+    botmBtn.addEventListener('click', () => castBotmVote(botmBtn.dataset.id));
+  }
   el('cpSave')?.addEventListener('click', () => {
     cpHandleSave();
     const btn = el('cpSave');
@@ -5164,10 +5384,23 @@ function initSocialPage() {
   }
   if (fileInput) fileInput.addEventListener('change', () => handleSocialFiles(Array.from(fileInput.files)));
   if (submitBtn) submitBtn.addEventListener('click', submitSocialPost);
+  // Render sidebar widgets
+  renderSocialEventsPreview();
+  renderSuggestedFollows('socialWhoToFollow');
   document.querySelectorAll('.soc-tab').forEach(t => t.addEventListener('click', () => {
     document.querySelectorAll('.soc-tab').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
     socialTab = t.dataset.soctab;
+    if (socialTab === 'builds') {
+      // Show actual build posts (not social posts) as cards
+      const wrap = el('socialPostsWrap');
+      if (wrap) {
+        const recBuilds = [...S.posts].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,12);
+        wrap.innerHTML = `<div class="card-grid social-builds-grid">${recBuilds.map((p,i)=>cardHTML(p,i)).join('')}</div>`;
+        attachCardEvents(wrap);
+        return;
+      }
+    }
     socialPage = 0;
     // Clear search when switching tabs
     const si = el('socialSearchInput');
@@ -5366,6 +5599,55 @@ function renderSocialFeed(reset) {
   }
   renderSocialSidebar();
 }
+
+function renderSocialEventsPreview() {
+  const el2 = el('socialEventsPreview'); if (!el2) return;
+  const events = (S.events || []).slice(0,3);
+  if (!events.length) {
+    el2.innerHTML = '<p class="social-sidebar-empty">No events yet.</p>';
+    return;
+  }
+  el2.innerHTML = events.map(e => `
+    <div class="social-event-preview" onclick="goTo('events')">
+      <div class="sep-date">${fmtDate(e.date)}</div>
+      <div class="sep-name">${esc(e.title)}</div>
+      <div class="sep-loc"><i class="fas fa-map-marker-alt"></i> ${esc(e.location||'TBD')}</div>
+    </div>`).join('');
+}
+
+function renderSuggestedFollows(containerId) {
+  const container = el(containerId); if (!container) return;
+  if (!S.user) { container.innerHTML=''; return; }
+  const suggestions = S.users
+    .filter(u => u.username !== S.user.username && !S.following.includes(u.username))
+    .sort((a,b) => (b.totalLikes||0)-(a.totalLikes||0))
+    .slice(0,5);
+  if (!suggestions.length) {
+    container.innerHTML = '<p class="social-sidebar-empty">You\'re following everyone!</p>';
+    return;
+  }
+  container.innerHTML = suggestions.map(u => `
+    <div class="social-wtf-item">
+      ${renderAv(u.username, 38, 'clickable-user social-wtf-av')}
+      <div class="social-wtf-info clickable-user" data-user="${u.username}">
+        <div class="social-wtf-name">${esc(u.username)}</div>
+        <div class="social-wtf-sub">${u.posts||0} builds</div>
+      </div>
+      <button class="social-follow-pill${S.following.includes(u.username)?' active':''}"
+        data-user="${u.username}">
+        ${S.following.includes(u.username)?'Following':'Follow'}
+      </button>
+    </div>`).join('');
+  container.querySelectorAll('.social-follow-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      toggleFollow(btn.dataset.user);
+      const following = S.following.includes(btn.dataset.user);
+      btn.textContent = following ? 'Following' : 'Follow';
+      btn.classList.toggle('active', following);
+    });
+  });
+}
+
 
 function renderSocialComments(postId) {
   const list=el('scl-'+postId); if(!list) return;
