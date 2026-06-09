@@ -5770,3 +5770,123 @@ body:not(.dark) .save-btn {
   .hero2-stat-n { font-size: 1.1rem; }
   .hero2-post-btn { padding: 12px 16px; }
 }
+
+/* ─── Car page poster row — fixed layout ────────────────────── */
+.car-page-poster-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.car-page-av {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+.car-page-poster-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.car-page-poster-nameline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.car-page-poster-name {
+  font-family: var(--cond);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+  cursor: pointer;
+  letter-spacing: .2px;
+}
+.car-page-poster-name:hover { text-decoration: underline; }
+.car-page-poster-date {
+  font-size: .78rem;
+  color: var(--muted);
+}
+/* Socials sit on their own row, properly spaced */
+.car-page-poster-socials {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  flex-wrap: wrap;
+  overflow: visible !important;
+  padding-bottom: 0 !important;
+  padding-top: 0;
+  margin-top: 2px;
+}
+.car-page-poster-actions {
+  display: flex;
+  gap: 7px;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+/* ─── Hero2: featured members more spacing ───────────────────── */
+.hero2-members {
+  padding: 14px 20px 14px !important;
+}
+.hero2-members-avatars {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-top: 8px;
+}
+.hero2-members-avatars .fm-av {
+  width: 34px !important;
+  height: 34px !important;
+  border: 2.5px solid var(--surface) !important;
+  margin-left: -5px !important;
+  flex-shrink: 0;
+}
+.hero2-members-avatars .fm-av:first-child { margin-left: 0 !important; }
+/* Label above avatars with more breathing room */
+.hero2-members-label {
+  margin-bottom: 8px !important;
+  letter-spacing: 2px;
+}
+
+/* ─── Messages — prevent overflow onto other pages ───────────── */
+#page-messages {
+  position: relative;
+  z-index: 1;
+}
+.msg-wrap {
+  position: relative;
+  overflow: hidden !important;
+}
+/* Ensure chat wrap clips to its container */
+#msgChatWrap {
+  overflow: hidden;
+  min-height: 0;
+}
+.msg-chat-body {
+  min-height: 0;
+}
+
+/* ─── Top members — name clickable styling ───────────────────── */
+.tm-info {
+  flex: 1;
+  min-width: 0;
+}
+.tm-info:hover .tm-name {
+  color: var(--accent);
+}
+.tm-name {
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--text);
+  transition: color var(--tr);
+}
+.tm-sub {
+  font-size: .75rem;
+  color: var(--muted);
+  margin-top: 1px;
+}

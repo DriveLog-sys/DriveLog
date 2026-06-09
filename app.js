@@ -402,6 +402,18 @@ function goTo(page) {
   if (page==='members')     renderMembers();
   if (page==='social')      renderSocialFeed(true);
   if (page==='messages')    renderMessages();
+  if (page!=='messages') {
+    // Reset messages state so chat doesn't bleed into other pages
+    const cw = el('msgChatWrap');
+    if (cw) { cw.style.display = 'none'; }
+    const ms = el('msgNoneSelected');
+    if (ms) ms.style.display = 'flex';
+    const mc = el('msgChatCol');
+    if (mc) mc.classList.remove('active');
+    const ml = el('msgListCol');
+    if (ml) ml.classList.remove('msg-hide-list');
+    S.openDm = null;
+  }
   if (page==='whatsnew')    renderWhatsNew();
   if (page==='compare')     renderComparePage();
   if (page==='admin')       renderAdmin();
@@ -640,7 +652,6 @@ function renderBOTW() {
     }
     if (titleEl) titleEl.textContent = p.title;
     if (metaEl)  metaEl.innerHTML = `
-      <span class="cat-badge ${catCfg(p.category).badge}">${p.category}</span>
       <span>by <span class="clickable-user hero2-user" data-user="${p.user}">${esc(p.user)}</span></span>
       ${p.year ? `<span>${p.year}</span>` : ''}
       ${p.hp   ? `<span>${esc(p.hp)}</span>` : ''}
@@ -2355,10 +2366,17 @@ function renderSidebar() {
   const badges=['gold','silver','bronze'];
   el('topMembersList').innerHTML=topM.map((u,i)=>`
     <div class="top-member">
-      <div class="tm-av clickable-user" data-user="${u.username}" style="background:#6b7280">${u.username[0].toUpperCase()}</div>
-      <div><div class="tm-name">${esc(u.username)}</div><div class="tm-sub">${u.posts||0} builds · ${(u.totalLikes||0).toLocaleString()} likes</div></div>
+      <div class="tm-av clickable-user" data-user="${u.username}">${renderAv(u.username, 36, 'clickable-user')}</div>
+      <div class="tm-info clickable-user" data-user="${u.username}" style="cursor:pointer">
+        <div class="tm-name">${esc(u.username)}</div>
+        <div class="tm-sub">${u.posts||0} builds · ${(u.totalLikes||0).toLocaleString()} likes</div>
+      </div>
       ${i<3?`<span class="tm-badge ${badges[i]}">#${i+1}</span>`:''}
     </div>`).join('');
+  // Wire name clicks too
+  el('topMembersList').querySelectorAll('.tm-info.clickable-user').forEach(el2 =>
+    el2.addEventListener('click', () => viewPublicProfile(el2.dataset.user))
+  );
 
   const pick=[...S.posts].sort((a,b)=>b.likes-a.likes)[2];
   if(pick){
@@ -3267,16 +3285,9 @@ function renderCarPage(post) {
   el('cpTitle').textContent = post.title;
   // Poster info
   const usr = S.users.find(u => u.username === post.user) || {};
-  const _cpUrl = getAvatarUrl(post.user);
   el('cpAv').dataset.user = post.user;
   el('cpAv').classList.add('clickable-user');
-  if (_cpUrl) {
-    el('cpAv').innerHTML=`<img src="${_cpUrl}" alt="" class="av-photo"/>`;
-    el('cpAv').style.background='transparent';
-  } else {
-    el('cpAv').innerHTML=post.user[0].toUpperCase();
-    el('cpAv').style.background=avColor(post.user);
-  }
+  setAvEl(el('cpAv'), post.user);
   el('cpPosterName').textContent = post.user;
   el('cpPosterName').dataset.user = post.user;
   el('cpPosterName').className = 'car-page-poster-name clickable-user';
@@ -3784,7 +3795,7 @@ function renderCpVideos(post) {
   }
   panel.style.display = 'flex';
   panel.innerHTML = `
-    <div class="cp-videos-label"><i class="fas fa-video"></i> Build Videos</div>
+    <div class="cp-videos-label"><i class="fas fa-video"></i> Videos</div>
     <div class="cp-videos-grid">
       ${videos.map((src, i) => `
         <div class="cp-video-thumb" data-src="${esc(src)}" data-i="${i}">
