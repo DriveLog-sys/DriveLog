@@ -903,12 +903,12 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
 .msg-empty-sm{color:var(--muted);font-size:.82rem;padding:12px 14px}
 
 /* Chat window */
-.msg-chat-col{display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+.msg-chat-col{flex-direction:column;background:var(--bg);overflow:hidden}
 .msg-none-selected{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;color:var(--muted);text-align:center;gap:12px;padding:40px}
 .msg-none-selected i{font-size:3rem;color:var(--mid)}
 .msg-none-selected h3{font-family:var(--disp);font-size:1.5rem;color:var(--sec)}
 .msg-none-selected p{font-size:.85rem;max-width:280px}
-#msgChatWrap{display:flex;flex-direction:column;height:100%}
+/* msgChatWrap display controlled by JS inline style, not CSS */
 .msg-chat-head{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
 .msg-back-btn{width:32px;height:32px;border-radius:50%;background:var(--raised);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--sec);font-size:.8rem;transition:all var(--tr)}
 .msg-back-btn:hover{background:var(--hover);color:var(--text)}
@@ -949,7 +949,7 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
   .messages-layout{grid-template-columns:1fr}
   .msg-list-col{display:flex;border-right:none}
   .msg-list-col.msg-hide-list{display:none!important}
-  .msg-chat-col{position:fixed;inset:62px 0 0 0;z-index:50;background:var(--bg)}
+  /* msg-chat-col positioning handled by flex layout, not fixed */
   #msgChatWrap{height:100%}
 }
 
@@ -3807,7 +3807,7 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
 @media(max-width:768px){
   .msg-wrap{grid-template-columns:1fr}
   .msg-list-col.msg-hide-list{display:none}
-  .msg-chat-col{display:flex!important;flex-direction:column}
+  /* msg-chat-col mobile handled by .active class */
 }
 
 /* ─── CATEGORIES — MOBILE ─────────────────────────────────────── */
@@ -4083,8 +4083,7 @@ body:not(.dark) .page-wrap {
   font-family:var(--cond);font-size:.65rem;font-weight:700;
 }
 /* Chat area */
-.msg-chat-col{
-  display:flex;flex-direction:column;
+.msg-chat-col{flex-direction:column;
   background:var(--bg);
   overflow:hidden;
 }
@@ -4194,7 +4193,6 @@ body:not(.dark) .page-wrap {
     display:none;
   }
   .msg-chat-col{
-    display:none;
   }
   .msg-chat-col.active{
     display:flex;
@@ -5006,7 +5004,6 @@ html, body {
 
 /* Chat column — takes all remaining space */
 .msg-chat-col {
-  display: flex;
   flex-direction: column;
   min-width: 0;
   background: var(--bg);
@@ -5022,7 +5019,7 @@ html, body {
 .msg-none-selected i { font-size: 3rem; opacity: .15; }
 .msg-none-selected p { font-size: .9rem; text-align: center; max-width: 260px; line-height: 1.5; }
 #msgChatWrap {
-  display: flex;
+  /* display controlled by JS */
   flex-direction: column;
   height: 100%;
   min-width: 0;
@@ -5186,7 +5183,7 @@ html, body {
   .msg-back-btn { display: flex !important; }
   .msg-list-col { height: 100%; }
   .msg-list-col.msg-hide-list { display: none; }
-  .msg-chat-col { display: none; }
+  .msg-chat-col { }
   .msg-chat-col.active { display: flex; height: 100%; }
   .msg-chat-body { padding: 14px 14px; }
   .msg-input-row { padding: 8px 12px; }
@@ -5964,7 +5961,7 @@ body:not(.dark) .save-btn {
 /* On desktop always show chat col placeholder */
 @media(min-width:769px) {
   .msg-chat-col {
-    display: flex !important;
+    /* display controlled by JS and .active class */
     flex-direction: column;
   }
   .msg-chat-col.active { display: flex !important; }
@@ -6011,4 +6008,93 @@ body:not(.dark) .save-btn {
 }
 .hero2-members-avatars .fm-av-more {
   font-size: .65rem !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HERO2 IMAGE — better framing, less zoom
+   ═══════════════════════════════════════════════════════════════ */
+.hero2-slide-img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center 35% !important; /* show top of car, not just bumper */
+  display: block !important;
+  transition: transform .6s ease !important;
+}
+.hero2-feature:hover .hero2-slide-img {
+  transform: scale(1.02) !important; /* subtle, not aggressive */
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MESSAGES — definitive fix, no position:fixed anywhere
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Page container */
+#page-messages {
+  position: relative !important;
+  height: calc(100dvh - 54px) !important;
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+  padding: 0 !important;
+}
+#page-messages:not(.active) {
+  display: none !important;
+}
+
+/* Grid */
+.msg-wrap {
+  flex: 1;
+  display: grid !important;
+  grid-template-columns: 300px 1fr !important;
+  overflow: hidden !important;
+  min-height: 0;
+  position: relative;
+}
+
+/* List column */
+.msg-list-col {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  border-right: 1px solid var(--border);
+  position: relative !important; /* not fixed */
+  height: auto !important;
+}
+.msg-list-col.msg-hide-list {
+  display: none !important;
+}
+
+/* Chat column — flex but NOT fixed */
+.msg-chat-col {
+  /* display controlled by JS and .active class */
+  flex-direction: column !important;
+  overflow: hidden !important;
+  position: relative !important; /* NOT fixed */
+  min-height: 0;
+  height: auto !important;
+}
+
+/* On mobile, chat col is hidden until opened */
+@media(max-width:768px) {
+  .msg-wrap {
+    grid-template-columns: 1fr !important;
+  }
+  .msg-chat-col {
+    display: none !important;
+    position: relative !important; /* still not fixed */
+    inset: auto !important;
+    z-index: auto !important;
+  }
+  .msg-chat-col.active {
+    display: flex !important;
+  }
+  .msg-back-btn {
+    display: flex !important;
+  }
+}
+@media(min-width:769px) {
+  .msg-back-btn {
+    display: none !important;
+  }
 }
