@@ -5890,3 +5890,125 @@ body:not(.dark) .save-btn {
   color: var(--muted);
   margin-top: 1px;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   CAR PAGE POSTER ROW — definitive rules (override all previous)
+   ═══════════════════════════════════════════════════════════════ */
+.car-page-poster-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex-wrap: nowrap !important;   /* never wrap — kills the floating icon */
+  margin-bottom: 16px;
+}
+.car-page-av {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 50% !important;
+  flex-shrink: 0 !important;
+  overflow: hidden !important;
+  cursor: pointer;
+}
+.car-page-poster-info {
+  flex: 1 !important;
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+}
+.car-page-poster-nameline {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap;
+}
+.car-page-poster-socials {
+  display: flex !important;
+  gap: 7px !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  margin-left: 0 !important;    /* kill the old margin-left:auto */
+  padding-bottom: 0 !important;
+  overflow: visible !important;
+}
+/* Socials save-btn positioning — relative to each soc-btn-wrap */
+.car-page-poster-socials .soc-btn-wrap {
+  padding-bottom: 26px;
+}
+.car-page-poster-actions {
+  display: flex !important;
+  gap: 8px !important;
+  align-items: center !important;
+  flex-shrink: 0 !important;
+  margin-left: auto;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MESSAGES — contained to its page only
+   ═══════════════════════════════════════════════════════════════ */
+#page-messages {
+  position: relative !important;
+  overflow: hidden !important;
+}
+/* The msg-wrap and its children must never overflow their page */
+.msg-wrap,
+.msg-list-col,
+.msg-chat-col,
+#msgChatWrap {
+  overflow: hidden !important;
+}
+/* Ensure msg-chat-col is display:none when not active */
+.msg-chat-col:not(.active) {
+  display: none !important;
+}
+/* On desktop always show chat col placeholder */
+@media(min-width:769px) {
+  .msg-chat-col {
+    display: flex !important;
+    flex-direction: column;
+  }
+  .msg-chat-col.active { display: flex !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HERO2 FEATURED MEMBERS — inline row layout
+   ═══════════════════════════════════════════════════════════════ */
+.hero2-members {
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  padding: 12px 20px !important;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.hero2-members-label {
+  font-family: var(--cond) !important;
+  font-size: .65rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 2px !important;
+  text-transform: uppercase !important;
+  color: var(--muted) !important;
+  white-space: nowrap !important;
+  margin-bottom: 0 !important;   /* no vertical spacing — it's a row now */
+  flex-shrink: 0;
+}
+.hero2-members-avatars {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0 !important;
+  flex-shrink: 0;
+}
+.hero2-members-avatars .fm-av {
+  width: 32px !important;
+  height: 32px !important;
+  border: 2px solid var(--surface) !important;
+  margin-left: -6px !important;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.hero2-members-avatars .fm-av:first-child {
+  margin-left: 0 !important;
+}
+.hero2-members-avatars .fm-av-more {
+  font-size: .65rem !important;
+}

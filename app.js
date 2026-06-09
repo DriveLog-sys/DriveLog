@@ -402,16 +402,14 @@ function goTo(page) {
   if (page==='members')     renderMembers();
   if (page==='social')      renderSocialFeed(true);
   if (page==='messages')    renderMessages();
-  if (page!=='messages') {
-    // Reset messages state so chat doesn't bleed into other pages
+  // Always reset messages UI state on page nav
+  if (page !== 'messages') {
     const cw = el('msgChatWrap');
-    if (cw) { cw.style.display = 'none'; }
+    if (cw) { cw.style.display = 'none'; cw.style.flexDirection = ''; }
     const ms = el('msgNoneSelected');
-    if (ms) ms.style.display = 'flex';
-    const mc = el('msgChatCol');
-    if (mc) mc.classList.remove('active');
-    const ml = el('msgListCol');
-    if (ml) ml.classList.remove('msg-hide-list');
+    if (ms) { ms.style.display = 'flex'; }
+    el('msgChatCol')?.classList.remove('active');
+    el('msgListCol')?.classList.remove('msg-hide-list');
     S.openDm = null;
   }
   if (page==='whatsnew')    renderWhatsNew();
@@ -457,8 +455,11 @@ function initHeader() {
     if (!el2) return;
     const username = el2.dataset.user;
     if (!username) return;
-    // Don't intercept avatar dropdowns, DM chat head, message conv list, or new DM result list
-    if (el2.id === 'avChip' || el2.closest('.av-drop') || el2.closest('.msg-chat-head') || el2.closest('.msg-conv-item') || el2.closest('.msg-new-result')) return;
+    // Don't intercept avatar dropdowns, header chip, DM areas
+    if (el2.id === 'avChip' || el2.id === 'avCircle' || el2.id === 'avWrap' ||
+        el2.closest('#avChip') || el2.closest('.av-drop') ||
+        el2.closest('.msg-chat-head') || el2.closest('.msg-conv-item') ||
+        el2.closest('.msg-new-result') || el2.closest('#signupNudge')) return;
     e.stopPropagation();
     viewPublicProfile(username);
   });
@@ -2733,24 +2734,37 @@ function renderMembers() {
   grid.querySelectorAll('.member-view-btn').forEach(b=>b.addEventListener('click',()=>viewMemberProfile(b.dataset.un)));
 }
 
-function viewMemberProfile(username) {
-  // Security: clear any edit state
+async function viewMemberProfile(username) {
   S._editingPostId = null;
-  // Check if user exists at all
-  const u = S.users.find(x => x.username === username);
+  if (!username) return;
+  // Find user — try local first, then Supabase
+  let u = S.users.find(x => x.username === username);
   if (!u) {
-    // Show profile not found state
+    // Not in cache yet — fetch from Supabase directly
+    try {
+      const profile = await DB.getProfileByUsername(username);
+      if (profile) {
+        u = dbUserToApp(profile);
+        S.users.push(u);
+      }
+    } catch(e) { console.warn('Profile fetch failed:', e); }
+  }
+  if (!u) {
     goTo('profile');
-    el('noLoginMsg').style.display = 'block';
+    const noMsg = el('noLoginMsg');
+    if (noMsg) {
+      noMsg.style.display = 'block';
+      noMsg.innerHTML = `<div class="profile-not-found" style="text-align:center;padding:40px 20px">
+        <i class="fas fa-user-slash" style="font-size:3rem;opacity:.3;display:block;margin-bottom:16px"></i>
+        <h2>Profile Not Found</h2>
+        <p>This user may not exist or was removed.</p>
+        <button class="btn-ghost small" onclick="goTo('home')" style="margin-top:12px">
+          <i class="fas fa-home"></i> Go Home
+        </button>
+      </div>`;
+    }
     el('profilePostsWrap').style.display = 'none';
     el('profileActions').style.display = 'none';
-    el('noLoginMsg').innerHTML = `
-      <div class="profile-not-found">
-        <i class="fas fa-user-slash" style="font-size:3rem;color:var(--mid);display:block;margin-bottom:16px"></i>
-        <h2>Profile No Longer Exists</h2>
-        <p>This account may have been deleted or removed.</p>
-        <button class="btn-ghost small" onclick="goTo('home')" style="margin-top:12px"><i class="fas fa-home"></i> Go Home</button>
-      </div>`;
     return;
   }
   // u is already declared above
@@ -2819,39 +2833,10 @@ function viewMemberProfile(username) {
   goTo('profile');
 }
 // ─── PUBLIC PROFILE ROUTER ─────────────────────────────────────
-// Called when any avatar/username is clicked anywhere on the site.
-// Shows own editable profile for self, read-only view for others.
 async function viewPublicProfile(username) {
   if (!username) return;
-  let u = S.users.find(x => x.username === username);
-  if (!u) {
-    // Try fetching from Supabase directly
-    try {
-      const profile = await DB.getProfileByUsername(username);
-      if (profile) {
-        u = dbUserToApp(profile);
-        S.users.push(u);
-      }
-    } catch(_) {}
-  }
-  if (!u) {
-    // Show not found instead of blank
-    goTo('profile');
-    const noMsg = el('noLoginMsg');
-    if (noMsg) {
-      noMsg.style.display = 'block';
-      noMsg.innerHTML = `<div class="profile-not-found">
-        <i class="fas fa-user-slash" style="font-size:3rem;color:var(--mid);display:block;margin-bottom:16px"></i>
-        <h2>Profile Not Found</h2>
-        <p>This account may not exist or was removed.</p>
-        <button class="btn-ghost small" onclick="goTo('home')" style="margin-top:12px"><i class="fas fa-home"></i> Go Home</button>
-      </div>`;
-      el('profilePostsWrap').style.display = 'none';
-      el('profileActions').style.display = 'none';
-    }
-    return;
-  }
-  viewMemberProfile(username);
+  // viewMemberProfile handles fetching from Supabase if not cached
+  await viewMemberProfile(username);
 }
 
 function buildSocialLinks(u) {
