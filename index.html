@@ -272,66 +272,13 @@
   <!-- HOME -->
   <section class="page active" id="page-home">
 
-    <!-- HERO — Content first, no intro text -->
-    <div class="hero2">
-      <!-- Left: Featured build — full bleed image -->
-      <div class="hero2-feature" id="hero2Feature">
-        <div class="hero2-feature-img" id="hero2Img">
-          <div class="hero2-skeleton"></div>
-        </div>
-        <div class="hero2-feature-overlay"></div>
-        <div class="hero2-feature-content">
-          <div class="hero2-eyebrow"><span class="pulse-dot"></span> Build of the Week</div>
-          <div class="hero2-title" id="hero2Title">Loading…</div>
-          <div class="hero2-meta" id="hero2Meta"></div>
-          <button class="hero2-view-btn" id="hero2ViewBtn"><i class="fas fa-eye"></i> View Build</button>
-        </div>
-        <!-- Slide indicators -->
-        <div class="hero2-dots" id="hero2Dots"></div>
-        <button class="hero2-nav hero2-prev" id="hero2Prev"><i class="fas fa-chevron-left"></i></button>
-        <button class="hero2-nav hero2-next" id="hero2Next"><i class="fas fa-chevron-right"></i></button>
-      </div>
-
-      <!-- Right: Sidebar panel -->
-      <div class="hero2-sidebar">
-        <!-- Community stats -->
-        <div class="hero2-stats">
-          <div class="hero2-stat"><span class="hero2-stat-n" id="statBuilds">0</span><span class="hero2-stat-l">Builds</span></div>
-          <div class="hero2-stat-div"></div>
-          <div class="hero2-stat"><span class="hero2-stat-n" id="statMembers">0</span><span class="hero2-stat-l">Members</span></div>
-          <div class="hero2-stat-div"></div>
-          <div class="hero2-stat"><span class="hero2-stat-n" id="statLikes">0</span><span class="hero2-stat-l">Likes</span></div>
-        </div>
-
-        <!-- Post build CTA -->
-        <button class="hero2-post-btn" id="heroPostBtn">
-          <i class="fas fa-camera"></i>
-          <span>Post Your Build</span>
-          <i class="fas fa-arrow-right hero2-arrow"></i>
-        </button>
-
-        <!-- Featured Members -->
-        <div class="hero2-members" id="featuredMembersStrip" style="display:none">
-          <div class="hero2-members-label">Featured Builders</div>
-          <div class="hero2-members-avatars" id="featuredMembersAvatars"></div>
-        </div>
-
-        <!-- Recent builds quick list -->
-        <div class="hero2-recent">
-          <div class="hero2-recent-label">Latest Builds</div>
-          <div class="hero2-recent-list" id="hero2RecentList">
-            <div class="hero2-recent-skeleton"></div>
-            <div class="hero2-recent-skeleton"></div>
-            <div class="hero2-recent-skeleton"></div>
-          </div>
-        </div>
-
-        <!-- Explore link -->
-        <button class="hero2-explore-btn" id="heroExploreBtn">
-          Browse All Builds <i class="fas fa-arrow-right"></i>
-        </button>
-      </div>
-    </div>
+    <!-- Hidden stat counters for JS (sidebar shows them) -->
+    <span id="statBuilds" style="display:none">0</span>
+    <span id="statMembers" style="display:none">0</span>
+    <span id="statLikes" style="display:none">0</span>
+    <span id="featuredMembersStrip" style="display:none">
+      <span id="featuredMembersAvatars"></span>
+    </span>
 
     <!-- Hot Right Now — Cinematic Slider -->
     <div class="hot-panel" id="hotPanel">
@@ -392,6 +339,28 @@
         <div class="load-more-wrap"><button class="btn-ghost" id="loadMoreBtn">Load More Builds</button></div>
       </div>
       <aside class="sidebar">
+        <!-- Community stats -->
+        <div class="widget sidebar-stats-widget">
+          <div class="sidebar-stats-row">
+            <div class="sidebar-stat">
+              <span class="sidebar-stat-n" id="sideStatBuilds">0</span>
+              <span class="sidebar-stat-l">Builds</span>
+            </div>
+            <div class="sidebar-stat-div"></div>
+            <div class="sidebar-stat">
+              <span class="sidebar-stat-n" id="sideStatMembers">0</span>
+              <span class="sidebar-stat-l">Members</span>
+            </div>
+            <div class="sidebar-stat-div"></div>
+            <div class="sidebar-stat">
+              <span class="sidebar-stat-n" id="sideStatLikes">0</span>
+              <span class="sidebar-stat-l">Likes</span>
+            </div>
+          </div>
+          <button class="sidebar-post-btn" id="heroPostBtn">
+            <i class="fas fa-camera"></i> Post Your Build
+          </button>
+        </div>
         <div class="widget red-widget">
           <div class="widget-title"><i class="fas fa-fire widget-icon"></i>Trending</div>
           <div id="trendingList"></div>

@@ -6334,3 +6334,70 @@ body:not(.dark) .save-btn {
 }
 .botm-vote-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
 .botm-vote-btn.voted { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ═══════════════════════════════════════════════════════════════
+   HERO REMOVED — Feed is now first, reduce top padding
+   ═══════════════════════════════════════════════════════════════ */
+#page-home .hot-panel {
+  margin-top: 0;
+  padding-top: 20px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SIDEBAR STATS WIDGET
+   ═══════════════════════════════════════════════════════════════ */
+.sidebar-stats-widget {
+  padding: 16px 16px 12px !important;
+}
+.sidebar-stats-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.sidebar-stat {
+  text-align: center;
+  flex: 1;
+}
+.sidebar-stat-n {
+  display: block;
+  font-family: var(--disp);
+  font-size: 1.5rem;
+  color: var(--text);
+  line-height: 1;
+}
+.sidebar-stat-l {
+  display: block;
+  font-family: var(--cond);
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.sidebar-stat-div {
+  width: 1px;
+  height: 28px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.sidebar-post-btn {
+  width: 100%;
+  padding: 9px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--r-sm);
+  font-family: var(--cond);
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background var(--tr);
+}
+.sidebar-post-btn:hover { background: var(--accent-dim); }
