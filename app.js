@@ -573,10 +573,15 @@ function closeMobNav() { el('mobNav').classList.remove('open'); el('mobOverlay')
 
 // ─── ANIMATED STATS ───────────────────────────────────────────
 function animateStats() {
-  const tl = S.posts.reduce((a,p)=>a+p.likes,0);
-  countUp('statBuilds',S.posts.length,1000); countUp('statMembers',S.users.length,1200); countUp('statLikes',tl,1400);
+  const tl = S.posts.reduce((a,p)=>a+(p.likes||0),0);
+  countUp('sideStatBuilds',  S.posts.length, 900);
+  countUp('sideStatMembers', S.users.length, 1100);
+  countUp('sideStatLikes',   tl,             1300);
+  // Hidden legacy spans
+  countUp('statBuilds',  S.posts.length, 900);
+  countUp('statMembers', S.users.length, 1100);
+  countUp('statLikes',   tl,             1300);
   renderFeaturedMembers();
-  renderHero2Recent();
 }
 
 function renderFeaturedMembers() {
@@ -584,8 +589,10 @@ function renderFeaturedMembers() {
   const avatarsEl = el('featuredMembersAvatars');
   if (!strip || !avatarsEl) return;
   const featured = S.users.filter(u => u.isFeatured);
-  if (!featured.length) { strip.style.display = 'none'; return; }
-  strip.style.display = 'flex';
+  // This span is a hidden legacy placeholder (real featured members UI
+  // now lives in the sidebar). Never make it visible.
+  strip.style.display = 'none';
+  if (!featured.length) { avatarsEl.innerHTML = ''; return; }
   const MAX_SHOW = 5;
   const shown = featured.slice(0, MAX_SHOW);
   const extra = featured.length - MAX_SHOW;
@@ -599,9 +606,6 @@ function renderFeaturedMembers() {
   }).join('') + (extra > 0
     ? `<div class="fm-av fm-av-more" onclick="goTo('members')">+${Math.min(extra,9)}${extra>=9?'+':''}</div>`
     : '');
-  strip.addEventListener('click', e => {
-    if (!e.target.closest('.clickable-user') && !e.target.closest('.fm-av-more')) goTo('members');
-  });
 }
 function countUp(id,target,dur) {
   const node=el(id); if(!node)return;
@@ -751,10 +755,8 @@ function renderHotPanel() {
 
   // Build slides
   top.forEach((p, i) => {
-    const cats   = Array.isArray(p.categories) && p.categories.length ? p.categories : [p.category].filter(Boolean);
     const img    = p.images?.[0];
     const imgs   = (p.images||[]).slice(1, 3); // up to 2 strip thumbs
-    const rankLabels = ['🔥 #1 Hottest','#2','#3','#4','#5','#6','#7','#8','#9','#10'];
     const slide  = document.createElement('div');
     slide.className = 'hot-slide' + (i === 0 ? ' active' : '');
     slide.dataset.id = p.id;
@@ -769,7 +771,6 @@ function renderHotPanel() {
         <span>${i===0?'Hottest Build':'Hot Right Now'}</span>
       </div>
       <div class="hot-slide-info">
-        <div class="hot-slide-cats">${cats.map(c=>`<span class="cat-badge ${catCfg(c).badge}" style="position:static">${c}</span>`).join(' ')}</div>
         <div class="hot-slide-title">${esc(p.title)}</div>
         <div class="hot-slide-sub">
           ${p.hp ? `<span><i class="fas fa-bolt"></i> ${esc(p.hp)}</span>` : ''}

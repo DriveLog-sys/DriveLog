@@ -19,9 +19,9 @@
   --blue:  #3b82f6; --gold: #f0a030; --green: #22c55e;
   --purple:#a855f7; --teal: #14b8a6; --red:#e8392a;
   --text:  #111827; --sec: #4b5563; --muted: #9ca3af;
-  --disp:  'Bebas Neue', sans-serif;
-  --cond:  'Barlow Condensed', sans-serif;
-  --body:  'Inter', 'Barlow', sans-serif;
+  --disp:  'Bebas Neue', Impact, 'Arial Narrow', sans-serif;
+  --cond:  'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
+  --body:  'Inter', 'Barlow', -apple-system, BlinkMacSystemFont, sans-serif;
   --r-sm:3px; --r-md:6px; --r-lg:10px; --r-xl:16px; --r-img:5px;
   --tr: .22s cubic-bezier(.4,0,.2,1);
   --sh: 0 2px 16px rgba(0,0,0,.08);
@@ -393,9 +393,11 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 .filter-bar{background:var(--surface);border-bottom:1px solid var(--subtle);position:sticky;top:62px;z-index:90;overflow:hidden}
 .filter-scroll{max-width:1440px;margin:0 auto;padding:9px 24px;display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .filter-scroll::-webkit-scrollbar{display:none}
-.fpill{padding:6px 17px;border-radius:30px;font-family:var(--cond);font-size:.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--card);border:1px solid var(--border);white-space:nowrap;cursor:pointer;transition:all var(--tr);flex-shrink:0}
+.fpill{padding:6px 17px;border-radius:30px;font-family:var(--cond);font-size:.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--card);border:1px solid var(--border);white-space:nowrap;cursor:pointer;transition:all var(--tr);flex-shrink:0;outline:none}
 .fpill:hover{color:var(--text);border-color:var(--mid)}
+.fpill:focus-visible{box-shadow:0 0 0 2px var(--accent-soft);border-color:var(--accent)}
 .fpill.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 4px 14px var(--accent-glow)}
+.fpill.active:focus-visible{box-shadow:0 4px 14px var(--accent-glow),0 0 0 2px var(--accent-soft)}
 
 /* ─── FEED ───────────────────────────────────────────────────── */
 .feed-wrap{max-width:1440px;margin:0 auto;padding:30px 24px;display:grid;grid-template-columns:1fr 295px;gap:28px}
@@ -2471,7 +2473,7 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
   padding:20px 24px;
   background:linear-gradient(to top,rgba(0,0,0,.85) 0%,rgba(0,0,0,.4) 60%,transparent 100%);
 }
-.hot-slide-cats{display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap}
+/* hot-slide-cats removed — category tags no longer shown on hot slider */
 .hot-slide-title{
   font-family:var(--disp);font-size:1.6rem;color:#fff;
   letter-spacing:1px;line-height:1.1;margin-bottom:4px;
