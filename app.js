@@ -161,6 +161,19 @@ async function loadStorage() {
       S._loading = false;
       try { localStorage.setItem('dl_posts_cache', JSON.stringify(S.posts)); } catch(_) {}
       renderFeed(); renderSidebar(); renderBOTW(); renderHotPanel(); animateStats();
+      // Fetch real comment counts in ONE bulk query, then patch + re-render
+      // (keeps initial render fast, counts appear a beat later)
+      DB.getCommentCounts(freshPosts.map(p => p.id)).then(counts => {
+        let changed = false;
+        S.posts.forEach(p => {
+          const c = counts[p.id] || 0;
+          if (!p.comments || p.comments.length !== c) {
+            p.comments = Array(c).fill(null); // placeholder array — length is what UI reads
+            changed = true;
+          }
+        });
+        if (changed) { renderFeed(); renderSidebar(); renderHotPanel(); }
+      }).catch(() => {});
       return rows;
     }).catch(() => []),
   ]);
@@ -376,13 +389,27 @@ function initNavLinks() {
   el('ddMembers')?.addEventListener('click', ()=>goTo('members'));
   el('ddLogout')?.addEventListener('click',  logout);
   const ddMsgs = el('ddMessages'); if(ddMsgs) ddMsgs.addEventListener('click', ()=>goTo('messages'));
-  const ddChal = el('ddEvents'); if(ddChal) ddChal.addEventListener('click', ()=>goTo('challenges'));
+  const ddChal = el('ddEvents'); if(ddChal) ddChal.addEventListener('click', ()=>goTo('events'));
   const ddCmp = el('ddCompare'); if(ddCmp) ddCmp.addEventListener('click', ()=>goTo('compare'));
   const ddAdm = el('ddAdmin'); if(ddAdm) ddAdm.addEventListener('click', ()=>goTo('admin'));
   el('profileSignInBtn')?.addEventListener('click', ()=>el('authModal').classList.add('open'));
   el('profilePostBtn')?.addEventListener('click', openPostModal);
   const wl = document.querySelector('.widget-link[data-page="events"]');
   if (wl) wl.addEventListener('click', e=>{e.preventDefault();goTo('events');});
+
+  // Footer links — simple page routes
+  document.querySelectorAll('[data-footer-page]').forEach(a =>
+    a.addEventListener('click', e => { e.preventDefault(); goTo(a.dataset.footerPage); })
+  );
+  // Footer category links — route to Categories page filtered to that category
+  document.querySelectorAll('[data-footer-cat]').forEach(a =>
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      S.filter = a.dataset.footerCat;
+      S.filters.category = a.dataset.footerCat;
+      goTo('categories');
+    })
+  );
 }
 
 function goTo(page) {
@@ -415,7 +442,6 @@ function goTo(page) {
   if (page==='whatsnew')    renderWhatsNew();
   if (page==='explore')     renderExplorePage();
   if (page==='compare')     renderComparePage();
-  if (page==='explore')     renderExplorePage();
   if (page==='admin')       renderAdmin();
   updateDmBadge();
 }
@@ -3438,8 +3464,16 @@ function initCarPage() {
 
 async function openCarPage(post) {
   S._prevPage   = S.page;
-  // Show page immediately with cached data
-  const freshPost = { ...post, comments: [] };
+  // Clear stale content from any previously-viewed post BEFORE the page
+  // becomes visible, so nothing flashes for a frame (e.g. old category tag)
+  if (el('cpCat')) el('cpCat').innerHTML = '';
+  if (el('cpTitle')) el('cpTitle').textContent = '';
+  if (el('cpGallMain')) el('cpGallMain').innerHTML = '';
+  // Show page immediately with cached data. Keep the cached comment COUNT
+  // (from the feed's relational query) so the tab/counter shows a real
+  // number right away, even though the full comment list isn't loaded yet.
+  const cachedCommentCount = (post.comments || []).length;
+  const freshPost = { ...post, comments: Array(cachedCommentCount).fill(null) };
   S.openCarPost = freshPost;
   S.openPost    = freshPost;
   goTo('car');
@@ -3447,28 +3481,35 @@ async function openCarPage(post) {
   setMetaTags(freshPost.title, freshPost.desc, freshPost.images?.[0]);
   setTimeout(() => addCostTab(freshPost), 50);
 
-  // Fetch fresh post data from Supabase to get latest fields
-  // (fixes stale cache issue where make/model/year were missing)
-  try {
-    const freshData = await DB.getPost(post.id);
-    if (freshData && S.page === 'car' && S.openCarPost?.id === post.id) {
-      const updatedPost = { ...dbPostToApp(freshData), comments: [] };
-      S.openCarPost = updatedPost;
-      S.openPost    = updatedPost;
-      // Update in S.posts cache too
-      const idx = S.posts.findIndex(p => p.id === updatedPost.id);
-      if (idx >= 0) S.posts[idx] = { ...S.posts[idx], ...updatedPost };
-      // Re-render with fresh data
-      renderCarPage(updatedPost);
-    }
-  } catch(e) { console.warn('Fresh post fetch failed', e); }
-
-  // Load comments separately
   const targetPostId = post.id;
-  try {
-    const rows = await DB.getComments(targetPostId);
-    if (S.openCarPost?.id !== targetPostId || S.page !== 'car') return;
-    const comments = rows.map(r => ({
+
+  // Fetch the fresh post AND its comments at the same time instead of
+  // waiting for one to finish before starting the other — comments used
+  // to wait behind the full post refresh, doubling the visible delay.
+  const [postResult, commentsResult] = await Promise.allSettled([
+    DB.getPost(post.id),
+    DB.getComments(targetPostId),
+  ]);
+
+  // Apply fresh post data (fixes stale cache issue where make/model/year
+  // were missing), but preserve whatever comments we already have so this
+  // update never wipes out comments that finished loading first.
+  if (postResult.status === 'fulfilled' && postResult.value &&
+      S.page === 'car' && S.openCarPost?.id === targetPostId) {
+    const updatedPost = { ...dbPostToApp(postResult.value), comments: S.openCarPost.comments };
+    S.openCarPost = updatedPost;
+    S.openPost    = updatedPost;
+    const idx = S.posts.findIndex(p => p.id === updatedPost.id);
+    if (idx >= 0) S.posts[idx] = { ...S.posts[idx], ...updatedPost };
+    renderCarPage(updatedPost);
+  } else if (postResult.status === 'rejected') {
+    console.warn('Fresh post fetch failed', postResult.reason);
+  }
+
+  // Apply comments as soon as they arrive — independent of post refresh timing
+  if (commentsResult.status === 'fulfilled' &&
+      S.openCarPost?.id === targetPostId && S.page === 'car') {
+    const comments = (commentsResult.value || []).map(r => ({
       id:r.id, user:r.username, text:r.text, image:null,
       date:r.created_at, parentId:r.parent_id||null,
       upvotes:r.upvotes||0, upvotedBy:r.upvoted_by||[],
@@ -3476,7 +3517,9 @@ async function openCarPage(post) {
     S.openCarPost = { ...S.openCarPost, comments };
     cpRenderComments(S.openCarPost);
     bindCommentHandlers(S.openCarPost);
-  } catch(e) { console.warn('Comments load failed', e); }
+  } else if (commentsResult.status === 'rejected') {
+    console.warn('Comments load failed', commentsResult.reason);
+  }
 }
 
 function renderCarPage(post) {
@@ -3486,7 +3529,7 @@ function renderCarPage(post) {
   // Category badge
   const cfg = catCfg(post.category);
   const cpCats = Array.isArray(post.categories) && post.categories.length ? post.categories : [post.category].filter(Boolean);
-  el('cpCat').innerHTML = cpCats.map(c=>`<span class="cat-badge ${catCfg(c).badge}">${c}</span>`).join(' ');
+  el('cpCat').innerHTML = cpCats.map(c=>`<span class="cat-badge ${catCfg(c).badge}" style="position:static">${c}</span>`).join(' ');
   // Title
   el('cpTitle').textContent = post.title;
   // Poster info

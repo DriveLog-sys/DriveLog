@@ -152,7 +152,7 @@ const DB = {
     if (!_sbOk()) { console.warn('DriveLog: Supabase not ready'); return []; }
     let q = _sb
       .from('posts')
-      .select('*')
+      .select('*, comments(count)')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
     if (category) q = q.contains('categories', [category]);
@@ -314,6 +314,20 @@ const DB = {
       post_id: postId, user_id: userId, username, text, parent_id: parentId,
     }).select().single();
     return { data, error };
+  },
+
+  // Bulk-fetch comment counts for many posts in ONE query (used by the feed
+  // so card previews can show real comment counts without N+1 queries)
+  async getCommentCounts(postIds) {
+    if (!_sbOk() || !postIds?.length) return {};
+    const { data, error } = await _sb
+      .from('comments')
+      .select('post_id')
+      .in('post_id', postIds);
+    if (error) { console.warn('DriveLog getCommentCounts error:', error.message); return {}; }
+    const counts = {};
+    (data || []).forEach(row => { counts[row.post_id] = (counts[row.post_id] || 0) + 1; });
+    return counts;
   },
 
   async toggleCommentUpvote(commentId, voterId) {
@@ -557,7 +571,12 @@ function dbPostToApp(row) {
     reactions:    row.reactions   || {},
     images:       row.images      || [],
     videos:       row.videos      || [],
-    comments:     [],
+    // Comments aren't embedded in the post row, but Supabase can return a
+    // count via the comments(count) relation. We stash that count as the
+    // array length so card previews show the real number without an extra
+    // fetch per post. Full comment objects load lazily when a build page opens.
+    comments:     Array(row.comments?.[0]?.count || 0).fill(null),
+    commentCount: row.comments?.[0]?.count || 0,
     date:         (row.created_at || '').slice(0, 10),
     createdAt:    row.created_at || '',
     editedAt:     row.edited_at,
