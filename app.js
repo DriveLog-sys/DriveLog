@@ -24,6 +24,24 @@ const S = {
   _editingPostId: null,
 };
 
+// ─── PREFETCH — start Supabase fetch immediately on script load ──
+// This fires BEFORE DOMContentLoaded so network latency overlaps
+// with HTML/CSS parsing. Result is stored and consumed in loadStorage.
+let _prefetchPostsPromise = null;
+let _prefetchSessionPromise = null;
+
+function startPrefetch() {
+  // Don't prefetch if we have recent cache (< 5 min old)
+  const cacheAge = Date.now() - (parseInt(localStorage.getItem('dl_cache_ts')||'0'));
+  if (cacheAge < 300000 && localStorage.getItem('dl_posts_cache')) return;
+  // Start both requests immediately — no waiting
+  _prefetchPostsPromise   = DB.getPosts({ limit: 60 }).catch(() => null);
+  _prefetchSessionPromise = DB.getSession().catch(() => null);
+}
+
+// Fire immediately — _sb may not be ready yet, _initSb() handles that
+try { _initSb(); startPrefetch(); } catch(_) {}
+
 // ─── BOOT ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   // Loader is already in HTML — just make sure it's showing
@@ -145,9 +163,15 @@ async function loadStorage() {
   })();
 
   // ── Only await CRITICAL: session + posts ─────────────────────
+  // Use prefetch results if available (they started firing on script load)
+  const sessionFetch = _prefetchSessionPromise || DB.getSession().catch(() => null);
+  const postsFetch   = _prefetchPostsPromise   || DB.getPosts({ limit: 60 }).catch(() => []);
+  // Clear so next loadStorage() call makes fresh requests
+  _prefetchPostsPromise = null; _prefetchSessionPromise = null;
+
   const [sessionResult, postsResult] = await Promise.allSettled([
-    DB.getSession().catch(() => null),
-    DB.getPosts({ limit: 60 }).then(rows => {
+    sessionFetch,
+    postsFetch.then(rows => {
       if (!rows?.length) console.warn('DriveLog: 0 posts returned from Supabase. Check RLS policies — run fix_all.sql in Supabase SQL Editor.');
       const freshPosts = (rows||[]).map(dbPostToApp).filter(Boolean);
       freshPosts.forEach(fp => {
@@ -159,7 +183,7 @@ async function loadStorage() {
       });
       S.posts = freshPosts;
       S._loading = false;
-      try { localStorage.setItem('dl_posts_cache', JSON.stringify(S.posts)); } catch(_) {}
+      try { localStorage.setItem('dl_posts_cache', JSON.stringify(S.posts)); localStorage.setItem('dl_cache_ts', String(Date.now())); } catch(_) {}
       renderFeed(); renderSidebar(); renderBOTW(); renderHotPanel(); animateStats();
       // Fetch real comment counts in ONE bulk query, then patch + re-render
       // (keeps initial render fast, counts appear a beat later)
@@ -506,6 +530,29 @@ function initHeader() {
 }
 
 function avColor(username) { return '#6b7280'; }
+
+// ─── IMAGE COMPRESSION ────────────────────────────────────────
+async function compressBase64(dataUrl, quality = 0.82) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1400; // max dimension
+      let {width: w, height: h} = img;
+      if (w > MAX || h > MAX) {
+        const scale = MAX / Math.max(w, h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => resolve(dataUrl); // fallback: return original
+    img.src = dataUrl;
+  });
+}
+
 
 // Render a default grey person SVG
 function _defaultAvSVG() {
@@ -881,6 +928,19 @@ async function doSearch() {
   const res = el('searchResults');
   if (!q) { res.innerHTML = ''; return; }
   const lq = q.toLowerCase();
+
+  // Fire Supabase search in background — merges new results into S.posts/S.users
+  if (_sbOk()) {
+    Promise.all([
+      DB.searchPostsFTS(q, 20).catch(()=>[]),
+      DB.searchUsers(q, 10).catch(()=>[]),
+    ]).then(([sbPosts, sbUsers]) => {
+      let changed = false;
+      sbPosts.forEach(row => { const p=dbPostToApp(row); if(p&&!S.posts.find(x=>x.id===p.id)){S.posts.push(p);changed=true;} });
+      sbUsers.forEach(row => { const u=dbUserToApp(row); if(u&&!S.users.find(x=>x.username===u.username)){S.users.push(u);changed=true;} });
+      if (changed) doSearch(); // re-render with expanded results
+    });
+  }
 
   // Local results first (instant)
   let allPosts = S.posts.filter(p => {
@@ -2437,107 +2497,26 @@ function renderSidebar() {
 
 // ─── EXPLORE PAGE ─────────────────────────────────────────────
 function renderExplorePage() {
-  // Trending builds — sorted by likes, varied layout via CSS
-  const trending = [...S.posts].sort((a,b)=>b.likes-a.likes).slice(0,9);
-  const tGrid = el('exploreTrendingGrid');
-  if (tGrid) {
-    tGrid.innerHTML = trending.map((p,i) => cardHTML(p,i)).join('');
-    attachCardEvents(tGrid);
-  }
-
-  // Discover builders — suggested follows for logged-in users
-  const builders = el('exploreBuilders');
-  if (builders) {
-    const suggestions = S.users
-      .filter(u => u.username !== S.user?.username && !S.following.includes(u.username))
-      .sort((a,b) => (b.totalLikes||0) - (a.totalLikes||0))
-      .slice(0,6);
-    if (suggestions.length) {
-      builders.innerHTML = suggestions.map(u => {
-        const url = getAvatarUrl(u.username);
-        return `<div class="explore-builder-card">
-          <div class="explore-builder-av" data-user="${u.username}">${renderAv(u.username, 48, 'clickable-user')}</div>
-          <div class="explore-builder-info">
-            <div class="explore-builder-name clickable-user" data-user="${u.username}">${esc(u.username)}</div>
-            <div class="explore-builder-meta">${u.posts||0} builds · ♥ ${(u.totalLikes||0).toLocaleString()}</div>
-          </div>
-          <button class="btn-ghost small explore-follow-btn${S.following.includes(u.username)?' following':''}"
-            data-user="${u.username}">
-            ${S.following.includes(u.username)?'Following':'+ Follow'}
-          </button>
-        </div>`;
-      }).join('');
-      builders.querySelectorAll('.explore-follow-btn').forEach(btn =>
-        btn.addEventListener('click', () => {
-          toggleFollow(btn.dataset.user);
-          btn.textContent = S.following.includes(btn.dataset.user) ? 'Following' : '+ Follow';
-          btn.classList.toggle('following', S.following.includes(btn.dataset.user));
-        })
-      );
-    } else {
-      builders.innerHTML = '<p style="color:var(--muted);font-size:.85rem">You\'re following everyone! Check back when new members join.</p>';
+  // Wire FAQ accordion
+  document.querySelectorAll('.exp-faq-item').forEach(item => {
+    const q = item.querySelector('.exp-faq-q');
+    const a = item.querySelector('.exp-faq-a');
+    if (!q || !a) return;
+    if (!item._faqWired) {
+      item._faqWired = true;
+      q.addEventListener('click', () => {
+        const isOpen = item.classList.contains('open');
+        document.querySelectorAll('.exp-faq-item.open').forEach(other => other.classList.remove('open'));
+        if (!isOpen) item.classList.add('open');
+      });
     }
-  }
-
-  // Browse by tag
-  const tagMap = {};
-  S.posts.forEach(p => {
-    const cats = Array.isArray(p.categories) && p.categories.length ? p.categories : [p.category].filter(Boolean);
-    cats.forEach(c => { tagMap[c] = (tagMap[c]||0)+1; });
-    // Also extract hashtags from descriptions
-    const tags = (p.desc||'').match(/#[\w]+/g) || [];
-    tags.forEach(t => { tagMap[t] = (tagMap[t]||0)+1; });
   });
-  const tagsGrid = el('exploreTagsGrid');
-  if (tagsGrid) {
-    tagsGrid.innerHTML = Object.entries(tagMap)
-      .sort((a,b)=>b[1]-a[1]).slice(0,20)
-      .map(([tag,count]) => `<div class="explore-tag-pill" data-tag="${esc(tag)}">
-        ${esc(tag)} <span class="explore-tag-count">${count}</span>
-      </div>`).join('');
-    tagsGrid.querySelectorAll('.explore-tag-pill').forEach(pill =>
-      pill.addEventListener('click', () => {
-        // Search for this tag
-        el('searchInput').value = pill.dataset.tag;
-        openSearch(); doSearch();
-      })
-    );
-  }
 
-  // Events sidebar
-  const eventsEl = el('exploreEvents');
-  if (eventsEl) {
-    const upcoming = S.events?.slice(0,3) || [];
-    eventsEl.innerHTML = upcoming.length
-      ? upcoming.map(e => `<div class="explore-event-item" onclick="goTo('events')">
-          <div class="explore-event-date">${fmtDate(e.date)}</div>
-          <div class="explore-event-name">${esc(e.title)}</div>
-          <div class="explore-event-loc">${esc(e.location||'')}</div>
-        </div>`).join('')
-      : `<p style="color:var(--muted);font-size:.82rem">No upcoming events. <span class="link-text" onclick="goTo('events')">View all →</span></p>`;
-  }
-
-  // Hot this week sidebar
-  const hotEl = el('exploreHot');
-  if (hotEl) {
-    const cutoff = Date.now() - 7*24*60*60*1000;
-    const hot = [...S.posts]
-      .filter(p => new Date(p.date).getTime() > cutoff)
-      .sort((a,b) => b.likes-a.likes).slice(0,4);
-    hotEl.innerHTML = hot.length
-      ? hot.map((p,i) => `<div class="explore-hot-item" data-id="${p.id}">
-          <span class="explore-hot-rank">${i+1}</span>
-          <div class="explore-hot-info">
-            <div class="explore-hot-title">${esc(p.title.length>28?p.title.slice(0,28)+'…':p.title)}</div>
-            <div class="explore-hot-meta">by ${esc(p.user)} · ♥ ${p.likes}</div>
-          </div>
-        </div>`).join('')
-      : '<p style="color:var(--muted);font-size:.82rem">Check back after more posts!</p>';
-    hotEl.querySelectorAll('.explore-hot-item').forEach(item =>
-      item.addEventListener('click', () => {
-        const p = S.posts.find(x=>x.id===item.dataset.id); if(p) openCarPage(p);
-      })
-    );
+  // Wire merch shop link (update this URL when store is live)
+  const shopLink = el('merchShopLink');
+  if (shopLink && shopLink.href === '#') {
+    shopLink.href = '#'; // replace with real store URL
+    shopLink.onclick = e => { e.preventDefault(); toast('Merch store coming soon! 🔥','ok'); };
   }
 }
 
@@ -2703,20 +2682,24 @@ function getUserBotmVote() {
   try { return JSON.parse(localStorage.getItem(getBotmVoteKey()) || 'null'); } catch(_) { return null; }
 }
 
-function castBotmVote(postId) {
-  if (!S.user) { toast('Sign in to vote','err'); el('authModal')?.classList.add('open'); return; }
+async function castBotmVote(postId) {
+  if (!S.user) { toast('Sign in to vote for BOTM','err'); el('authModal')?.classList.add('open'); return; }
   const now = new Date();
-  if (now.getDate() > 25) { toast('Voting closes on the 25th each month',''); return; }
+  if (now.getDate() > 25) { toast(`Voting closed on the 25th — check the Leaderboard for this month's winner`,''); return; }
   const existing = getUserBotmVote();
-  if (existing === postId) { toast('Already voted for this build!',''); return; }
-  // Save vote
-  localStorage.setItem(getBotmVoteKey(), postId);
-  // Persist to Supabase — votes table (simple: just count votes per post per month)
+  if (existing === postId) { toast('You already voted for this build this month!',''); return; }
   const voteKey = `botm_${now.getFullYear()}_${String(now.getMonth()+1).padStart(2,'0')}`;
-  DB.castBotmVote?.(postId, S.user.id, voteKey).catch(()=>{});
-  toast('Vote cast! ✓ Check back on the 26th to see the winner.','ok');
-  // Update UI immediately
+  // Save locally first for instant feedback
+  localStorage.setItem(getBotmVoteKey(), postId);
   renderBotmVoteBtn(postId);
+  // Persist to Supabase
+  const { error } = await DB.castBotmVote(postId, S.user.id, voteKey);
+  if (error) {
+    console.warn('BOTM vote save failed:', error);
+    toast('Vote counted locally — will sync when connection is restored','');
+  } else {
+    toast('Your vote has been cast! 🏆 Check back on the 26th.','ok');
+  }
 }
 
 function renderBotmVoteBtn(postId) {

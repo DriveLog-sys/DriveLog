@@ -50,11 +50,10 @@ input,select,textarea{font-family:inherit}
 button{outline:none}
 button:focus{outline:none}
 button:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent-soft)}
-::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-track{background:var(--bg)}
-::-webkit-scrollbar-thumb{background:var(--mid);border-radius:5px;border:2px solid var(--bg);background-clip:padding-box}
-::-webkit-scrollbar-thumb:hover{background:#d4d4d8;border:2px solid var(--bg);background-clip:padding-box}
-::-webkit-scrollbar-thumb:active{background:#d4d4d8;border:2px solid var(--bg);background-clip:padding-box}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--mid);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 
 /* ─── TYPOGRAPHY ────────────────────────────────────────────── */
 .logo{font-family:var(--disp);font-size:1.7rem;letter-spacing:2px;color:var(--text);cursor:pointer}
@@ -2062,11 +2061,10 @@ video.social-post-media{max-height:480px;background:#000}
 
 /* ─── SCROLLBAR — soft white-grey hover, no blue ─────────────── */
 html{scrollbar-width:auto;scrollbar-color:var(--mid) var(--bg)}
-::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-track{background:var(--bg)}
-::-webkit-scrollbar-thumb{background:var(--mid);border-radius:5px;border:2px solid var(--bg);background-clip:padding-box}
-::-webkit-scrollbar-thumb:hover{background:#d4d4d8;border:2px solid var(--bg);background-clip:padding-box}
-::-webkit-scrollbar-thumb:active{background:#d4d4d8;border:2px solid var(--bg);background-clip:padding-box}
+::-webkit-scrollbar{width:7px;height:7px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--mid);border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 
 /* ─── DARK MODE TEXT READABILITY PASS ───────────────────────── */
 /* Ensure secondary/muted text is readable in dark mode */
@@ -6431,4 +6429,114 @@ body:not(.dark) .save-btn {
 @media(max-width:600px){
   .placeholder-page-wrap{padding:32px 20px 60px}
   .placeholder-page-wrap h1{font-size:1.7rem}
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   EXPLORE PAGE — MERCH + HELP
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Merch hero */
+.exp-merch-hero {
+  background: linear-gradient(135deg,#0a0b10 0%,#0f1220 50%,#0a0b10 100%);
+  padding: 64px 0 56px;
+}
+.exp-merch-hero-inner {
+  max-width: 1200px; margin: 0 auto; padding: 0 48px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center;
+}
+.exp-merch-eyebrow {
+  font-family: var(--cond); font-size: .72rem; font-weight: 700;
+  letter-spacing: 3px; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.exp-merch-title {
+  font-family: var(--disp); font-size: clamp(1.8rem,4vw,3rem);
+  color: #fff; letter-spacing: .5px; line-height: 1.05; margin-bottom: 14px;
+}
+.exp-merch-sub {
+  font-size: .9rem; color: rgba(255,255,255,.55); line-height: 1.7;
+  margin-bottom: 28px; max-width: 420px;
+}
+.exp-merch-cta {
+  display: inline-flex; align-items: center; gap: 8px;
+  text-decoration: none; padding: 12px 28px; font-size: .86rem;
+}
+.exp-merch-item-grid {
+  display: grid; grid-template-columns: repeat(3,1fr); gap: 14px;
+}
+.exp-merch-card {
+  background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px; padding: 24px 16px;
+  text-align: center; transition: all .2s;
+}
+.exp-merch-card:hover { background: rgba(255,255,255,.08); transform: translateY(-2px); }
+.exp-merch-card-img {
+  font-size: 2.2rem; color: rgba(255,255,255,.3); margin-bottom: 12px;
+}
+.exp-merch-card-label { font-family: var(--cond); font-weight: 700; font-size: .88rem; color: #fff; }
+.exp-merch-card-sub { font-size: .74rem; color: rgba(255,255,255,.35); margin-top: 4px; }
+
+/* Help / FAQ */
+.exp-help-wrap { background: var(--bg); }
+.exp-help-inner { max-width: 1200px; margin: 0 auto; padding: 56px 48px 80px; }
+.exp-help-header { text-align: center; margin-bottom: 44px; }
+.exp-help-title { font-family: var(--disp); font-size: 2rem; color: var(--text); letter-spacing: .5px; }
+.exp-help-sub { font-size: .9rem; color: var(--muted); margin-top: 6px; }
+.exp-help-body { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 48px; }
+.exp-faq-col { display: flex; flex-direction: column; gap: 8px; }
+.exp-faq-item {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; transition: box-shadow .2s;
+}
+.exp-faq-item:hover { box-shadow: 0 4px 20px rgba(0,0,0,.07); }
+.exp-faq-q {
+  padding: 16px 20px; font-size: .9rem; font-weight: 600;
+  color: var(--text); cursor: pointer;
+  display: flex; align-items: center; gap: 10px;
+  user-select: none;
+}
+.exp-faq-icon {
+  color: var(--accent); font-size: .75rem; flex-shrink: 0;
+  transition: transform .2s;
+}
+.exp-faq-item.open .exp-faq-icon { transform: rotate(45deg); }
+.exp-faq-a {
+  max-height: 0; overflow: hidden;
+  font-size: .86rem; color: var(--sec); line-height: 1.65;
+  transition: max-height .3s ease, padding .3s ease;
+  padding: 0 20px;
+}
+.exp-faq-item.open .exp-faq-a {
+  max-height: 200px; padding: 0 20px 16px;
+}
+.exp-faq-a code {
+  font-family: monospace; background: var(--raised);
+  padding: 2px 6px; border-radius: 3px; font-size: .82rem;
+}
+
+/* Contact strip */
+.exp-contact {
+  background: var(--accent); border-radius: 12px;
+  padding: 28px 36px;
+}
+.exp-contact-inner {
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+}
+.exp-contact h3 { font-family: var(--disp); font-size: 1.3rem; color: #fff; letter-spacing: .3px; }
+.exp-contact p { font-size: .86rem; color: rgba(255,255,255,.75); margin-top: 4px; }
+.exp-contact .btn-primary {
+  background: #fff; color: var(--accent); border: none;
+  text-decoration: none; display: inline-flex; align-items: center; gap: 8px;
+  white-space: nowrap; padding: 10px 24px;
+}
+.exp-contact .btn-primary:hover { background: rgba(255,255,255,.9); }
+
+@media(max-width:900px) {
+  .exp-merch-hero-inner { grid-template-columns: 1fr; gap: 32px; }
+  .exp-help-body { grid-template-columns: 1fr; }
+  .exp-merch-hero { padding: 40px 0; }
+  .exp-help-inner { padding: 36px 20px 60px; }
+  .exp-merch-hero-inner { padding: 0 20px; }
+  .exp-contact-inner { flex-direction: column; text-align: center; }
 }

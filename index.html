@@ -954,31 +954,127 @@
 
   <!-- EXPLORE PAGE -->
   <section class="page" id="page-explore">
-    <div class="explore-wrap">
-      <div class="explore-header">
-        <h1 class="explore-title">Explore</h1>
-        <p class="explore-sub">Discover builds, tags, and builders</p>
-      </div>
-      <div class="explore-body">
-        <div class="explore-main">
-          <div class="explore-section-label">Trending Builds</div>
-          <div class="card-grid" id="exploreTrendingGrid"></div>
-          <div class="explore-section-label" style="margin-top:32px">Discover Builders</div>
-          <div class="explore-builders-grid" id="exploreBuilders"></div>
-          <div class="explore-section-label" style="margin-top:32px">Browse by Tag</div>
-          <div class="explore-tags-grid" id="exploreTagsGrid"></div>
+    <!-- MERCH SECTION -->
+    <div class="exp-merch-hero">
+      <div class="exp-merch-hero-inner">
+        <div class="exp-merch-hero-text">
+          <div class="exp-merch-eyebrow"><i class="fas fa-tshirt"></i> Official DriveLog Gear</div>
+          <h1 class="exp-merch-title">Wear What You Drive For</h1>
+          <p class="exp-merch-sub">Limited drops, quality gear for the car community. Every purchase supports the platform.</p>
+          <a class="btn-primary exp-merch-cta" href="#" id="merchShopLink" target="_blank" rel="noopener">
+            <i class="fas fa-shopping-bag"></i> Shop Now
+          </a>
         </div>
-        <div class="explore-side">
-          <div class="widget">
-            <div class="widget-title"><i class="fas fa-calendar-alt widget-icon"></i> Upcoming Events</div>
-            <div id="exploreEvents"></div>
-          </div>
-          <div class="widget">
-            <div class="widget-title"><i class="fas fa-fire widget-icon"></i> Hot This Week</div>
-            <div id="exploreHot"></div>
+        <div class="exp-merch-preview">
+          <div class="exp-merch-item-grid" id="merchGrid">
+            <!-- Merch items rendered by JS or hardcoded -->
+            <div class="exp-merch-card coming-soon">
+              <div class="exp-merch-card-img"><i class="fas fa-tshirt"></i></div>
+              <div class="exp-merch-card-label">DriveLog Tee</div>
+              <div class="exp-merch-card-sub">Coming Soon</div>
+            </div>
+            <div class="exp-merch-card coming-soon">
+              <div class="exp-merch-card-img"><i class="fas fa-hat-cowboy"></i></div>
+              <div class="exp-merch-card-label">Snapback Cap</div>
+              <div class="exp-merch-card-sub">Coming Soon</div>
+            </div>
+            <div class="exp-merch-card coming-soon">
+              <div class="exp-merch-card-img"><i class="fas fa-car"></i></div>
+              <div class="exp-merch-card-label">Sticker Pack</div>
+              <div class="exp-merch-card-sub">Coming Soon</div>
+            </div>
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- HELP / FAQ SECTION -->
+    <div class="exp-help-wrap">
+      <div class="exp-help-inner">
+        <div class="exp-help-header">
+          <h2 class="exp-help-title">Help & FAQ</h2>
+          <p class="exp-help-sub">Everything you need to know about DriveLog</p>
+        </div>
+        <div class="exp-help-body">
+          <div class="exp-faq-col">
+            <div class="exp-faq-item">
+              <div class="exp-faq-q"><i class="fas fa-plus exp-faq-icon"></i> How do I post my build?</div>
+              <div class="exp-faq-a">Click <b>+ Post Build</b> in the top navigation. Fill in your vehicle info, upload photos, add your specs and mods — then hit Publish. Your build will appear on the feed immediately.</div>
+            </div>
+            <div class="exp-faq-item">
+              <div class="exp-faq-q"><i class="fas fa-plus exp-faq-icon"></i> How does the leaderboard work?</div>
+              <div class="exp-faq-a">Builds are ranked by total likes received. The more the community engages with your build, the higher you climb. Build of the Month is voted on by the community each month.</div>
+            </div>
+            <div class="exp-faq-item">
+              <div class="exp-faq-q"><i class="fas fa-plus exp-faq-icon"></i> Can I link my DriveLog profile in my bio?</div>
+              <div class="exp-faq-a">Yes — that's exactly what DriveLog is built for. Your profile URL is <code>drive-log-five.vercel.app/#profile</code>. Link it in your TikTok, Instagram, or YouTube bio so followers can see all your cars and specs in one place.</div>
+            </div>
+            <div class="exp-faq-item">
+              <div class="exp-faq-q"><i class="fas fa-plus exp-faq-icon"></i> How do I save social accounts from builds?</div>
+              <div class="exp-faq-a">On any build page, hover over the social media icons next to the poster's name. A save button appears — click it and the account gets added to your Garage under <b>Saved Socials</b>.</div>
+            </div>
+          </div>
+          <div class="exp-faq-col">
+            <div class="exp-faq-item">
+              <div class="exp-faq-q"><i class="fas fa-plus exp-faq-icon"></i> What is the Garage?</div>
+              <div class="exp-faq-a">Your Garage is your personal collection hub. It stores builds you've Liked, Saved for later, your own posted builds under Shared, saved parts from builds, and social accounts you've bookmarked.</div>
+            </div>
+            <div class="exp-faq-item">
+              <div class="exp-faq-q"><i class="fas fa-plus exp-faq-icon"></i> How does Build of the Month work?</div>
+              <div class="exp-faq-a">Every month from the 1st to the 25th, you can nominate any build for Build of the Month by clicking the crown button on its page. You get one vote per month. The winner is announced on the 26th and featured on the Leaderboard page.</div>
+            </div>
+            <div class="exp-faq-item">
+              <div class="exp-faq-q"><i class="fas fa-plus exp-faq-icon"></i> Is DriveLog free?</div>
+              <div class="exp-faq-a">DriveLog is completely free for all users. Create an account, post unlimited builds, follow other enthusiasts, and climb the leaderboard at no cost.</div>
+            </div>
+            <div class="exp-faq-item">
+              <div class="exp-faq-q"><i class="fas fa-plus exp-faq-icon"></i> How do I report a post or user?</div>
+              <div class="exp-faq-a">On any build page, click the flag icon in the action bar below the post. Choose a reason and submit — our moderation team reviews every report and responds within 24 hours.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contact section -->
+        <div class="exp-contact">
+          <div class="exp-contact-inner">
+            <div class="exp-contact-text">
+              <h3>Still have questions?</h3>
+              <p>Reach out to us directly and we'll get back to you.</p>
+            </div>
+            <a href="mailto:hello@drivelog.com" class="btn-primary">
+              <i class="fas fa-envelope"></i> Contact Us
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- GUIDELINES PAGE (placeholder — to be designed) -->
+  <section class="page" id="page-guidelines">
+    <div class="placeholder-page-wrap">
+      <h1>Community Guidelines</h1>
+    </div>
+  </section>
+
+  <!-- ABOUT PAGE (placeholder — to be designed) -->
+  <section class="page" id="page-about">
+    <div class="placeholder-page-wrap">
+      <h1>About DriveLog</h1>
+    </div>
+  </section>
+
+  <!-- PRIVACY PAGE (placeholder — to be designed) -->
+  <section class="page" id="page-privacy">
+    <div class="placeholder-page-wrap">
+      <h1>Privacy Policy</h1>
+    </div>
+  </section>
+
+  <!-- HELP PAGE (placeholder — to be designed) -->
+  <section class="page" id="page-help">
+    <div class="placeholder-page-wrap">
+      <h1>Help &amp; Support</h1>
     </div>
   </section>
 
@@ -1243,9 +1339,9 @@
         <a href="#" class="fsoc"><i class="fab fa-youtube"></i></a>
       </div>
     </div>
-    <div class="footer-links"><h4>Explore</h4><a href="#">JDM</a><a href="#">Euro</a><a href="#">Muscle</a><a href="#">Classics</a><a href="#">Leaderboard</a></div>
-    <div class="footer-links"><h4>Community</h4><a href="#">Guidelines</a><a href="#">About</a><a href="#">Events</a><a href="#">Members</a></div>
-    <div class="footer-links"><h4>Account</h4><a href="settings.html">Settings</a><a href="#">Privacy</a><a href="#">Help</a></div>
+    <div class="footer-links"><h4>Explore</h4><a href="#" data-footer-cat="JDM">JDM</a><a href="#" data-footer-cat="Euro">Euro</a><a href="#" data-footer-cat="Muscle">Muscle</a><a href="#" data-footer-cat="Classic">Classics</a><a href="#" data-footer-page="leaderboard">Leaderboard</a></div>
+    <div class="footer-links"><h4>Community</h4><a href="#" data-footer-page="guidelines">Guidelines</a><a href="#" data-footer-page="about">About</a><a href="#" data-footer-page="events">Events</a><a href="#" data-footer-page="members">Members</a></div>
+    <div class="footer-links"><h4>Account</h4><a href="settings.html">Settings</a><a href="#" data-footer-page="privacy">Privacy</a><a href="#" data-footer-page="help">Help</a></div>
   </div>
   <div class="footer-bottom"><p>© 2026 DriveLog. Built for car people, by car people.</p></div>
 </footer>
