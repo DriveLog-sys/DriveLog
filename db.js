@@ -631,56 +631,58 @@ function appPostToDb(post) {
     liked_by:     post.likedBy     || [],
     saved_by:     post.savedBy     || [],
     reactions:    post.reactions   || {},
-  
-  // ─── BOTM VOTING ───────────────────────────────────────────
-  async castBotmVote(postId, userId, voteKey) {
-    if (!_sbOk()) return { error: 'not connected' };
-    // Upsert — one row per user per month (voteKey = "botm_2025_05")
-    const { data, error } = await _sb
-      .from('botm_votes')
-      .upsert({ user_id: userId, vote_key: voteKey, post_id: postId, created_at: new Date().toISOString() },
-               { onConflict: 'user_id,vote_key' });
-    return { data, error };
-  },
-
-  async getBotmVotes(voteKey) {
-    if (!_sbOk()) return [];
-    const { data } = await _sb
-      .from('botm_votes')
-      .select('post_id, user_id')
-      .eq('vote_key', voteKey);
-    return data || [];
-  },
-
-  // ─── FULL TEXT SEARCH ──────────────────────────────────────
-  async searchPostsFTS(query, limit = 30) {
-    if (!_sbOk() || !query?.trim()) return [];
-    // Try Supabase full-text search first
-    const { data, error } = await _sb
-      .from('posts')
-      .select('*')
-      .textSearch('title', query, { type: 'websearch', config: 'english' })
-      .limit(limit);
-    if (!error && data?.length) return data;
-    // Fallback: ilike on title and caption
-    const q = `%${query}%`;
-    const { data: d2 } = await _sb
-      .from('posts')
-      .select('*')
-      .or(`title.ilike.${q},description.ilike.${q}`)
-      .limit(limit);
-    return d2 || [];
-  },
-
-  async searchUsers(query, limit = 20) {
-    if (!_sbOk() || !query?.trim()) return [];
-    const { data } = await _sb
-      .from('profiles')
-      .select('*')
-      .ilike('username', `%${query}%`)
-      .limit(limit);
-    return data || [];
-  },
-
-};
+  };
 }
+
+// ─── BOTM VOTING — added to DB object ─────────────────────────
+DB.castBotmVote = async function(postId, userId, voteKey) {
+  if (!_sbOk()) return { error: 'not connected' };
+  // Upsert — one row per user per month (voteKey = "botm_2025_05")
+  const { data, error } = await _sb
+    .from('botm_votes')
+    .upsert({ user_id: userId, vote_key: voteKey, post_id: postId, created_at: new Date().toISOString() },
+             { onConflict: 'user_id,vote_key' });
+  return { data, error };
+};
+
+DB.getBotmVotes = async function(voteKey) {
+  if (!_sbOk()) return [];
+  const { data } = await _sb
+    .from('botm_votes')
+    .select('post_id, user_id')
+    .eq('vote_key', voteKey);
+  return data || [];
+};
+
+// ─── FULL TEXT SEARCH ──────────────────────────────────────────
+DB.searchPostsFTS = async function(query, limit = 30) {
+  if (!_sbOk() || !query?.trim()) return [];
+  // Try Supabase full-text search first
+  const { data, error } = await _sb
+    .from('posts')
+    .select('*')
+    .textSearch('title', query, { type: 'websearch', config: 'english' })
+    .limit(limit);
+  if (!error && data?.length) return data;
+  // Fallback: ilike on title and description
+  const q = `%${query}%`;
+  const { data: d2 } = await _sb
+    .from('posts')
+    .select('*')
+    .or(`title.ilike.${q},description.ilike.${q}`)
+    .limit(limit);
+  return d2 || [];
+};
+
+// Override the searchUsers defined inside DB to accept a limit param
+// (the original only had one searchUsers; this replaces it cleanly)
+const _origSearchUsers = DB.searchUsers;
+DB.searchUsers = async function(query, limit = 20) {
+  if (!_sbOk() || !query?.trim()) return [];
+  const { data } = await _sb
+    .from('profiles')
+    .select('*')
+    .ilike('username', `%${query}%`)
+    .limit(limit);
+  return data || [];
+};

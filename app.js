@@ -463,7 +463,6 @@ function goTo(page) {
     el('msgListCol')?.classList.remove('msg-hide-list');
     S.openDm = null;
   }
-  if (page==='whatsnew')    renderWhatsNew();
   if (page==='explore')     renderExplorePage();
   if (page==='compare')     renderComparePage();
   if (page==='admin')       renderAdmin();
@@ -3335,6 +3334,10 @@ function esc(s)   {const d=document.createElement('div');d.textContent=String(s)
 function fmtDate(d){return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
 function timeAgo(ts){const m=Math.floor((Date.now()-ts)/60000);if(m<1)return'just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
 
+function toastSignIn(username) {
+  toast(`Welcome back, ${username}! 👋`, 'ok');
+}
+
 let _toastTimer;
 function toast(msg,type=''){
   let t=el('dl-toast');
@@ -3427,13 +3430,7 @@ function initCarPage() {
     const btn = el('cpLike');
     if (btn) { btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop'); setTimeout(() => btn.classList.remove('pop'), 400); }
   });
-  // BOTM vote button — appears on each post
-  const botmBtn = el('cpBotmVote');
-  if (botmBtn) {
-    botmBtn.dataset.id = post.id;
-    renderBotmVoteBtn(post.id);
-    botmBtn.addEventListener('click', () => castBotmVote(botmBtn.dataset.id));
-  }
+  // BOTM vote button is wired per-post inside renderCarPage (needs post.id)
   el('cpSave')?.addEventListener('click', () => {
     cpHandleSave();
     const btn = el('cpSave');
@@ -3681,6 +3678,13 @@ function renderCarPage(post) {
   // Reactions — only in the actions row
   // Videos in specs right panel
   renderCpVideos(post);
+  // BOTM vote button — wire per-post (needs post.id, so lives here not in initCarPage)
+  const botmBtn = el('cpBotmVote');
+  if (botmBtn) {
+    botmBtn.dataset.id = post.id;
+    renderBotmVoteBtn(post.id);
+    botmBtn.onclick = () => castBotmVote(botmBtn.dataset.id);
+  }
   // Compare button
   const cpCmp = el('cpCompare');
   if (cpCmp) cpCmp.onclick = () => { S.compareA = post; goTo('compare'); renderComparePage(); toast('Build loaded for comparison','ok'); };
@@ -5792,11 +5796,7 @@ function showUploadSuccess(post) {
   }, 8000);
 }
 
-// ─── WHATS NEW PAGE ────────────────────────────────────────────
-function renderWhatsNew() {
-  // Page is static HTML — nothing dynamic to render yet
-  // Future: load updates from Supabase, pull live events feed
-}
+// renderWhatsNew() removed — page replaced by Explore
 
 // Re-sync user state when returning from settings tab
 document.addEventListener('visibilitychange', async () => {
