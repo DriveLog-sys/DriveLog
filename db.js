@@ -197,15 +197,29 @@ const DB = {
   },
 
   async toggleLike(postId, voterId) {
-    const { data: post } = await _sb.from('posts').select('liked_by, likes').eq('id', postId).single();
+    const { data: post } = await _sb.from('posts').select('liked_by, likes, user_username').eq('id', postId).single();
     if (!post) return;
-    const liked = (post.liked_by || []);
-    const already = liked.includes(voterId);
+    const liked    = (post.liked_by || []);
+    const already  = liked.includes(voterId);
     const newLikedBy = already ? liked.filter(v => v !== voterId) : [...liked, voterId];
-    return _sb.from('posts').update({
-      liked_by: newLikedBy,
-      likes: newLikedBy.length,
-    }).eq('id', postId);
+    const newLikes   = newLikedBy.length;
+    // Update post likes
+    await _sb.from('posts').update({ liked_by: newLikedBy, likes: newLikes }).eq('id', postId);
+    // Update the post owner's total_likes on their profile
+    // Sum all their posts' likes in one query
+    if (post.user_username) {
+      const { data: userPosts } = await _sb
+        .from('posts')
+        .select('likes')
+        .eq('user_username', post.user_username);
+      if (userPosts) {
+        const total = userPosts.reduce((a, p) => a + (p.likes || 0), 0)
+          + (already ? 0 : 1) - (already ? 1 : 0); // adjust for this change before DB catches up
+        await _sb.from('profiles')
+          .update({ total_likes: total })
+          .eq('username', post.user_username);
+      }
+    }
   },
 
   async toggleSave(postId, userId) {
@@ -558,10 +572,12 @@ function dbPostToApp(row) {
     desc:         row.description,
     transmission: row.transmission|| '',
     mileage:      row.mileage     || '',
-    buildState:   row.build_state || '',
-    zeroSixty:    row.zero_sixty  || '',
-    quarterMile:  row.quarter_mile|| '',
-    topSpeed:     row.top_speed   || '',
+    buildState:   row.build_state  || '',
+    zeroSixty:    row.zero_sixty   || '',
+    quarterMile:  row.quarter_mile || '',
+    topSpeed:     row.top_speed    || '',
+    engineSize:   row.engine_size  || '',
+    engineConfig: row.engine_config|| '',
     showSocials:  row.show_socials !== false,
     user:         row.username,
     user_id:      row.user_id,
@@ -626,6 +642,8 @@ function appPostToDb(post) {
     zero_sixty:   post.zeroSixty   || '',
     quarter_mile: post.quarterMile || '',
     top_speed:    post.topSpeed    || '',
+    engine_size:  post.engineSize  || '',
+    engine_config:post.engineConfig|| '',
     show_socials: post.showSocials !== false,
     state:        post.state || '',
     liked_by:     post.likedBy     || [],

@@ -69,14 +69,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // If we have cached posts, hide loader now and refresh in background
   if (S.posts.length > 0) {
     hideBootLoader();
-    handleUrlParams(); // check ?user= / ?post= immediately with cached data
     loadStorage().then(() => {
       renderAll(); updateAuthUI(); updateNotifBadge();
       if (S.user) setupRealtimeSubscriptions();
-      handleUrlParams(); // re-run with fresh Supabase data in case post wasn't cached
     }).catch(() => {});
   } else {
     // No cache — keep loader visible, wait for Supabase
+    // Safety: hide after 6s no matter what
     const fallback = setTimeout(() => hideBootLoader(), 6000);
     try {
       await loadStorage();
@@ -88,7 +87,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     hideBootLoader();
     renderAll(); updateAuthUI(); updateNotifBadge();
     if (S.user) setupRealtimeSubscriptions();
-    handleUrlParams(); // check ?user= / ?post= after fresh load
   }
 });
 
@@ -235,10 +233,7 @@ async function loadStorage() {
   DB.getAllProfiles().then(profiles => {
     if (!profiles?.length) return;
     S.users = profiles.map(dbUserToApp).filter(Boolean);
-    // Cache all avatar URLs immediately — this is what makes cross-device avatars work
-    S.users.forEach(u => {
-      if (u.avatarUrl) cacheAvatarUrl(u.username, u.avatarUrl);
-    });
+    S.users.forEach(u => { if (u.avatarUrl) cacheAvatarUrl(u.username, u.avatarUrl); });
     try {
       const fl = JSON.parse(localStorage.getItem('dl_featured_users') || '[]');
       S.users.forEach(u => { if (fl.includes(u.username)) u.isFeatured = true; });
@@ -247,39 +242,25 @@ async function loadStorage() {
     if (S.user) {
       const fresh = S.users.find(u => u.username === S.user.username);
       if (fresh) {
-        // Prefer Supabase avatar_url (cross-device) over local cache
-        const supabaseAvatar = fresh.avatarUrl?.startsWith('http') ? fresh.avatarUrl : null;
-        const localAvatar    = localStorage.getItem('dl_avatar_url');
-        // Only use local if Supabase has nothing — and push it up if so
-        const resolvedAvatar = supabaseAvatar || (localAvatar?.startsWith('http') ? localAvatar : null) || localAvatar || null;
+        const localAvatar = localStorage.getItem('dl_avatar_url') || S.user.avatarUrl || null;
         S.user = { ...fresh, ...S.user,
-          avatarUrl: resolvedAvatar,
-          bio:       S.user.bio       || fresh.bio       || '',
+          avatarUrl: localAvatar || fresh.avatarUrl || null,
+          bio: S.user.bio || fresh.bio || '',
           instagram: S.user.instagram || fresh.instagram || '',
-          tiktok:    S.user.tiktok    || fresh.tiktok    || '',
-          youtube:   S.user.youtube   || fresh.youtube   || '',
-          website:   S.user.website   || fresh.website   || '',
-          location:  S.user.location  || fresh.location  || '',
-          id:        fresh.id         || S.user.id,
-          isAdmin:   fresh.isAdmin    || S.user.isAdmin  || false,
-          awards:    (fresh.awards||[]).length ? fresh.awards : (S.user.awards||[]),
+          tiktok: S.user.tiktok || fresh.tiktok || '',
+          youtube: S.user.youtube || fresh.youtube || '',
+          website: S.user.website || fresh.website || '',
+          location: S.user.location || fresh.location || '',
+          id: fresh.id || S.user.id,
+          isAdmin: fresh.isAdmin || S.user.isAdmin || false,
+          awards: (fresh.awards||[]).length ? fresh.awards : (S.user.awards||[]),
         };
-        // If we have a local http URL but Supabase doesn't — push it up
-        if (!supabaseAvatar && localAvatar?.startsWith('http')) {
-          DB.updateProfile(S.user.id, { avatar_url: localAvatar }).catch(() => {});
-        }
         localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
         localStorage.setItem('dl_user', JSON.stringify(S.user));
       }
     }
-    // Re-render everywhere avatars appear — feed cards, profile, members, social
-    updateAuthUI();
-    renderFeed();
-    renderFeaturedMembers();
-    renderMembers();
-    if (S.page === 'profile')   updateProfilePage();
-    if (S.page === 'social')    renderSocialFeed(true);
-    if (S.page === 'messages')  renderMessages();
+    updateAuthUI(); renderFeaturedMembers(); renderMembers();
+    if (S.page === 'profile') updateProfilePage();
   }).catch(() => {});
 
   DB.getEvents().then(evts => {
@@ -293,27 +274,6 @@ async function loadStorage() {
       if (!notifs?.length) return;
       S.notifs = notifs.map(n => ({ id:n.id, type:n.type, from:n.from_username, msg:n.message, link:n.link||null, time:new Date(n.created_at).getTime(), read:n.read }));
       updateNotifBadge();
-    }).catch(() => {});
-    // Sync unread DM counts from Supabase so badge is correct on any device/session
-    DB.getConversations(S.user.id).then(convs => {
-      if (!convs?.length) { updateDmBadge(); return; }
-      convs.forEach(conv => {
-        if (!conv.otherName || !conv.unread) return;
-        // Merge Supabase unread count into local thread
-        const key = 'dl_dm_' + [S.user.username, conv.otherName].sort().join('::');
-        const local = JSON.parse(localStorage.getItem(key) || '[]');
-        // Mark last N messages from them as unread if Supabase says there are unread ones
-        if (conv.unread > 0) {
-          let marked = 0;
-          for (let i = local.length - 1; i >= 0 && marked < conv.unread; i--) {
-            if (local[i].from !== S.user.username && local[i].read) {
-              local[i].read = false; marked++;
-            }
-          }
-          if (marked > 0) localStorage.setItem(key, JSON.stringify(local));
-        }
-      });
-      updateDmBadge();
     }).catch(() => {});
     setupRealtimeSubscriptions();
   }
@@ -1423,12 +1383,24 @@ function initPostModal() {
     setTimeout(updateSocialPreview, 50);
   }
 
-  // Multi-select category pills on post page
+  // Multi-select category pills — max 5
+  const MAX_CATS = 5;
   document.querySelectorAll('.post-cat-pill').forEach(pill => {
     pill.addEventListener('click', () => {
+      const isActive  = pill.classList.contains('active');
+      const selected  = [...document.querySelectorAll('.post-cat-pill.active')];
+      if (!isActive && selected.length >= MAX_CATS) {
+        // Show limit note briefly
+        const note = el('postCatLimitNote');
+        if (note) { note.style.display = 'flex'; setTimeout(() => { note.style.display = 'none'; }, 2500); }
+        return; // block selection
+      }
       pill.classList.toggle('active');
-      const selected = [...document.querySelectorAll('.post-cat-pill.active')].map(b=>b.dataset.cat);
-      el('postCategory').value = selected[0] || '';
+      const nowSelected = [...document.querySelectorAll('.post-cat-pill.active')].map(b => b.dataset.cat);
+      el('postCategory').value = nowSelected[0] || '';
+      // Dim unselected pills when at cap
+      const atCap = nowSelected.length >= MAX_CATS;
+      document.querySelectorAll('.post-cat-pill:not(.active)').forEach(p => p.classList.toggle('at-cap', atCap));
     });
   });
   // Mod list entry — each card with data-modkey
@@ -1538,6 +1510,9 @@ function openEditPost(post) {
     setVal('postYear',  post.year);
     setVal('postHP',    post.hp);
     setVal('postDesc',  post.desc);
+    // Engine fields
+    const eSize = el('postEngineSize'); if (eSize) eSize.value = post.engineSize || '';
+    const eCfg  = el('postEngineConfig'); if (eCfg) eCfg.value = post.engineConfig || '';
 
     // Categories
     const cats = Array.isArray(post.categories) ? post.categories : [post.category].filter(Boolean);
@@ -1698,12 +1673,14 @@ async function submitPost() {
   }
   const title=val('postTitle'), make=val('postMake'), model=val('postModel'), year=val('postYear'),
         hp=val('postHP'), desc=val('postDesc');
-  const transmission = el('postTransmission')?.value || '';
-  const mileage      = val('postMileage') || '';
-  const buildState   = el('postState')?.value || '';
-  const zeroSixty    = val('postZeroSixty') || '';
-  const quarterMile  = val('postQuarterMile') || '';
-  const topSpeed     = val('postTopSpeed') || '';
+  const transmission  = el('postTransmission')?.value  || '';
+  const mileage       = val('postMileage')             || '';
+  const buildState    = el('postState')?.value          || '';
+  const zeroSixty     = val('postZeroSixty')           || '';
+  const quarterMile   = val('postQuarterMile')         || '';
+  const topSpeed      = val('postTopSpeed')            || '';
+  const engineSize    = val('postEngineSize')          || '';
+  const engineConfig  = el('postEngineConfig')?.value  || '';
   const selectedCats = [...document.querySelectorAll('.post-cat-pill.active')].map(b=>b.dataset.cat);
   const cat = selectedCats[0] || '';
 
@@ -1771,28 +1748,19 @@ async function submitPost() {
     const submitBtn = el('submitPost');
     if (submitBtn) { submitBtn.disabled=true; submitBtn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Uploading…'; }
 
-    // Upload images to Supabase Storage — retry once on failure
+    // Upload images to Supabase Storage
     const imageUrls = [];
-    for (let i = 0; i < pendingImages.length; i++) {
-      let url = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          const res = await DB.uploadBase64(S.user.id, pendingImages[i], i);
-          if (res?.url && res.url.startsWith('http')) { url = res.url; break; }
-        } catch(_) {}
-      }
-      if (url) {
-        imageUrls.push(url);
-      } else {
-        // Fallback to base64 — works but hits row size limits; log for debugging
-        console.warn(`DriveLog: image ${i} fell back to base64 — check post-images bucket RLS`);
-        imageUrls.push(pendingImages[i]);
-      }
+    for (let i=0; i<pendingImages.length; i++) {
+      try {
+        const res = await DB.uploadBase64(S.user.id, pendingImages[i], i);
+        imageUrls.push(res.url || pendingImages[i]);
+      } catch(_) { imageUrls.push(pendingImages[i]); }
     }
 
     const postData = appPostToDb({
       title, make, model, year, category:cat, categories:selectedCats,
       hp, mods, modsDetail, desc, transmission, mileage, buildState, zeroSixty, quarterMile, topSpeed,
+      engineSize, engineConfig,
       images: imageUrls,
       videos: pendingVideos.map(v=>v.dataUrl),
       liked_by:[], saved_by:[], reactions:{},
@@ -1807,6 +1775,7 @@ async function submitPost() {
     const localPost = dbPostToApp(newPost) || {
       id:newPost?.id||'u'+Date.now(), title, make, model, year,
       category:cat, categories:selectedCats, hp, mods, modsDetail, desc, transmission, mileage,
+      engineSize, engineConfig,
       user:S.user.username, likes:0, comments:[], images:imageUrls,
       videos:pendingVideos.map(v=>v.dataUrl), likedBy:[], savedBy:[], reactions:{},
       date:new Date().toISOString().slice(0,10),
@@ -1828,13 +1797,14 @@ function showPostError(msg) {
 }
 
 function resetPostForm() {
-  ['postTitle','postMake','postModel','postYear','postHP','postDesc',
+  ['postTitle','postMake','postModel','postYear','postHP','postDesc','postEngineSize',
    'modEngine','modDrivetrain','modSuspension','modWheels','modExterior','modInterior','modOther']
     .forEach(id=>{ const e=el(id); if(e) e.value=''; });
-  // postCategory doesn't exist — categories use pills
+  const ecEl=el('postEngineConfig'); if(ecEl) ecEl.value='';
   el('fileInput').value='';
   document.querySelectorAll('.post-cat-pill.active').forEach(p=>p.classList.remove('active'));
-  // Clear all mod list items and input fields
+  document.querySelectorAll('.post-cat-pill.at-cap').forEach(p=>p.classList.remove('at-cap'));
+  const note=el('postCatLimitNote'); if(note) note.style.display='none';
   document.querySelectorAll('.mod-item-list').forEach(l=>l.innerHTML='');
   document.querySelectorAll('.mod-item-input').forEach(i=>i.value='');
   pendingVideos=[]; renderVideoPreviews();
@@ -1946,13 +1916,15 @@ function handleLike() {
   if(idx>=0){post.likes=Math.max(0,post.likes-1); post.likedBy.splice(idx,1); el('carLike').classList.remove('liked');}
   else{post.likes++; post.likedBy.push(S.user.username); el('carLike').classList.add('liked'); pushNotif('like',S.user.username,`liked your build <b>${post.title}</b>`,'post:'+post.id);}
   el('carLikeCount').textContent=post.likes; save(); renderFeed();
+  recalcUserLikes(post.user);
+  DB.toggleLike(post.id, voterId()).catch(()=>{});
 }
 function handleSave() {
   if(!S.user){toast('Sign in to save builds','err'); el('authModal').classList.add('open'); return;}
   const post=S.posts.find(x=>x.id===S.openPost.id); if(!post)return;
   const idx=post.savedBy.indexOf(S.user.username);
   if(idx>=0){post.savedBy.splice(idx,1); el('carSave').classList.remove('saved'); el('carSave').innerHTML='<i class="fas fa-bookmark"></i> Save'; toast('Removed from garage','');}
-  else{post.savedBy.push(S.user.username); el('carSave').classList.add('saved'); el('carSave').innerHTML='<i class="fas fa-bookmark"></i> Saved'; toast('Saved to garage ✓','ok');}
+  else{post.savedBy.push(S.user.username); el('carSave').classList.add('saved'); el('carSave').innerHTML='<i class="fas fa-bookmark"></i> Saved'; toast('Saved to garage','ok');}
   save();
 }
 function handleShare() {
@@ -1995,20 +1967,13 @@ function renderTimeline(post) {
   if(btn) btn.addEventListener('click',()=>addTimelineEntry(post.id));
 }
 function addTimelineEntry(postId) {
-  const title = prompt('Update title:'); if (!title) return;
-  const body  = prompt('Describe the update:'); if (!body) return;
-  const date  = new Date().toISOString().slice(0, 10);
-  const entry = { date, title, body, icon:'fas fa-plus', color:'#a855f7' };
-  const stored = JSON.parse(localStorage.getItem('dl_tl_'+postId) || '[]');
-  stored.push(entry);
-  localStorage.setItem('dl_tl_'+postId, JSON.stringify(stored));
-  const post = S.posts.find(p => p.id === postId);
-  if (post) renderTimeline(post);
-  toast('Timeline updated ✓', 'ok');
-  // Sync to Supabase — not swallowed this time
-  DB.addTimelineEntry(postId, title, body, date, entry.icon, entry.color)
-    .then(res => { if (res?.error) console.warn('Timeline sync failed:', res.error); })
-    .catch(e  => console.warn('Timeline sync error:', e));
+  const title=prompt('Update title:'); if(!title)return;
+  const body=prompt('Describe the update:'); if(!body)return;
+  const stored=JSON.parse(localStorage.getItem('dl_tl_'+postId)||'[]');
+  stored.push({date:new Date().toISOString().slice(0,10),title,body,icon:'fas fa-plus',color:'#a855f7'});
+  localStorage.setItem('dl_tl_'+postId,JSON.stringify(stored));
+  const post=S.posts.find(p=>p.id===postId); if(post)renderTimeline(post);
+  toast('Timeline updated','ok');
 }
 
 // ─── LIGHTBOX ─────────────────────────────────────────────────
@@ -2492,21 +2457,34 @@ function attachCardEvents(container) {
     const vid  = S.user.username; // always use username for consistency
     const post = S.posts.find(p=>p.id===btn.dataset.id); if(!post) return;
     const idx  = post.likedBy.indexOf(vid);
-    // Update local state immediately
     if(idx>=0){ post.likes=Math.max(0,post.likes-1); post.likedBy.splice(idx,1); }
     else { post.likes++; post.likedBy.push(vid); }
-    // Update button immediately without full re-render
     btn.classList.toggle('liked', post.likedBy.includes(vid));
     const countEl = btn.querySelector('span, .card-like-count');
     if (countEl) countEl.textContent = post.likes;
-    // Fire DB in background
     DB.toggleLike(post.id, vid).catch(()=>{});
+    recalcUserLikes(post.user);
     save();
   }));
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────
-function renderSidebar() {
+// Recalculate a user's total likes from S.posts and update S.users + Supabase
+function recalcUserLikes(username) {
+  if (!username) return;
+  const total = S.posts.filter(p => p.user === username).reduce((a, p) => a + (p.likes || 0), 0);
+  // Update S.users in memory
+  const u = S.users.find(x => x.username === username);
+  if (u) u.totalLikes = total;
+  // Update S.user if it's their own likes
+  if (S.user?.username === username) S.user.totalLikes = total;
+  // Persist to Supabase profiles table
+  const uid = u?.id || (S.user?.username === username ? S.user.id : null);
+  if (uid) DB.updateProfile(uid, { total_likes: total }).catch(() => {});
+  // Re-render sidebar so top members list updates live
+  renderSidebar();
+  animateStats();
+}
   const top5=[...S.posts].sort((a,b)=>b.likes-a.likes).slice(0,5);
   el('trendingList').innerHTML=top5.map((p,i)=>{
     const img=p.images?.[0];
@@ -2572,7 +2550,7 @@ function renderExplorePage() {
   const shopLink = el('merchShopLink');
   if (shopLink && shopLink.href === '#') {
     shopLink.href = '#'; // replace with real store URL
-    shopLink.onclick = e => { e.preventDefault(); toast('Merch store coming soon! 🔥','ok'); };
+    shopLink.onclick = e => { e.preventDefault(); toast('Merch store coming soon','ok'); };
   }
 }
 
@@ -2754,7 +2732,7 @@ async function castBotmVote(postId) {
     console.warn('BOTM vote save failed:', error);
     toast('Vote counted locally — will sync when connection is restored','');
   } else {
-    toast('Your vote has been cast! 🏆 Check back on the 26th.','ok');
+    toast('Your vote has been cast — check back on the 26th','ok');
   }
 }
 
@@ -3118,33 +3096,6 @@ async function viewPublicProfile(username) {
   await viewMemberProfile(username);
 }
 
-// ─── URL PARAMETER HANDLER ────────────────────────────────────
-// ?user=username  → open that profile (shareable link)
-// ?post=id        → open that build (shareable link)
-function handleUrlParams() {
-  const params    = new URLSearchParams(window.location.search);
-  const userParam = params.get('user');
-  const postParam = params.get('post');
-  if (userParam) {
-    viewMemberProfile(decodeURIComponent(userParam));
-  } else if (postParam) {
-    const local = S.posts.find(x => x.id === postParam);
-    if (local) {
-      openCarPage(local);
-    } else {
-      DB.getPost(postParam).then(row => {
-        if (row) {
-          const p = dbPostToApp(row);
-          if (p) { S.posts.unshift(p); openCarPage(p); }
-          else toast('Build not found', 'err');
-        } else {
-          toast('Build not found', 'err');
-        }
-      }).catch(() => toast('Could not load build', 'err'));
-    }
-  }
-}
-
 function buildSocialLinks(u) {
   return [
     u.instagram?`<a class="prof-social ig" href="https://instagram.com/${u.instagram}" target="_blank" rel="noopener"><i class="fab fa-instagram"></i> @${u.instagram}</a>`:'',
@@ -3224,7 +3175,7 @@ function saveSocial(entry) {
   }
   all.unshift({ ...entry, ts: Date.now() });
   localStorage.setItem('dl_socials_'+uname, JSON.stringify(all));
-  toast(entry.platform + ' saved to your Garage ✓', 'ok');
+  toast(entry.platform + ' saved to your Garage', 'ok');
   if (S.page === 'garage') renderSavedSocials();
 }
 
@@ -3419,7 +3370,7 @@ function fmtDate(d){return new Date(d).toLocaleDateString('en-US',{month:'short'
 function timeAgo(ts){const m=Math.floor((Date.now()-ts)/60000);if(m<1)return'just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
 
 function toastSignIn(username) {
-  toast(`Welcome back, ${username}! 👋`, 'ok');
+  toast(`Welcome back, ${username}`, 'ok');
 }
 
 let _toastTimer;
@@ -3435,25 +3386,25 @@ function toast(msg,type=''){
 // Returns the avatar URL for a user if they have one, otherwise null
 function getAvatarUrl(username) {
   if (!username) return null;
-  // 1. S.users populated from Supabase — most authoritative, cross-device
+  // 1. S.users (from Supabase) — most authoritative for cross-device
   const u = S.users.find(x => x.username === username);
-  if (u?.avatarUrl?.startsWith('http')) return u.avatarUrl;
-  // 2. Own user object (has the freshest URL after upload)
+  if (u?.avatarUrl && u.avatarUrl.startsWith('http')) return u.avatarUrl;
+  // 2. Own user object
   if (S.user?.username === username && S.user.avatarUrl?.startsWith('http')) return S.user.avatarUrl;
-  // 3. Per-user avatar cache (populated from Supabase after getAllProfiles)
-  try {
-    const cache = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
-    if (cache[username]?.startsWith('http')) return cache[username];
-  } catch(_) {}
-  // 4. Own device upload URL (only valid on this device, but better than nothing)
+  // 3. Local avatar_url key (set right after upload on this device)
   if (S.user?.username === username) {
     const local = localStorage.getItem('dl_avatar_url');
     if (local?.startsWith('http')) return local;
-    if (local?.startsWith('data:')) return local; // show locally while Supabase upload is in-flight
   }
-  // 5. Any non-null URL on the user object as last resort
+  // 4. Per-user avatar cache
+  try {
+    const cache = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
+    const cached = cache[username];
+    if (cached?.startsWith('http')) return cached;
+  } catch(_) {}
+  // 5. Any URL even non-http
   if (u?.avatarUrl) return u.avatarUrl;
-  return null;
+  return null; // null = use default grey SVG avatar
 }
 
 // Called when we know an avatar URL — cache it for instant display
@@ -3528,9 +3479,14 @@ function initCarPage() {
 
 async function openCarPage(post) {
   S._prevPage   = S.page;
+  // Clear stale content from any previously-viewed post BEFORE the page
+  // becomes visible, so nothing flashes for a frame (e.g. old category tag)
   if (el('cpCat')) el('cpCat').innerHTML = '';
   if (el('cpTitle')) el('cpTitle').textContent = '';
   if (el('cpGallMain')) el('cpGallMain').innerHTML = '';
+  // Show page immediately with cached data. Keep the cached comment COUNT
+  // (from the feed's relational query) so the tab/counter shows a real
+  // number right away, even though the full comment list isn't loaded yet.
   const cachedCommentCount = (post.comments || []).length;
   const freshPost = { ...post, comments: Array(cachedCommentCount).fill(null) };
   S.openCarPost = freshPost;
@@ -3539,10 +3495,6 @@ async function openCarPage(post) {
   renderCarPage(freshPost);
   setMetaTags(freshPost.title, freshPost.desc, freshPost.images?.[0]);
   setTimeout(() => addCostTab(freshPost), 50);
-  // Set shareable URL for this build
-  try {
-    window.history.pushState({ page: 'car', postId: post.id }, '', `${window.location.pathname}?post=${encodeURIComponent(post.id)}`);
-  } catch(_) {}
 
   const targetPostId = post.id;
 
@@ -3674,16 +3626,17 @@ function renderCarPage(post) {
   const cpChipsEl = el('cpChips');
   if (cpChipsEl) {
     const specRows = [
-      { icon:'fas fa-calendar-alt', label:'Year',         val: post.year },
-      { icon:'fas fa-industry',     label:'Make',         val: post.make },
-      { icon:'fas fa-car',          label:'Model',        val: post.model },
-      { icon:'fas fa-bolt',         label:'Power',        val: post.hp,           accent:true },
-      { icon:'fas fa-cogs',         label:'Transmission', val: post.transmission },
-      { icon:'fas fa-road',         label:'Mileage',      val: post.mileage ? Number(post.mileage).toLocaleString()+' mi' : '' },
-      { icon:'fas fa-stopwatch',    label:'0–60 mph',     val: post.zeroSixty,    accent:true },
-      { icon:'fas fa-flag',         label:'¼ Mile',       val: post.quarterMile,  accent:true },
-      { icon:'fas fa-tachometer-alt',label:'Top Speed',   val: post.topSpeed,     accent:true },
-      { icon:'fas fa-map-marker-alt',label:'State',       val: post.buildState },
+      { icon:'fas fa-calendar-alt',  label:'Year',         val: post.year },
+      { icon:'fas fa-industry',      label:'Make',         val: post.make },
+      { icon:'fas fa-car',           label:'Model',        val: post.model },
+      { icon:'fas fa-bolt',          label:'Power',        val: post.hp,                                   accent:true },
+      { icon:'fas fa-engine',        label:'Engine',       val: post.engineSize && post.engineConfig ? `${post.engineSize} ${post.engineConfig}` : (post.engineSize || post.engineConfig || '') },
+      { icon:'fas fa-cogs',          label:'Transmission', val: post.transmission },
+      { icon:'fas fa-road',          label:'Mileage',      val: post.mileage ? Number(post.mileage).toLocaleString()+' mi' : '' },
+      { icon:'fas fa-stopwatch',     label:'0–60 mph',     val: post.zeroSixty,                           accent:true },
+      { icon:'fas fa-flag',          label:'¼ Mile',       val: post.quarterMile,                         accent:true },
+      { icon:'fas fa-tachometer-alt',label:'Top Speed',    val: post.topSpeed,                            accent:true },
+      { icon:'fas fa-map-marker-alt',label:'State',        val: post.buildState },
     ].filter(r => r.val && r.val.toString().trim());
 
     cpChipsEl.innerHTML = `
@@ -3889,6 +3842,7 @@ function cpHandleLike() {
   S.openCarPost = post;
   syncCpActions(post);
   DB.toggleLike(post.id, vid).catch(()=>{});
+  recalcUserLikes(post.user);
   save();
 }
 function cpHandleSave() {
@@ -3897,7 +3851,7 @@ function cpHandleSave() {
   const vid = S.user.username;
   const idx = post.savedBy.indexOf(vid);
   if (idx >= 0) { post.savedBy.splice(idx,1); toast('Removed from garage',''); }
-  else { post.savedBy.push(vid); toast('Saved to garage ✓','ok'); }
+  else { post.savedBy.push(vid); toast('Saved to garage','ok'); }
   S.openCarPost = post;
   syncCpActions(post);
   DB.toggleSave(post.id, vid).catch(()=>{});
@@ -4155,69 +4109,40 @@ function renderCpVideos(post) {
   });
 }
 
-async function cpRenderTimeline(post) {
+function cpRenderTimeline(post) {
+  const all = [...(SEED_TIMELINES[post.id]||[]), ...JSON.parse(localStorage.getItem('dl_tl_'+post.id)||'[]')];
   const wrap = el('cpTimelineContent');
-  if (!wrap) return;
   const isOwner = S.user && post.user === S.user.username;
-  const local = [...(SEED_TIMELINES[post.id]||[]), ...JSON.parse(localStorage.getItem('dl_tl_'+post.id)||'[]')];
-
-  function renderEntries(entries) {
-    const sorted = [...entries].sort((a,b) => new Date(a.date) - new Date(b.date));
-    wrap.innerHTML = sorted.length
-      ? `<div class="timeline">${sorted.map((e,i) => `
-        <div class="tl-item${i===sorted.length-1?' last':''}">
-          <div class="tl-left">
-            <div class="tl-dot" style="background:${e.color||'#a855f7'}"><i class="${e.icon||'fas fa-circle'}" style="font-size:.5rem"></i></div>
-            ${i<sorted.length-1?'<div class="tl-line"></div>':''}
-          </div>
-          <div class="tl-right">
-            <div class="tl-date">${e.date}</div>
-            <div class="tl-title">${esc(e.title)}</div>
-            <p class="tl-body">${esc(e.body)}</p>
-          </div>
-        </div>`).join('')}</div>`
-      : '<p class="no-timeline"><i class="fas fa-history" style="margin-right:6px"></i>No build timeline yet.</p>';
-    wrap.innerHTML += isOwner ? `
-      <div class="tl-add-form" id="tlAddForm">
-        <div class="tl-add-row">
-          <input class="finput tl-input" id="tlTitle" placeholder="Update title (e.g. Turbo installed)" style="margin-bottom:8px"/>
-          <textarea class="finput tl-input" id="tlBody" rows="2" placeholder="What happened?" style="resize:none;margin-bottom:8px"></textarea>
-          <button class="btn-primary small" id="cpAddTlBtn"><i class="fas fa-plus"></i> Add Update</button>
+  wrap.innerHTML = `
+    ${all.length ? `<div class="timeline">${all.map((e,i)=>`
+      <div class="tl-item${i===all.length-1?' last':''}">
+        <div class="tl-left"><div class="tl-dot" style="background:${e.color||'#a855f7'}"><i class="${e.icon||'fas fa-circle'}" style="font-size:.5rem"></i></div>${i<all.length-1?'<div class="tl-line"></div>':''}</div>
+        <div class="tl-right">
+          <div class="tl-date">${e.date}</div>
+          <div class="tl-title">${esc(e.title)}</div>
+          <p class="tl-body">${esc(e.body)}</p>
         </div>
-      </div>` : '';
-    const btn = el('cpAddTlBtn');
-    if (btn) btn.addEventListener('click', async () => {
-      const title = el('tlTitle')?.value.trim(); if (!title) { toast('Add a title','err'); return; }
-      const body  = el('tlBody')?.value.trim();  if (!body)  { toast('Add a description','err'); return; }
-      const date  = new Date().toISOString().slice(0,10);
-      const entry = { date, title, body, icon:'fas fa-plus', color:'#a855f7' };
-      const stored = JSON.parse(localStorage.getItem('dl_tl_'+post.id)||'[]');
-      stored.push(entry);
-      localStorage.setItem('dl_tl_'+post.id, JSON.stringify(stored));
-      const res = await DB.addTimelineEntry(post.id, title, body, date, entry.icon, entry.color).catch(() => null);
-      if (res?.error) console.warn('Timeline sync failed:', res.error);
-      renderEntries(stored);
-      toast('Timeline updated ✓', 'ok');
-    });
-  }
-
-  renderEntries(local);
-
-  try {
-    const sbEntries = await DB.getTimeline(post.id);
-    if (sbEntries && sbEntries.length) {
-      let changed = false;
-      sbEntries.forEach(se => {
-        if (!local.find(l => l.title === se.title && l.date === se.date)) {
-          local.push(se); changed = true;
-        }
-      });
-      if (changed) {
-        localStorage.setItem('dl_tl_'+post.id, JSON.stringify(local));
-        renderEntries(local);
-      }
-    }
-  } catch(e) { console.warn('Timeline fetch failed:', e); }
+      </div>`).join('')}</div>` : '<p class="no-timeline"><i class="fas fa-history" style="margin-right:6px"></i>No build timeline yet.</p>'}
+    ${isOwner ? `
+    <div class="tl-add-form" id="tlAddForm">
+      <div class="tl-add-row">
+        <input class="finput tl-input" id="tlTitle" placeholder="Update title (e.g. Turbo installed)" style="margin-bottom:8px"/>
+        <textarea class="finput tl-input" id="tlBody" rows="2" placeholder="What happened? Describe the update…" style="resize:none;margin-bottom:8px"></textarea>
+        <button class="btn-primary small" id="cpAddTlBtn"><i class="fas fa-plus"></i> Add Update</button>
+      </div>
+    </div>` : ''}`;
+  const btn = el('cpAddTlBtn');
+  if (btn) btn.addEventListener('click', () => {
+    const title = el('tlTitle')?.value.trim(); if(!title) { toast('Add a title','err'); return; }
+    const body  = el('tlBody')?.value.trim();  if(!body)  { toast('Add a description','err'); return; }
+    const stored = JSON.parse(localStorage.getItem('dl_tl_'+post.id)||'[]');
+    stored.push({date:new Date().toISOString().slice(0,10),title,body,icon:'fas fa-plus',color:'#a855f7'});
+    localStorage.setItem('dl_tl_'+post.id, JSON.stringify(stored));
+    // Save to Supabase
+    DB.addTimelineEntry(post.id, title, body, new Date().toISOString().slice(0,10), 'fas fa-plus', '#a855f7').catch(()=>{});
+    cpRenderTimeline(post);
+    toast('Timeline updated','ok');
+  });
 }
 
 // ─── DIRECT MESSAGES ──────────────────────────────────────────
@@ -4637,7 +4562,7 @@ function submitReport() {
     ).catch(()=>{});
   });
   el('reportModal').classList.remove('open');
-  toast('Report submitted — thank you 🙏', 'ok');
+  toast('Report submitted — thank you', 'ok');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -5017,7 +4942,7 @@ function enterChallenge(ch) {
       entries.push({ challengeId:ch.id, postId:post.id, user:S.user.username, ts:Date.now() });
       localStorage.setItem('dl_challenge_entries', JSON.stringify(entries));
       picker.remove();
-      toast(`"${post.title}" entered into the challenge! 🏆`,'ok');
+      toast(`"${post.title}" entered into the challenge`,'ok');
       renderChallenges();
     });
   });

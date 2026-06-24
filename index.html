@@ -698,23 +698,57 @@
                 <button type="button" class="post-cat-pill" data-cat="JDM"><i class="fas fa-sun pill-icon"></i>JDM</button>
                 <button type="button" class="post-cat-pill" data-cat="Euro"><i class="fas fa-compass pill-icon"></i>Euro</button>
                 <button type="button" class="post-cat-pill" data-cat="Muscle"><i class="fas fa-bolt pill-icon"></i>Muscle</button>
-                <button type="button" class="post-cat-pill" data-cat="Classic"><i class="fas fa-star pill-icon"></i>Classic</button>
-                <button type="button" class="post-cat-pill" data-cat="Off-Road"><i class="fas fa-mountain pill-icon"></i>Off-Road</button>
-                <button type="button" class="post-cat-pill" data-cat="Collector"><i class="fas fa-gem pill-icon"></i>Collector</button>
                 <button type="button" class="post-cat-pill" data-cat="Sports Car"><i class="fas fa-car pill-icon"></i>Sports Car</button>
-                <button type="button" class="post-cat-pill" data-cat="Truck"><i class="fas fa-truck-pickup pill-icon"></i>Truck</button>
-                <button type="button" class="post-cat-pill" data-cat="SUV"><i class="fas fa-car-side pill-icon"></i>SUV</button>
-                <button type="button" class="post-cat-pill" data-cat="Drift"><i class="fas fa-wind pill-icon"></i>Drift</button>
-                <button type="button" class="post-cat-pill" data-cat="Track"><i class="fas fa-flag-checkered pill-icon"></i>Track</button>
-                <button type="button" class="post-cat-pill" data-cat="Drag"><i class="fas fa-tachometer-alt pill-icon"></i>Drag</button>
-                <button type="button" class="post-cat-pill" data-cat="Electric"><i class="fas fa-plug pill-icon"></i>Electric</button>
+                <button type="button" class="post-cat-pill" data-cat="GT"><i class="fas fa-road pill-icon"></i>GT</button>
                 <button type="button" class="post-cat-pill" data-cat="Supercar"><i class="fas fa-rocket pill-icon"></i>Supercar</button>
                 <button type="button" class="post-cat-pill" data-cat="Hypercar"><i class="fas fa-rocket pill-icon"></i>Hypercar</button>
+                <button type="button" class="post-cat-pill" data-cat="Classic"><i class="fas fa-star pill-icon"></i>Classic</button>
+                <button type="button" class="post-cat-pill" data-cat="Vintage"><i class="fas fa-history pill-icon"></i>Vintage</button>
+                <button type="button" class="post-cat-pill" data-cat="Retro"><i class="fas fa-clock pill-icon"></i>Retro</button>
+                <button type="button" class="post-cat-pill" data-cat="Cult Classic"><i class="fas fa-certificate pill-icon"></i>Cult Classic</button>
+                <button type="button" class="post-cat-pill" data-cat="Hatch"><i class="fas fa-car-side pill-icon"></i>Hatch</button>
+                <button type="button" class="post-cat-pill" data-cat="Tuner"><i class="fas fa-wrench pill-icon"></i>Tuner</button>
+                <button type="button" class="post-cat-pill" data-cat="Luxury"><i class="fas fa-gem pill-icon"></i>Luxury</button>
+                <button type="button" class="post-cat-pill" data-cat="Saloon"><i class="fas fa-car pill-icon"></i>Saloon</button>
+                <button type="button" class="post-cat-pill" data-cat="SUV"><i class="fas fa-car-side pill-icon"></i>SUV</button>
+                <button type="button" class="post-cat-pill" data-cat="Truck"><i class="fas fa-truck-pickup pill-icon"></i>Truck</button>
+                <button type="button" class="post-cat-pill" data-cat="Utility"><i class="fas fa-tools pill-icon"></i>Utility</button>
+                <button type="button" class="post-cat-pill" data-cat="Electric"><i class="fas fa-plug pill-icon"></i>Electric</button>
+                <button type="button" class="post-cat-pill" data-cat="Off-Road"><i class="fas fa-mountain pill-icon"></i>Off-Road</button>
+                <button type="button" class="post-cat-pill" data-cat="Rally"><i class="fas fa-map-signs pill-icon"></i>Rally</button>
+                <button type="button" class="post-cat-pill" data-cat="Drift"><i class="fas fa-wind pill-icon"></i>Drift</button>
+                <button type="button" class="post-cat-pill" data-cat="Track"><i class="fas fa-flag-checkered pill-icon"></i>Track</button>
+                <button type="button" class="post-cat-pill" data-cat="Race"><i class="fas fa-trophy pill-icon"></i>Race</button>
+                <button type="button" class="post-cat-pill" data-cat="Drag"><i class="fas fa-tachometer-alt pill-icon"></i>Drag</button>
+                <button type="button" class="post-cat-pill" data-cat="Collector"><i class="fas fa-crown pill-icon"></i>Collector</button>
+              </div>
+              <div class="post-cat-limit-note" id="postCatLimitNote" style="display:none">
+                <i class="fas fa-info-circle"></i> Maximum 5 categories selected
               </div>
               <!-- Hidden input to hold selected value for JS compat -->
               <input type="hidden" id="postCategory" value=""/>
             </div>
             <input class="finput" type="text" id="postHP" placeholder="Power output (e.g. 450whp, 520hp)" style="margin-top:12px"/>
+            <div class="frow two" style="margin-top:10px;gap:10px">
+              <input class="finput" type="text" id="postEngineSize" placeholder="Engine size (e.g. 5.7L, 2.0L)"/>
+              <select class="finput" id="postEngineConfig">
+                <option value="">— Engine Config —</option>
+                <option>Inline-4 (I4)</option>
+                <option>Inline-6 (I6)</option>
+                <option>V6</option>
+                <option>V8</option>
+                <option>V10</option>
+                <option>V12</option>
+                <option>V16</option>
+                <option>Flat-4 (H4)</option>
+                <option>Flat-6 (H6)</option>
+                <option>Rotary</option>
+                <option>Straight-8</option>
+                <option>Electric Motor</option>
+                <option>Hybrid</option>
+                <option>Other</option>
+              </select>
+            </div>
             <div class="frow two" style="margin-top:12px;gap:10px">
               <select class="finput" id="postTransmission">
                 <option value="">— Transmission —</option>
