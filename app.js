@@ -625,6 +625,13 @@ function hideSignupNudge() {
 
 // ─── MOBILE NAV ───────────────────────────────────────────────
 function initMobileNav() {
+  // Fix iOS 100vh bug — keyboard pushes viewport, --vh stays stable
+  function setVh() {
+    document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+  }
+  setVh();
+  window.addEventListener('resize', setVh);
+  window.addEventListener('orientationchange', () => setTimeout(setVh, 200));
   function openMobNav() {
     el('mobNav') && el('mobNav').classList.add('open');
     el('mobOverlay') && el('mobOverlay').classList.add('open');

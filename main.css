@@ -5970,14 +5970,7 @@ body:not(.dark) .save-btn {
 .msg-chat-col:not(.active) {
   display: none !important;
 }
-/* On desktop always show chat col placeholder */
-@media(min-width:769px) {
-  .msg-chat-col {
-    /* display controlled by JS and .active class */
-    flex-direction: column;
-  }
-  .msg-chat-col.active { display: flex !important; }
-}
+/* msg-chat-col desktop display — see mobile polish block at bottom */
 
 /* ═══════════════════════════════════════════════════════════════
    HERO2 FEATURED MEMBERS — inline row layout
@@ -6077,39 +6070,7 @@ body:not(.dark) .save-btn {
   display: none !important;
 }
 
-/* Chat column — flex but NOT fixed */
-.msg-chat-col {
-  /* display controlled by JS and .active class */
-  flex-direction: column !important;
-  overflow: hidden !important;
-  position: relative !important; /* NOT fixed */
-  min-height: 0;
-  height: auto !important;
-}
 
-/* On mobile, chat col is hidden until opened */
-@media(max-width:768px) {
-  .msg-wrap {
-    grid-template-columns: 1fr !important;
-  }
-  .msg-chat-col {
-    display: none !important;
-    position: relative !important; /* still not fixed */
-    inset: auto !important;
-    z-index: auto !important;
-  }
-  .msg-chat-col.active {
-    display: flex !important;
-  }
-  .msg-back-btn {
-    display: flex !important;
-  }
-}
-@media(min-width:769px) {
-  .msg-back-btn {
-    display: none !important;
-  }
-}
 
 /* ═══════════════════════════════════════════════════════════════
    EXPLORE PAGE
@@ -6539,4 +6500,274 @@ body:not(.dark) .save-btn {
   .exp-help-inner { padding: 36px 20px 60px; }
   .exp-merch-hero-inner { padding: 0 20px; }
   .exp-contact-inner { flex-direction: column; text-align: center; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE POLISH — comprehensive pass
+   Fixes: iOS safe area, keyboard push, messages layout,
+   social page, profile, modals, car page, tap targets
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 1. iOS safe area — apply to anything that sits at the bottom ── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .mob-nav         { padding-bottom: env(safe-area-inset-bottom); }
+  .msg-input-row   { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .filter-sidebar  { padding-bottom: env(safe-area-inset-bottom); }
+  .toast           { bottom: calc(80px + env(safe-area-inset-bottom)); }
+  body             { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* ── 2. Messages — fix desktop display + mobile keyboard push ── */
+/* Desktop: chat col must be flex by default */
+.msg-chat-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  background: var(--bg);
+}
+/* Mobile overrides */
+@media (max-width: 768px) {
+  .msg-wrap {
+    grid-template-columns: 1fr;
+    height: calc(100dvh - 56px);
+    height: calc(var(--vh, 1vh) * 100 - 56px); /* fallback for older iOS */
+    position: relative;
+  }
+  .msg-list-col {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+  }
+  .msg-list-col.msg-hide-list { display: none !important; }
+  /* Chat col hidden by default on mobile, shown when .active */
+  .msg-chat-col {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    height: 100%;
+  }
+  .msg-chat-col.active { display: flex; }
+  .msg-chat-body { padding: 10px 12px; }
+  .msg-input-row { padding: 8px 10px; }
+  /* Bubbles wider on small screens */
+  .msg-bubble { max-width: 82%; }
+  .msg-bubble-group { max-width: 82%; }
+  /* Back button visible */
+  .msg-back-btn { display: flex !important; }
+  /* Larger tap targets for conversation list */
+  .msg-conv-item { padding: 14px 16px; min-height: 64px; }
+}
+
+/* ── 3. Social page — mobile feed improvements ── */
+@media (max-width: 768px) {
+  .social-layout {
+    grid-template-columns: 1fr;
+    padding: 0 0 80px; /* room for nav */
+    gap: 0;
+  }
+  .social-sidebar-col { display: none; }
+  .social-feed-header {
+    position: sticky;
+    top: 56px; /* below main nav */
+    z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 14px 0;
+    margin-bottom: 0;
+  }
+  .social-feed-title { font-size: 1.1rem; margin-bottom: 8px; }
+  .social-feed-tabs { gap: 4px; }
+  .soc-tab { font-size: .78rem; padding: 6px 12px; }
+  .social-search-bar { margin: 8px 14px; }
+  .social-posts-wrap { padding: 0; }
+  /* Cards edge-to-edge on mobile */
+  .social-post-card {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    margin-bottom: 8px;
+  }
+  /* Media fills full width */
+  .social-post-media { max-height: 400px; }
+  video.social-post-media { max-height: 360px; }
+  /* Post head padding */
+  .social-post-head { padding: 10px 14px; }
+  .social-post-caption { padding: 0 14px 6px; }
+  .social-post-actions { padding: 4px 10px 10px; }
+  /* Comment section */
+  .social-comment-input { padding: 8px 14px 12px; }
+  /* Upload button smaller */
+  .social-upload-btn { padding: 6px 12px; font-size: .8rem; }
+}
+
+/* ── 4. Profile page — consolidate conflicting mobile rules ── */
+@media (max-width: 768px) {
+  .profile-header-wrap { min-height: 140px; }
+  .profile-header-inner {
+    padding: 0 14px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .profile-header-left { flex-direction: row; align-items: center; gap: 14px; }
+  .profile-header-right { width: 100%; }
+  .profile-header-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-bottom: 14px;
+  }
+  .profile-body { padding: 20px 14px 60px; }
+  /* Avatar smaller on mobile */
+  #profileAv { width: 68px !important; height: 68px !important; font-size: 1.4rem !important; }
+  .profile-name { font-size: 1.2rem; }
+  .profile-stats { gap: 12px; }
+  .pstat-n { font-size: 1.3rem; }
+  /* Builds grid 2 columns on mobile */
+  #profileGrid.card-grid { grid-template-columns: 1fr 1fr !important; gap: 10px; }
+}
+@media (max-width: 420px) {
+  #profileGrid.card-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── 5. Car page — gallery thumb strip, touch targets ── */
+@media (max-width: 768px) {
+  .car-layout { grid-template-columns: 1fr; }
+  .car-left { border-radius: var(--r-xl) var(--r-xl) 0 0; }
+  .car-gallery-main { min-height: 260px; max-height: 340px; }
+  /* Bigger thumb targets */
+  .car-gallery-strip { gap: 6px; padding: 8px; }
+  .car-gallery-thumb {
+    width: 56px !important;
+    height: 56px !important;
+    min-width: 56px;
+    border-radius: 6px;
+  }
+  /* Car info section */
+  .car-right { max-height: none; padding: 0; }
+  .car-page-details { padding: 16px 14px 4px; }
+  /* Action buttons stack on small screens */
+  .car-actions { flex-wrap: wrap; gap: 8px; }
+  .car-actions .btn-primary,
+  .car-actions .btn-ghost { flex: 1; min-width: 100px; justify-content: center; }
+}
+
+/* ── 6. Modals — prevent overflow on small screens ── */
+@media (max-width: 768px) {
+  .modal-inner,
+  .post-modal-inner,
+  .auth-inner,
+  .rpt-inner,
+  .dm-new-modal-inner {
+    max-height: 90dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--r-lg) var(--r-lg) 0 0 !important;
+    margin: auto 0 0 !important; /* slide up from bottom */
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  /* Modals sit at bottom of screen on mobile (sheet style) */
+  .modal, .post-modal, .auth-modal, .rpt-modal {
+    align-items: flex-end !important;
+  }
+  /* Social upload modal */
+  #socialUploadModal .modal-inner {
+    max-height: 92dvh;
+  }
+}
+
+/* ── 7. Feed cards — 1 column on small phones ── */
+@media (max-width: 480px) {
+  .card-grid {
+    grid-template-columns: 1fr !important;
+    padding: 0 10px 60px;
+    gap: 12px;
+  }
+  .card { border-radius: var(--r-lg); }
+}
+
+/* ── 8. Hot Right Now slider — touch friendly ── */
+@media (max-width: 768px) {
+  .hot-wrap { border-radius: 0; }
+  .hot-panel { padding: 16px 0 20px; }
+  .hot-item-info { padding: 12px 14px 16px; }
+  .hot-item-title { font-size: 1rem; }
+  /* Nav dots bigger tap target */
+  .hot-dot { width: 10px; height: 10px; }
+}
+
+/* ── 9. Filter bar — horizontal scroll on mobile ── */
+@media (max-width: 768px) {
+  .filter-bar { padding: 0; }
+  .filter-scroll { padding: 7px 14px; gap: 6px; }
+  .filter-pill { font-size: .72rem; padding: 5px 12px; white-space: nowrap; }
+}
+
+/* ── 10. Notifications dropdown — full width on phones ── */
+@media (max-width: 480px) {
+  .notif-drop {
+    width: calc(100vw - 20px) !important;
+    right: -10px !important;
+    left: auto !important;
+  }
+}
+
+/* ── 11. Search overlay — full screen on mobile ── */
+@media (max-width: 768px) {
+  .search-inner {
+    padding: 20px 16px;
+    max-width: 100%;
+    width: 100%;
+  }
+  .search-bar input { font-size: 16px; } /* prevent iOS zoom */
+  .sr-item { padding: 10px 12px; min-height: 52px; }
+}
+
+/* ── 12. Leaderboard — stack on mobile ── */
+@media (max-width: 600px) {
+  .lb-tabs { flex-wrap: wrap; gap: 4px; }
+  .lb-tab  { font-size: .72rem; padding: 6px 10px; }
+  .lb-row  { gap: 10px; padding: 10px 12px; }
+  .lb-standalone-section { padding: 0 10px; }
+}
+
+/* ── 13. General tap target enforcement ── */
+@media (max-width: 768px) {
+  /* All buttons/links at least 44px tall for WCAG */
+  button, .btn-primary, .btn-ghost, .mob-link, .nav-link {
+    min-height: 44px;
+  }
+  /* Exception: small pill-style buttons */
+  .btn-primary.small, .btn-ghost.small,
+  .filter-pill, .soc-tab, .lb-tab, .post-cat-pill {
+    min-height: unset;
+  }
+  /* Inputs don't zoom on iOS */
+  input, select, textarea { font-size: 16px !important; }
+  /* No horizontal overflow anywhere */
+  .page { overflow-x: hidden; max-width: 100vw; }
+}
+
+/* ── 14. Garage page — tabs scroll on mobile ── */
+@media (max-width: 600px) {
+  .garage-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+  }
+  .garage-tabs::-webkit-scrollbar { display: none; }
+  .garage-tab { white-space: nowrap; font-size: .78rem; padding: 7px 14px; }
+}
+
+/* ── 15. Admin panel — table scroll on mobile ── */
+@media (max-width: 768px) {
+  .admin-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .admin-table { min-width: 600px; }
+  .admin-tabs { flex-wrap: wrap; gap: 6px; }
 }
