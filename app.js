@@ -69,13 +69,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   // If we have cached posts, hide loader now and refresh in background
   if (S.posts.length > 0) {
     hideBootLoader();
+    handleUrlParams(); // check ?user= / ?post= immediately with cached data
     loadStorage().then(() => {
       renderAll(); updateAuthUI(); updateNotifBadge();
       if (S.user) setupRealtimeSubscriptions();
+      handleUrlParams(); // re-run with fresh Supabase data in case post wasn't cached
     }).catch(() => {});
   } else {
     // No cache — keep loader visible, wait for Supabase
-    // Safety: hide after 6s no matter what
     const fallback = setTimeout(() => hideBootLoader(), 6000);
     try {
       await loadStorage();
@@ -87,6 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     hideBootLoader();
     renderAll(); updateAuthUI(); updateNotifBadge();
     if (S.user) setupRealtimeSubscriptions();
+    handleUrlParams(); // check ?user= / ?post= after fresh load
   }
 });
 
@@ -233,7 +235,10 @@ async function loadStorage() {
   DB.getAllProfiles().then(profiles => {
     if (!profiles?.length) return;
     S.users = profiles.map(dbUserToApp).filter(Boolean);
-    S.users.forEach(u => { if (u.avatarUrl) cacheAvatarUrl(u.username, u.avatarUrl); });
+    // Cache all avatar URLs immediately — this is what makes cross-device avatars work
+    S.users.forEach(u => {
+      if (u.avatarUrl) cacheAvatarUrl(u.username, u.avatarUrl);
+    });
     try {
       const fl = JSON.parse(localStorage.getItem('dl_featured_users') || '[]');
       S.users.forEach(u => { if (fl.includes(u.username)) u.isFeatured = true; });
@@ -242,25 +247,39 @@ async function loadStorage() {
     if (S.user) {
       const fresh = S.users.find(u => u.username === S.user.username);
       if (fresh) {
-        const localAvatar = localStorage.getItem('dl_avatar_url') || S.user.avatarUrl || null;
+        // Prefer Supabase avatar_url (cross-device) over local cache
+        const supabaseAvatar = fresh.avatarUrl?.startsWith('http') ? fresh.avatarUrl : null;
+        const localAvatar    = localStorage.getItem('dl_avatar_url');
+        // Only use local if Supabase has nothing — and push it up if so
+        const resolvedAvatar = supabaseAvatar || (localAvatar?.startsWith('http') ? localAvatar : null) || localAvatar || null;
         S.user = { ...fresh, ...S.user,
-          avatarUrl: localAvatar || fresh.avatarUrl || null,
-          bio: S.user.bio || fresh.bio || '',
+          avatarUrl: resolvedAvatar,
+          bio:       S.user.bio       || fresh.bio       || '',
           instagram: S.user.instagram || fresh.instagram || '',
-          tiktok: S.user.tiktok || fresh.tiktok || '',
-          youtube: S.user.youtube || fresh.youtube || '',
-          website: S.user.website || fresh.website || '',
-          location: S.user.location || fresh.location || '',
-          id: fresh.id || S.user.id,
-          isAdmin: fresh.isAdmin || S.user.isAdmin || false,
-          awards: (fresh.awards||[]).length ? fresh.awards : (S.user.awards||[]),
+          tiktok:    S.user.tiktok    || fresh.tiktok    || '',
+          youtube:   S.user.youtube   || fresh.youtube   || '',
+          website:   S.user.website   || fresh.website   || '',
+          location:  S.user.location  || fresh.location  || '',
+          id:        fresh.id         || S.user.id,
+          isAdmin:   fresh.isAdmin    || S.user.isAdmin  || false,
+          awards:    (fresh.awards||[]).length ? fresh.awards : (S.user.awards||[]),
         };
+        // If we have a local http URL but Supabase doesn't — push it up
+        if (!supabaseAvatar && localAvatar?.startsWith('http')) {
+          DB.updateProfile(S.user.id, { avatar_url: localAvatar }).catch(() => {});
+        }
         localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
         localStorage.setItem('dl_user', JSON.stringify(S.user));
       }
     }
-    updateAuthUI(); renderFeaturedMembers(); renderMembers();
-    if (S.page === 'profile') updateProfilePage();
+    // Re-render everywhere avatars appear — feed cards, profile, members, social
+    updateAuthUI();
+    renderFeed();
+    renderFeaturedMembers();
+    renderMembers();
+    if (S.page === 'profile')   updateProfilePage();
+    if (S.page === 'social')    renderSocialFeed(true);
+    if (S.page === 'messages')  renderMessages();
   }).catch(() => {});
 
   DB.getEvents().then(evts => {
@@ -274,6 +293,27 @@ async function loadStorage() {
       if (!notifs?.length) return;
       S.notifs = notifs.map(n => ({ id:n.id, type:n.type, from:n.from_username, msg:n.message, link:n.link||null, time:new Date(n.created_at).getTime(), read:n.read }));
       updateNotifBadge();
+    }).catch(() => {});
+    // Sync unread DM counts from Supabase so badge is correct on any device/session
+    DB.getConversations(S.user.id).then(convs => {
+      if (!convs?.length) { updateDmBadge(); return; }
+      convs.forEach(conv => {
+        if (!conv.otherName || !conv.unread) return;
+        // Merge Supabase unread count into local thread
+        const key = 'dl_dm_' + [S.user.username, conv.otherName].sort().join('::');
+        const local = JSON.parse(localStorage.getItem(key) || '[]');
+        // Mark last N messages from them as unread if Supabase says there are unread ones
+        if (conv.unread > 0) {
+          let marked = 0;
+          for (let i = local.length - 1; i >= 0 && marked < conv.unread; i--) {
+            if (local[i].from !== S.user.username && local[i].read) {
+              local[i].read = false; marked++;
+            }
+          }
+          if (marked > 0) localStorage.setItem(key, JSON.stringify(local));
+        }
+      });
+      updateDmBadge();
     }).catch(() => {});
     setupRealtimeSubscriptions();
   }
@@ -625,13 +665,6 @@ function hideSignupNudge() {
 
 // ─── MOBILE NAV ───────────────────────────────────────────────
 function initMobileNav() {
-  // Fix iOS 100vh bug — keyboard pushes viewport, --vh stays stable
-  function setVh() {
-    document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
-  }
-  setVh();
-  window.addEventListener('resize', setVh);
-  window.addEventListener('orientationchange', () => setTimeout(setVh, 200));
   function openMobNav() {
     el('mobNav') && el('mobNav').classList.add('open');
     el('mobOverlay') && el('mobOverlay').classList.add('open');
@@ -1738,13 +1771,23 @@ async function submitPost() {
     const submitBtn = el('submitPost');
     if (submitBtn) { submitBtn.disabled=true; submitBtn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Uploading…'; }
 
-    // Upload images to Supabase Storage
+    // Upload images to Supabase Storage — retry once on failure
     const imageUrls = [];
-    for (let i=0; i<pendingImages.length; i++) {
-      try {
-        const res = await DB.uploadBase64(S.user.id, pendingImages[i], i);
-        imageUrls.push(res.url || pendingImages[i]);
-      } catch(_) { imageUrls.push(pendingImages[i]); }
+    for (let i = 0; i < pendingImages.length; i++) {
+      let url = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const res = await DB.uploadBase64(S.user.id, pendingImages[i], i);
+          if (res?.url && res.url.startsWith('http')) { url = res.url; break; }
+        } catch(_) {}
+      }
+      if (url) {
+        imageUrls.push(url);
+      } else {
+        // Fallback to base64 — works but hits row size limits; log for debugging
+        console.warn(`DriveLog: image ${i} fell back to base64 — check post-images bucket RLS`);
+        imageUrls.push(pendingImages[i]);
+      }
     }
 
     const postData = appPostToDb({
@@ -1952,13 +1995,20 @@ function renderTimeline(post) {
   if(btn) btn.addEventListener('click',()=>addTimelineEntry(post.id));
 }
 function addTimelineEntry(postId) {
-  const title=prompt('Update title:'); if(!title)return;
-  const body=prompt('Describe the update:'); if(!body)return;
-  const stored=JSON.parse(localStorage.getItem('dl_tl_'+postId)||'[]');
-  stored.push({date:new Date().toISOString().slice(0,10),title,body,icon:'fas fa-plus',color:'#a855f7'});
-  localStorage.setItem('dl_tl_'+postId,JSON.stringify(stored));
-  const post=S.posts.find(p=>p.id===postId); if(post)renderTimeline(post);
-  toast('Timeline updated ✓','ok');
+  const title = prompt('Update title:'); if (!title) return;
+  const body  = prompt('Describe the update:'); if (!body) return;
+  const date  = new Date().toISOString().slice(0, 10);
+  const entry = { date, title, body, icon:'fas fa-plus', color:'#a855f7' };
+  const stored = JSON.parse(localStorage.getItem('dl_tl_'+postId) || '[]');
+  stored.push(entry);
+  localStorage.setItem('dl_tl_'+postId, JSON.stringify(stored));
+  const post = S.posts.find(p => p.id === postId);
+  if (post) renderTimeline(post);
+  toast('Timeline updated ✓', 'ok');
+  // Sync to Supabase — not swallowed this time
+  DB.addTimelineEntry(postId, title, body, date, entry.icon, entry.color)
+    .then(res => { if (res?.error) console.warn('Timeline sync failed:', res.error); })
+    .catch(e  => console.warn('Timeline sync error:', e));
 }
 
 // ─── LIGHTBOX ─────────────────────────────────────────────────
@@ -3068,6 +3118,33 @@ async function viewPublicProfile(username) {
   await viewMemberProfile(username);
 }
 
+// ─── URL PARAMETER HANDLER ────────────────────────────────────
+// ?user=username  → open that profile (shareable link)
+// ?post=id        → open that build (shareable link)
+function handleUrlParams() {
+  const params    = new URLSearchParams(window.location.search);
+  const userParam = params.get('user');
+  const postParam = params.get('post');
+  if (userParam) {
+    viewMemberProfile(decodeURIComponent(userParam));
+  } else if (postParam) {
+    const local = S.posts.find(x => x.id === postParam);
+    if (local) {
+      openCarPage(local);
+    } else {
+      DB.getPost(postParam).then(row => {
+        if (row) {
+          const p = dbPostToApp(row);
+          if (p) { S.posts.unshift(p); openCarPage(p); }
+          else toast('Build not found', 'err');
+        } else {
+          toast('Build not found', 'err');
+        }
+      }).catch(() => toast('Could not load build', 'err'));
+    }
+  }
+}
+
 function buildSocialLinks(u) {
   return [
     u.instagram?`<a class="prof-social ig" href="https://instagram.com/${u.instagram}" target="_blank" rel="noopener"><i class="fab fa-instagram"></i> @${u.instagram}</a>`:'',
@@ -3358,25 +3435,25 @@ function toast(msg,type=''){
 // Returns the avatar URL for a user if they have one, otherwise null
 function getAvatarUrl(username) {
   if (!username) return null;
-  // 1. S.users (from Supabase) — most authoritative for cross-device
+  // 1. S.users populated from Supabase — most authoritative, cross-device
   const u = S.users.find(x => x.username === username);
-  if (u?.avatarUrl && u.avatarUrl.startsWith('http')) return u.avatarUrl;
-  // 2. Own user object
+  if (u?.avatarUrl?.startsWith('http')) return u.avatarUrl;
+  // 2. Own user object (has the freshest URL after upload)
   if (S.user?.username === username && S.user.avatarUrl?.startsWith('http')) return S.user.avatarUrl;
-  // 3. Local avatar_url key (set right after upload on this device)
+  // 3. Per-user avatar cache (populated from Supabase after getAllProfiles)
+  try {
+    const cache = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
+    if (cache[username]?.startsWith('http')) return cache[username];
+  } catch(_) {}
+  // 4. Own device upload URL (only valid on this device, but better than nothing)
   if (S.user?.username === username) {
     const local = localStorage.getItem('dl_avatar_url');
     if (local?.startsWith('http')) return local;
+    if (local?.startsWith('data:')) return local; // show locally while Supabase upload is in-flight
   }
-  // 4. Per-user avatar cache
-  try {
-    const cache = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
-    const cached = cache[username];
-    if (cached?.startsWith('http')) return cached;
-  } catch(_) {}
-  // 5. Any URL even non-http
+  // 5. Any non-null URL on the user object as last resort
   if (u?.avatarUrl) return u.avatarUrl;
-  return null; // null = use default grey SVG avatar
+  return null;
 }
 
 // Called when we know an avatar URL — cache it for instant display
@@ -3451,14 +3528,9 @@ function initCarPage() {
 
 async function openCarPage(post) {
   S._prevPage   = S.page;
-  // Clear stale content from any previously-viewed post BEFORE the page
-  // becomes visible, so nothing flashes for a frame (e.g. old category tag)
   if (el('cpCat')) el('cpCat').innerHTML = '';
   if (el('cpTitle')) el('cpTitle').textContent = '';
   if (el('cpGallMain')) el('cpGallMain').innerHTML = '';
-  // Show page immediately with cached data. Keep the cached comment COUNT
-  // (from the feed's relational query) so the tab/counter shows a real
-  // number right away, even though the full comment list isn't loaded yet.
   const cachedCommentCount = (post.comments || []).length;
   const freshPost = { ...post, comments: Array(cachedCommentCount).fill(null) };
   S.openCarPost = freshPost;
@@ -3467,6 +3539,10 @@ async function openCarPage(post) {
   renderCarPage(freshPost);
   setMetaTags(freshPost.title, freshPost.desc, freshPost.images?.[0]);
   setTimeout(() => addCostTab(freshPost), 50);
+  // Set shareable URL for this build
+  try {
+    window.history.pushState({ page: 'car', postId: post.id }, '', `${window.location.pathname}?post=${encodeURIComponent(post.id)}`);
+  } catch(_) {}
 
   const targetPostId = post.id;
 
@@ -4079,40 +4155,69 @@ function renderCpVideos(post) {
   });
 }
 
-function cpRenderTimeline(post) {
-  const all = [...(SEED_TIMELINES[post.id]||[]), ...JSON.parse(localStorage.getItem('dl_tl_'+post.id)||'[]')];
+async function cpRenderTimeline(post) {
   const wrap = el('cpTimelineContent');
+  if (!wrap) return;
   const isOwner = S.user && post.user === S.user.username;
-  wrap.innerHTML = `
-    ${all.length ? `<div class="timeline">${all.map((e,i)=>`
-      <div class="tl-item${i===all.length-1?' last':''}">
-        <div class="tl-left"><div class="tl-dot" style="background:${e.color||'#a855f7'}"><i class="${e.icon||'fas fa-circle'}" style="font-size:.5rem"></i></div>${i<all.length-1?'<div class="tl-line"></div>':''}</div>
-        <div class="tl-right">
-          <div class="tl-date">${e.date}</div>
-          <div class="tl-title">${esc(e.title)}</div>
-          <p class="tl-body">${esc(e.body)}</p>
+  const local = [...(SEED_TIMELINES[post.id]||[]), ...JSON.parse(localStorage.getItem('dl_tl_'+post.id)||'[]')];
+
+  function renderEntries(entries) {
+    const sorted = [...entries].sort((a,b) => new Date(a.date) - new Date(b.date));
+    wrap.innerHTML = sorted.length
+      ? `<div class="timeline">${sorted.map((e,i) => `
+        <div class="tl-item${i===sorted.length-1?' last':''}">
+          <div class="tl-left">
+            <div class="tl-dot" style="background:${e.color||'#a855f7'}"><i class="${e.icon||'fas fa-circle'}" style="font-size:.5rem"></i></div>
+            ${i<sorted.length-1?'<div class="tl-line"></div>':''}
+          </div>
+          <div class="tl-right">
+            <div class="tl-date">${e.date}</div>
+            <div class="tl-title">${esc(e.title)}</div>
+            <p class="tl-body">${esc(e.body)}</p>
+          </div>
+        </div>`).join('')}</div>`
+      : '<p class="no-timeline"><i class="fas fa-history" style="margin-right:6px"></i>No build timeline yet.</p>';
+    wrap.innerHTML += isOwner ? `
+      <div class="tl-add-form" id="tlAddForm">
+        <div class="tl-add-row">
+          <input class="finput tl-input" id="tlTitle" placeholder="Update title (e.g. Turbo installed)" style="margin-bottom:8px"/>
+          <textarea class="finput tl-input" id="tlBody" rows="2" placeholder="What happened?" style="resize:none;margin-bottom:8px"></textarea>
+          <button class="btn-primary small" id="cpAddTlBtn"><i class="fas fa-plus"></i> Add Update</button>
         </div>
-      </div>`).join('')}</div>` : '<p class="no-timeline"><i class="fas fa-history" style="margin-right:6px"></i>No build timeline yet.</p>'}
-    ${isOwner ? `
-    <div class="tl-add-form" id="tlAddForm">
-      <div class="tl-add-row">
-        <input class="finput tl-input" id="tlTitle" placeholder="Update title (e.g. Turbo installed)" style="margin-bottom:8px"/>
-        <textarea class="finput tl-input" id="tlBody" rows="2" placeholder="What happened? Describe the update…" style="resize:none;margin-bottom:8px"></textarea>
-        <button class="btn-primary small" id="cpAddTlBtn"><i class="fas fa-plus"></i> Add Update</button>
-      </div>
-    </div>` : ''}`;
-  const btn = el('cpAddTlBtn');
-  if (btn) btn.addEventListener('click', () => {
-    const title = el('tlTitle')?.value.trim(); if(!title) { toast('Add a title','err'); return; }
-    const body  = el('tlBody')?.value.trim();  if(!body)  { toast('Add a description','err'); return; }
-    const stored = JSON.parse(localStorage.getItem('dl_tl_'+post.id)||'[]');
-    stored.push({date:new Date().toISOString().slice(0,10),title,body,icon:'fas fa-plus',color:'#a855f7'});
-    localStorage.setItem('dl_tl_'+post.id, JSON.stringify(stored));
-    // Save to Supabase
-    DB.addTimelineEntry(post.id, title, body, new Date().toISOString().slice(0,10), 'fas fa-plus', '#a855f7').catch(()=>{});
-    cpRenderTimeline(post);
-    toast('Timeline updated ✓','ok');
-  });
+      </div>` : '';
+    const btn = el('cpAddTlBtn');
+    if (btn) btn.addEventListener('click', async () => {
+      const title = el('tlTitle')?.value.trim(); if (!title) { toast('Add a title','err'); return; }
+      const body  = el('tlBody')?.value.trim();  if (!body)  { toast('Add a description','err'); return; }
+      const date  = new Date().toISOString().slice(0,10);
+      const entry = { date, title, body, icon:'fas fa-plus', color:'#a855f7' };
+      const stored = JSON.parse(localStorage.getItem('dl_tl_'+post.id)||'[]');
+      stored.push(entry);
+      localStorage.setItem('dl_tl_'+post.id, JSON.stringify(stored));
+      const res = await DB.addTimelineEntry(post.id, title, body, date, entry.icon, entry.color).catch(() => null);
+      if (res?.error) console.warn('Timeline sync failed:', res.error);
+      renderEntries(stored);
+      toast('Timeline updated ✓', 'ok');
+    });
+  }
+
+  renderEntries(local);
+
+  try {
+    const sbEntries = await DB.getTimeline(post.id);
+    if (sbEntries && sbEntries.length) {
+      let changed = false;
+      sbEntries.forEach(se => {
+        if (!local.find(l => l.title === se.title && l.date === se.date)) {
+          local.push(se); changed = true;
+        }
+      });
+      if (changed) {
+        localStorage.setItem('dl_tl_'+post.id, JSON.stringify(local));
+        renderEntries(local);
+      }
+    }
+  } catch(e) { console.warn('Timeline fetch failed:', e); }
 }
 
 // ─── DIRECT MESSAGES ──────────────────────────────────────────
