@@ -2478,13 +2478,13 @@ function recalcUserLikes(username) {
   if (u) u.totalLikes = total;
   // Update S.user if it's their own likes
   if (S.user?.username === username) S.user.totalLikes = total;
-  // Persist to Supabase profiles table
   const uid = u?.id || (S.user?.username === username ? S.user.id : null);
   if (uid) DB.updateProfile(uid, { total_likes: total }).catch(() => {});
-  // Re-render sidebar so top members list updates live
   renderSidebar();
   animateStats();
 }
+
+function renderSidebar() {
   const top5=[...S.posts].sort((a,b)=>b.likes-a.likes).slice(0,5);
   el('trendingList').innerHTML=top5.map((p,i)=>{
     const img=p.images?.[0];
