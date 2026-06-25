@@ -6712,3 +6712,130 @@ body:not(.dark) .save-btn {
   gap: 8px;
   align-items: center;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   TIMELINE — INLINE ADD FORM
+   ═══════════════════════════════════════════════════════════════ */
+.tl-add-form {
+  background: var(--card);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  margin-bottom: 20px;
+  animation: slideUp .2s ease;
+}
+.tl-add-title {
+  font-family: var(--cond); font-size: .78rem; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 10px;
+}
+.tl-add-inp {
+  width: 100%; padding: 9px 12px;
+  background: var(--raised); border: 1px solid var(--border);
+  border-radius: var(--r-sm); color: var(--text);
+  font-family: 'Inter', var(--body); font-size: .86rem;
+  outline: none; transition: border-color var(--tr);
+  margin-bottom: 8px; display: block;
+}
+.tl-add-inp:focus { border-color: var(--accent); }
+.tl-add-body { resize: vertical; min-height: 64px; }
+.tl-add-actions { display: flex; gap: 8px; margin-top: 4px; }
+.add-tl-btn { margin-top: 12px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE POLISH SWEEP
+   ═══════════════════════════════════════════════════════════════ */
+@media(max-width:768px) {
+  /* Prevent card stagger from breaking single-column mobile */
+  .card-grid .card:nth-child(7n+1) { grid-column: span 1 !important; }
+  .card-grid .card:nth-child(7n+1) .card-img { aspect-ratio: 16/10 !important; }
+
+  /* Leaderboard tabs scroll on mobile */
+  .lb-tabs {
+    overflow-x: auto; flex-wrap: nowrap;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .lb-tabs::-webkit-scrollbar { display: none; }
+
+  /* Car page — stack actions */
+  .car-page-actions { flex-wrap: wrap; gap: 6px; }
+  .act-btn { font-size: .76rem; padding: 7px 10px; }
+
+  /* Notification dropdown — full width on mobile */
+  .notif-drop {
+    right: -60px !important;
+    width: calc(100vw - 20px) !important;
+  }
+
+  /* Search overlay — proper mobile sizing */
+  .search-overlay { padding: 54px 12px 20px !important; }
+
+  /* Feed filter bar — smaller on mobile */
+  .filter-bar { padding: 8px 12px; gap: 6px; }
+  .fpill { padding: 5px 13px; font-size: .74rem; }
+
+  /* Post form — full width inputs */
+  .post-form-grid { grid-template-columns: 1fr !important; }
+  .post-page-left, .post-page-right { padding: 14px !important; }
+
+  /* Members page */
+  .members-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+
+  /* Social page sidebar — hide on mobile, show only feed */
+  .social-sidebar-col { display: none; }
+  .social-feed-col { max-width: 100% !important; }
+
+  /* Profile actions — stack on small screens */
+  .profile-header-actions { flex-wrap: wrap !important; }
+
+  /* Messages back button */
+  .msg-back-btn { display: flex !important; }
+}
+
+@media(max-width:480px) {
+  /* Very small screens */
+  .members-grid { grid-template-columns: 1fr !important; }
+  .hero-stats { display: none; } /* hide stats on tiny screens, sidebar covers it */
+  .sort-btns { flex-wrap: wrap; gap: 4px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MESSAGES — back button on mobile
+   ═══════════════════════════════════════════════════════════════ */
+#msgBackBtn {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: .88rem;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  transition: color var(--tr);
+}
+#msgBackBtn:hover { color: var(--text); }
+@media(max-width:768px) {
+  #msgBackBtn { display: flex; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GENERAL POLISH
+   ═══════════════════════════════════════════════════════════════ */
+/* Smooth page transitions */
+.page.active { animation: fadeInPage .18s ease; }
+@keyframes fadeInPage { from { opacity: .7; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* Better empty states */
+.no-timeline { color: var(--muted); font-size: .88rem; padding: 20px 0; }
+
+/* Link text helper */
+.link-text {
+  color: var(--accent); cursor: pointer; text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link-text:hover { opacity: .8; }
+
+/* Profile share button */
+#profileShareBtn:active { transform: scale(.95); }

@@ -2031,26 +2031,111 @@ function submitComment() {
   pushNotif('comment',S.user.username,`commented on <b>${post.title}</b>`,'post:'+post.id); save();
 }
 function renderTimeline(post) {
-  const all=[...(SEED_TIMELINES[post.id]||[]),...JSON.parse(localStorage.getItem('dl_tl_'+post.id)||'[]')];
-  const wrap=el('timelineContent');
-  if(!all.length){wrap.innerHTML='<p class="no-timeline">No build timeline yet.</p>'; return;}
-  wrap.innerHTML=`<div class="timeline">${all.map((e,i)=>`
-    <div class="tl-item${i===all.length-1?' last':''}">
-      <div class="tl-left"><div class="tl-dot" style="background:${e.color||'#555'}"><i class="${e.icon||'fas fa-circle'}" style="font-size:.5rem"></i></div>${i<all.length-1?'<div class="tl-line"></div>':''}</div>
-      <div class="tl-right"><div class="tl-date">${e.date}</div><div class="tl-title">${esc(e.title)}</div><p class="tl-body">${esc(e.body)}</p></div>
-    </div>`).join('')}</div>
-    ${S.user&&post.user===S.user.username?`<button class="btn-ghost small add-tl-btn" id="addTlBtn"><i class="fas fa-plus"></i> Add Update</button>`:''}`;
-  const btn=el('addTlBtn');
-  if(btn) btn.addEventListener('click',()=>addTimelineEntry(post.id));
+  const wrap = el('timelineContent');
+  if (!wrap) return;
+  wrap.innerHTML = '<p class="no-timeline" style="color:var(--muted);font-size:.85rem">Loading timeline…</p>';
+
+  // Load from both localStorage and Supabase
+  loadTimeline(post).then(all => {
+    const seedEntries = SEED_TIMELINES[post.id] || [];
+    const combined = [...seedEntries, ...all].sort((a,b) => new Date(a.date)-new Date(b.date));
+    if (!combined.length) {
+      wrap.innerHTML = `<p class="no-timeline">No build timeline yet.${S.user&&post.user===S.user.username?' Click <b>Add Update</b> to document your build journey.':''}</p>
+        ${S.user&&post.user===S.user.username?`<button class="btn-ghost small add-tl-btn" id="addTlBtn" style="margin-top:12px"><i class="fas fa-plus"></i> Add Update</button>`:''}`;
+    } else {
+      wrap.innerHTML = `<div class="timeline">${combined.map((e,i) => `
+        <div class="tl-item${i===combined.length-1?' last':''}">
+          <div class="tl-left">
+            <div class="tl-dot" style="background:${e.color||'#555'}"><i class="${e.icon||'fas fa-circle'}" style="font-size:.5rem"></i></div>
+            ${i<combined.length-1?'<div class="tl-line"></div>':''}
+          </div>
+          <div class="tl-right">
+            <div class="tl-date">${e.date}</div>
+            <div class="tl-title">${esc(e.title)}</div>
+            ${e.body?`<p class="tl-body">${esc(e.body)}</p>`:''}
+          </div>
+        </div>`).join('')}</div>
+        ${S.user&&post.user===S.user.username?`<button class="btn-ghost small add-tl-btn" id="addTlBtn" style="margin-top:12px"><i class="fas fa-plus"></i> Add Update</button>`:''}`;
+    }
+    const btn = el('addTlBtn');
+    if (btn) btn.addEventListener('click', () => addTimelineEntry(post.id));
+  });
 }
 function addTimelineEntry(postId) {
-  const title=prompt('Update title:'); if(!title)return;
-  const body=prompt('Describe the update:'); if(!body)return;
-  const stored=JSON.parse(localStorage.getItem('dl_tl_'+postId)||'[]');
-  stored.push({date:new Date().toISOString().slice(0,10),title,body,icon:'fas fa-plus',color:'#a855f7'});
-  localStorage.setItem('dl_tl_'+postId,JSON.stringify(stored));
-  const post=S.posts.find(p=>p.id===postId); if(post)renderTimeline(post);
-  toast('Timeline updated ✓','ok');
+  if (!S.user) { toast('Sign in to add timeline entries','err'); return; }
+  // Check ownership
+  const post = S.posts.find(p=>p.id===postId);
+  if (!post || post.user !== S.user.username) { toast('You can only edit your own timeline','err'); return; }
+
+  // Use a clean inline form instead of browser prompt()
+  const content = el('timelineContent');
+  if (!content) return;
+
+  // If form already open, close it
+  if (el('tl-add-form')) { el('tl-add-form').remove(); return; }
+
+  const form = document.createElement('div');
+  form.id = 'tl-add-form';
+  form.className = 'tl-add-form';
+  form.innerHTML = `
+    <div class="tl-add-inner">
+      <h4 class="tl-add-title">Add Build Update</h4>
+      <input id="tl-add-title-inp" class="tl-add-inp" placeholder="Update title (e.g. Turbo installed)" maxlength="80"/>
+      <textarea id="tl-add-body-inp" class="tl-add-inp tl-add-body" placeholder="Describe what changed, cost, notes…" rows="3"></textarea>
+      <input id="tl-add-date-inp" class="tl-add-inp" type="date" value="${new Date().toISOString().slice(0,10)}"/>
+      <div class="tl-add-actions">
+        <button class="btn-primary small" id="tl-add-save"><i class="fas fa-plus"></i> Add Update</button>
+        <button class="btn-ghost small" id="tl-add-cancel">Cancel</button>
+      </div>
+    </div>`;
+  content.insertBefore(form, content.firstChild);
+
+  el('tl-add-cancel').addEventListener('click', () => form.remove());
+  el('tl-add-save').addEventListener('click', async () => {
+    const title = el('tl-add-title-inp').value.trim();
+    const body  = el('tl-add-body-inp').value.trim();
+    const date  = el('tl-add-date-inp').value || new Date().toISOString().slice(0,10);
+    if (!title) { toast('Add a title','err'); return; }
+
+    const entry = { date, title, body, icon:'fas fa-wrench', color:'#a855f7' };
+
+    // Save to localStorage immediately
+    const stored = JSON.parse(localStorage.getItem('dl_tl_'+postId)||'[]');
+    stored.push(entry);
+    localStorage.setItem('dl_tl_'+postId, JSON.stringify(stored));
+
+    // Sync to Supabase in background
+    DB.addTimelineEntry(postId, title, body, date, entry.icon, entry.color)
+      .then(res => {
+        if (res?.error) console.warn('Timeline Supabase sync failed:', res.error);
+      }).catch(()=>{});
+
+    form.remove();
+    renderTimeline(post);
+    toast('Build update added ✓','ok');
+  });
+
+  // Focus title
+  setTimeout(() => el('tl-add-title-inp')?.focus(), 50);
+}
+
+// Load timeline from BOTH localStorage and Supabase
+async function loadTimeline(post) {
+  const local = JSON.parse(localStorage.getItem('dl_tl_'+post.id)||'[]');
+  // Fetch from Supabase
+  try {
+    const sbEntries = await DB.getTimeline(post.id);
+    if (sbEntries?.length) {
+      // Merge — avoid duplicates by title+date
+      sbEntries.forEach(se => {
+        const exists = local.find(l => l.date === se.date && l.title === se.title);
+        if (!exists) local.push({ date:se.date, title:se.title, body:se.body, icon:se.icon||'fas fa-wrench', color:se.color||'#a855f7' });
+      });
+      local.sort((a,b) => new Date(a.date) - new Date(b.date));
+      localStorage.setItem('dl_tl_'+post.id, JSON.stringify(local));
+    }
+  } catch(_) {}
+  return local;
 }
 
 // ─── LIGHTBOX ─────────────────────────────────────────────────
@@ -4500,9 +4585,21 @@ async function openDmWith(username) {
   msgs.forEach(m => { if(m.from !== S.user.username) m.read = true; });
   saveDmThread(username, msgs);
   updateDmBadge();
-  // Show chat window
-  el('msgNoneSelected').style.display = 'none';
-  el('msgChatWrap').style.display = 'flex';
+  // Show chat window, handle mobile layout
+  const msgNone = el('msgNoneSelected');
+  const chatWrap = el('msgChatWrap');
+  const chatCol = el('msgChatCol');
+  const listCol = el('msgListCol');
+  if (msgNone) msgNone.style.display = 'none';
+  if (chatWrap) chatWrap.style.display = 'flex';
+  // Mobile: hide list, show chat
+  if (window.innerWidth <= 768) {
+    if (listCol) listCol.classList.add('msg-hide-list');
+    if (chatCol) chatCol.classList.add('active');
+    // Show back button
+    const backBtn = el('msgBackBtn');
+    if (backBtn) backBtn.style.display = 'flex';
+  }
   const _mcu = getAvatarUrl(username);
   setAvEl(el('msgChatAv'), username);
   el('msgChatName').textContent = username;

@@ -958,21 +958,33 @@
       if (idx >= 0) { users[idx].avatarUrl = dataUrl; saveUsers(users); }
       refreshPreview();
       closeCrop();
-      toast('Profile picture saved!', 'ok');
-      localStorage.setItem('dl_avatar_url', dataUrl);
+      toast('Profile picture saving…', 'ok');
       localStorage.setItem('dl_avatar_updated', Date.now().toString());
-      // Push to Supabase Storage immediately — don't wait for app.js storage event
-      if (dataUrl.startsWith('data:') && u2.id) {
-        uploadAvatarToSupabase(u2.id, dataUrl).then(url => {
-          if (url) {
-            u2.avatarUrl = url;
-            saveUser(u2);
-            localStorage.setItem('dl_avatar_url', url);
-            localStorage.setItem('dl_avatar_updated', Date.now().toString());
-            toast('Profile picture synced ✓', 'ok');
-          }
-        }).catch(() => {});\
-      }
+      localStorage.setItem('dl_avatar_url', dataUrl);
+
+      // Upload to Supabase Storage so it works cross-device
+      (async () => {
+        const sb = getSettingsSb(); if (!sb || !u2.id) return;
+        try {
+          const arr   = dataUrl.split(',');
+          const mime  = 'image/jpeg';
+          const bstr  = atob(arr[1]);
+          const bytes = new Uint8Array(bstr.length);
+          for (let i = 0; i < bstr.length; i++) bytes[i] = bstr.charCodeAt(i);
+          const file = new File([bytes], 'avatar.jpg', { type: mime });
+          const path = `${u2.id}/avatar.jpg`;
+          const { error: upErr } = await sb.storage.from('avatars').upload(path, file, { upsert: true, contentType: mime });
+          if (upErr) { console.warn('Avatar storage upload failed:', upErr.message); return; }
+          const { data: urlData } = sb.storage.from('avatars').getPublicUrl(path);
+          const publicUrl = urlData.publicUrl;
+          // Save the real URL (not base64) to profile + localStorage
+          await sb.from('profiles').update({ avatar_url: publicUrl }).eq('id', u2.id);
+          u2.avatarUrl = publicUrl;
+          saveUser(u2);
+          localStorage.setItem('dl_avatar_url', publicUrl);
+          toast('Profile picture updated ✓', 'ok');
+        } catch(e) { console.warn('Avatar upload error:', e); }
+      })();
     });
 
     if (removeBtn) removeBtn.addEventListener('click', () => {
@@ -1016,28 +1028,6 @@
     }).eq('id', u.id).then(({ error }) => {
       if (error) console.warn('Profile push failed:', error);
     });
-  }
-
-  async function uploadAvatarToSupabase(userId, base64DataUrl) {
-    const sb = getSettingsSb(); if (!sb) return null;
-    try {
-      const arr   = base64DataUrl.split(',');
-      const mime  = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-      const bstr  = atob(arr[1]);
-      const bytes = new Uint8Array(bstr.length);
-      for (let i = 0; i < bstr.length; i++) bytes[i] = bstr.charCodeAt(i);
-      const file = new File([bytes], 'avatar.jpg', { type: mime });
-      const path = `${userId}/avatar.jpg`;
-      const { error } = await sb.storage.from('avatars').upload(path, file, { contentType: mime, upsert: true });
-      if (error) { console.warn('Avatar upload failed:', error); return null; }
-      const { data: urlData } = sb.storage.from('avatars').getPublicUrl(path);
-      const publicUrl = urlData?.publicUrl;
-      if (publicUrl) {
-        // Save URL to profiles table so other devices can read it
-        await sb.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId);
-      }
-      return publicUrl || null;
-    } catch(e) { console.warn('Avatar upload error:', e); return null; }
   }
 
   // Bio word count
