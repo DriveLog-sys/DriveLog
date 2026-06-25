@@ -2997,25 +2997,24 @@ function renderMembers() {
 async function viewMemberProfile(username) {
   S._editingPostId = null;
   if (!username) return;
-  // Update URL so this profile is shareable/linkable
+
+  // Update URL so this profile is shareable
   try {
     const url = new URL(window.location.href);
     url.searchParams.set('user', username);
     url.hash = 'profile';
     window.history.pushState({ page:'profile', user:username }, '', url.toString());
   } catch(_) {}
+
   // Find user — try local first, then Supabase
   let u = S.users.find(x => x.username === username);
   if (!u) {
-    // Not in cache yet — fetch from Supabase directly
     try {
       const profile = await DB.getProfileByUsername(username);
-      if (profile) {
-        u = dbUserToApp(profile);
-        S.users.push(u);
-      }
+      if (profile) { u = dbUserToApp(profile); S.users.push(u); }
     } catch(e) { console.warn('Profile fetch failed:', e); }
   }
+
   if (!u) {
     goTo('profile');
     const noMsg = el('noLoginMsg');
@@ -3034,81 +3033,182 @@ async function viewMemberProfile(username) {
     el('profileActions').style.display = 'none';
     return;
   }
-  // u is already declared above
-  const posts=S.posts.filter(p=>p.user===username);
-  const likes=posts.reduce((a,p)=>a+p.likes,0);
-  // Count actual followers — users who follow this person
-  const followers = S.users.reduce((count, su) => {
-    const theirFollowing = JSON.parse(localStorage.getItem('dl_following_'+su.username) || '[]');
-    return count + (theirFollowing.includes(username) ? 1 : 0);
-  }, 0);
-  // Following count — how many this user follows
-  const followingCount = S.following.length;
-  // Apply custom banner
+
+  goTo('profile');
+
+  // Get posts — from local cache + fetch any missing ones from Supabase
+  let posts = S.posts.filter(p => p.user === username);
+  if (!posts.length && _sbOk()) {
+    // Profile shared via URL — posts may not be in local cache yet
+    try {
+      const rows = await DB.getPosts({ limit:50 });
+      const fresh = rows.map(dbPostToApp).filter(Boolean);
+      fresh.forEach(fp => { if (!S.posts.find(p => p.id === fp.id)) S.posts.push(fp); });
+      posts = S.posts.filter(p => p.user === username);
+    } catch(_) {}
+  }
+
+  const likes = posts.reduce((a,p) => a+(p.likes||0), 0);
+
+  // Follower count — from Supabase follows table
+  let followers = 0;
+  if (_sbOk() && u.id) {
+    try {
+      const { count } = await _sb.from('follows').select('id', {count:'exact',head:true}).eq('following_id', u.id);
+      followers = count || 0;
+    } catch(_) {
+      // Fallback: count from local
+      followers = S.users.reduce((cnt, su) => {
+        const fl = JSON.parse(localStorage.getItem('dl_following_'+su.username)||'[]');
+        return cnt + (fl.includes(username) ? 1 : 0);
+      }, 0);
+    }
+  }
+
+  const followingCount = username === S.user?.username ? S.following.length : '—';
+
+  // Banner
   const savedBanner = localStorage.getItem('dl_banner_'+username) || u.bannerUrl || null;
   const coverEl = el('profileCover');
   if (coverEl) {
-    if (savedBanner) {
-      coverEl.style.backgroundImage = `url(${savedBanner})`;
-      coverEl.style.backgroundSize = 'cover';
-      coverEl.style.backgroundPosition = 'center';
-    } else {
-      coverEl.style.backgroundImage = '';
-    }
+    coverEl.style.backgroundImage = savedBanner ? `url(${savedBanner})` : '';
+    coverEl.style.backgroundSize = 'cover';
+    coverEl.style.backgroundPosition = 'center';
   }
-  // Show/hide banner upload button based on ownership
   const bannerBtn = el('profileBannerUploadBtn');
   if (bannerBtn) bannerBtn.style.display = S.user?.username === username ? 'flex' : 'none';
 
-  const profUrl = getAvatarUrl(u.username);
-  if (profUrl) {
-    el('profileAv').innerHTML=`<img src="${profUrl}" alt="${esc(u.username)}" class="av-photo"/>`;
-    el('profileAv').style.background='transparent';
-  } else {
-    el('profileAv').innerHTML=u.username[0].toUpperCase();
-    setAvEl(el('profileAv'), u.username);
-  }
-  el('profileName').textContent=u.username;
-  // Awards inline next to name
+  // Avatar
+  setAvEl(el('profileAv'), u.username);
+
+  // Name + awards
+  el('profileName').textContent = u.username;
   const awardsEl2 = el('profileAwards');
   if (awardsEl2) awardsEl2.innerHTML = renderAwards(u, true);
-  el('profileBio').textContent=truncateBio(u.bio||'');
-  // Specialties — top categories from user's posts
+
+  // Bio
+  el('profileBio').textContent = truncateBio(u.bio||'');
+
+  // Specialties
   const specEl = el('profileSpecialties');
   if (specEl) {
     const catCounts = {};
     posts.forEach(p => {
-      const pc = Array.isArray(p.categories)&&p.categories.length?p.categories:[p.category].filter(Boolean);
+      const pc = Array.isArray(p.categories)&&p.categories.length ? p.categories : [p.category].filter(Boolean);
       pc.forEach(c => { catCounts[c]=(catCounts[c]||0)+1; });
     });
     const topCats = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0,4);
-    specEl.innerHTML = topCats.map(([c]) => `<span class="profile-specialty-tag cat-badge ${catCfg(c).badge}" style="position:static;font-size:.7rem">${c}</span>`).join('');
+    specEl.innerHTML = topCats.map(([c]) =>
+      `<span class="profile-specialty-tag cat-badge ${catCfg(c).badge}" style="position:static;font-size:.7rem">${c}</span>`
+    ).join('');
   }
-  const ageInfo=accountAge(u);
-  el('profileJoined').innerHTML=`Member since ${u.joined} &nbsp;<span class="acct-age-badge"><i class="fas fa-clock"></i> ${ageInfo.full}</span>`;
-  el('profileSocials').innerHTML=buildSocialLinks(u);
-  const stEl=el('profileStats'); if(stEl) stEl.innerHTML=`
+
+  // Joined date
+  const ageInfo = accountAge(u);
+  el('profileJoined').innerHTML = `Member since ${u.joined} &nbsp;<span class="acct-age-badge"><i class="fas fa-clock"></i> ${ageInfo.full}</span>`;
+
+  // Social links
+  el('profileSocials').innerHTML = buildSocialLinks(u);
+
+  // Stats
+  const stEl = el('profileStats');
+  if (stEl) stEl.innerHTML = `
     <div class="pstat"><span class="pstat-n">${posts.length}</span><span class="pstat-l">Builds</span></div>
     <div class="pstat"><span class="pstat-n">${likes.toLocaleString()}</span><span class="pstat-l">Likes</span></div>
-    <div class="pstat"><span class="pstat-n">${followers}</span><span class="pstat-l">Followers</span></div>
-    <div class="pstat"><span class="pstat-n">${S.user?.username===username ? followingCount : '—'}</span><span class="pstat-l">Following</span></div>
+    <div class="pstat"><span class="pstat-n">${followers.toLocaleString()}</span><span class="pstat-l">Followers</span></div>
+    <div class="pstat"><span class="pstat-n">${followingCount}</span><span class="pstat-l">Following</span></div>
   `;
-  el('profileActions').style.display='flex'; el('noLoginMsg').style.display='none'; el('profilePostsWrap').style.display='block';
-  el('profileBuildsLabel').textContent=`${u.username}'s Builds`;
-  // Show/hide Edit Profile button based on ownership
+
+  // Action buttons
+  el('profileActions').style.display = 'flex';
+  el('noLoginMsg').style.display = 'none';
+  el('profilePostsWrap').style.display = 'block';
+  el('profileBuildsLabel').textContent = `${u.username}'s Builds`;
+
+  const isOwn = S.user?.username === username;
   const editProfBtn = el('editProfileBtn');
   const profDmBtn   = el('profileDmBtn');
-  const isOwn = S.user?.username === username;
+  const shareBtn    = el('profileShareBtn');
+
   if (editProfBtn) editProfBtn.style.display = isOwn ? 'inline-flex' : 'none';
   if (profDmBtn) {
     profDmBtn.style.display = (!isOwn && S.user) ? 'inline-flex' : 'none';
-    profDmBtn.onclick = () => { openDmWith(username); };
+    profDmBtn.onclick = () => openDmWith(username);
   }
-  updateFollowBtn(username); if(el('followBtn'))el('followBtn').onclick=()=>toggleFollow(username);
-  const grid=el('profileGrid');
-  if(posts.length){el('noBuilds').style.display='none';grid.innerHTML=posts.map((p,i)=>cardHTML(p,i)).join('');attachCardEvents(grid);}
-  else{grid.innerHTML='';el('noBuilds').style.display='block';}
-  goTo('profile');
+  // Share button — copies profile URL to clipboard
+  if (shareBtn) {
+    shareBtn.style.display = 'inline-flex';
+    shareBtn.onclick = () => {
+      const profileUrl = `${window.location.origin}${window.location.pathname}?user=${encodeURIComponent(username)}`;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(profileUrl).then(() => toast('Profile link copied! 🔗','ok'));
+      } else {
+        // Fallback for older browsers
+        const ta = document.createElement('textarea');
+        ta.value = profileUrl; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+        toast('Profile link copied! 🔗','ok');
+      }
+    };
+  }
+
+  // Follow button — show even when signed out (will prompt sign-in)
+  updateFollowBtn(username);
+  const followBtnEl = el('followBtn');
+  if (followBtnEl) {
+    followBtnEl.style.display = isOwn ? 'none' : 'inline-flex';
+    followBtnEl.onclick = () => toggleFollow(username);
+  }
+
+  // Pin hint (own profile only)
+  const pinHint = el('profilePinHint');
+  if (pinHint) pinHint.style.display = isOwn ? 'inline-flex' : 'none';
+
+  // Pinned build
+  const pinnedId = localStorage.getItem('dl_pinned_'+username);
+  const pinnedPost = pinnedId ? posts.find(p => p.id === pinnedId) : null;
+  const pinnedWrap = el('profilePinnedWrap');
+  const pinnedGrid = el('profilePinnedGrid');
+  if (pinnedWrap && pinnedGrid) {
+    if (pinnedPost) {
+      pinnedWrap.style.display = 'block';
+      pinnedGrid.innerHTML = cardHTML(pinnedPost, 0);
+      attachCardEvents(pinnedGrid);
+    } else {
+      pinnedWrap.style.display = 'none';
+    }
+  }
+
+  // Builds grid (exclude pinned post from main grid)
+  const grid = el('profileGrid');
+  const noBuilds = el('noBuilds');
+  const gridPosts = pinnedPost ? posts.filter(p => p.id !== pinnedPost.id) : posts;
+  if (gridPosts.length) {
+    noBuilds.style.display = 'none';
+    grid.innerHTML = gridPosts.map((p,i) => cardHTML(p,i)).join('');
+    attachCardEvents(grid);
+    // Right-click to pin (own profile only)
+    if (isOwn) {
+      grid.querySelectorAll('.card').forEach(card => {
+        card.addEventListener('contextmenu', e => {
+          e.preventDefault();
+          const postId = card.dataset.id;
+          const cur = localStorage.getItem('dl_pinned_'+username);
+          if (cur === postId) {
+            localStorage.removeItem('dl_pinned_'+username);
+            toast('Build unpinned','');
+          } else {
+            localStorage.setItem('dl_pinned_'+username, postId);
+            toast('Build pinned to top of your profile ✓','ok');
+          }
+          viewMemberProfile(username); // re-render
+        });
+      });
+    }
+  } else {
+    grid.innerHTML = '';
+    noBuilds.style.display = 'block';
+  }
 }
 // ─── PUBLIC PROFILE ROUTER ─────────────────────────────────────
 async function viewPublicProfile(username) {
