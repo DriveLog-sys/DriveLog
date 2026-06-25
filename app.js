@@ -75,7 +75,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).catch(() => {});
   } else {
     // No cache — keep loader visible, wait for Supabase
-    // Safety: hide after 6s no matter what
     const fallback = setTimeout(() => hideBootLoader(), 6000);
     try {
       await loadStorage();
@@ -88,6 +87,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderAll(); updateAuthUI(); updateNotifBadge();
     if (S.user) setupRealtimeSubscriptions();
   }
+  // Handle URL parameters AFTER data loads so posts/profiles are available
+  handleURLRouting();
 });
 
 function loadFromCache() {
@@ -351,18 +352,28 @@ function setupRealtimeSubscriptions() {
   _realtimeSubs.forEach(sub => { try { sub.unsubscribe?.(); } catch(_) {} });
   _realtimeSubs = [];
   if (!S.user) return;
-  // New messages
+  // New messages — update conv list and open thread
   const msgSub = DB.subscribeToMessages(S.user.id, payload => {
-    updateDmBadge();
-    if (payload.new) {
-      const from = S.users.find(u=>u.id===payload.new.from_user_id)?.username || 'Someone';
-      if (from !== S.user.username && S.page !== 'messages') {
-        const thread = loadDmThread(from);
-        thread.push({from, text:payload.new.text||'', ts:new Date(payload.new.created_at).getTime(), read:false});
-        saveDmThread(from, thread);
-        updateDmBadge(); renderMessages();
-        showPushNotif(from, 'sent you a message', 'message');
-      }
+    if (!payload.new) return;
+    const msg = payload.new;
+    const fromUser = S.users.find(u=>u.id===msg.from_user_id);
+    const from = fromUser?.username || msg.from_username || 'Someone';
+    if (from === S.user.username) return; // skip own messages
+    // Store in local thread
+    const thread = loadDmThread(from);
+    const newMsg = { from, text: msg.text||'', image: msg.image_url||null, ts: new Date(msg.created_at).getTime(), read: S.openDm === from };
+    if (!thread.find(m => Math.abs(m.ts - newMsg.ts) < 2000 && m.from === newMsg.from))
+      thread.push(newMsg);
+    thread.sort((a,b) => a.ts - b.ts);
+    saveDmThread(from, thread);
+    // Update open conversation immediately
+    if (S.openDm === from && S.page === 'messages') {
+      renderDmMessages(from);
+      DB.markMessagesRead(msg.from_user_id, S.user.id).catch(()=>{});
+    } else {
+      updateDmBadge();
+      renderMessages();
+      showPushNotif(from, msg.text || '📷 Image', 'message');
     }
   });
   // New notifications
@@ -445,7 +456,14 @@ function goTo(page) {
   window.scrollTo({top:0, behavior:'auto'});
   closeMobNav();
   // Push state so mobile back button works
-  try { window.history.pushState({ page }, '', '#'+page); } catch(_) {}
+  try {
+    // Build clean shareable URL
+    const url = new URL(window.location.href);
+    url.hash = page;
+    url.searchParams.delete('user'); // clear profile param when navigating away
+    url.searchParams.delete('post');
+    window.history.pushState({ page }, '', url.toString());
+  } catch(_) {}
   if (page==='profile')     updateProfilePage();
   if (page==='leaderboard') renderLeaderboard();
   if (page==='garage')      renderGarage();
@@ -463,10 +481,41 @@ function goTo(page) {
     el('msgListCol')?.classList.remove('msg-hide-list');
     S.openDm = null;
   }
+  if (page==='whatsnew')    goTo('explore'); // whatsnew replaced by explore/more
   if (page==='explore')     renderExplorePage();
   if (page==='compare')     renderComparePage();
   if (page==='admin')       renderAdmin();
   updateDmBadge();
+}
+
+// ─── SHAREABLE URL ROUTING ────────────────────────────────────
+// Supports: ?user=Username (profile), ?post=postId (build), #pagename
+function handleURLRouting() {
+  const params = new URLSearchParams(window.location.search);
+  const hashPage = window.location.hash.slice(1);
+
+  if (params.get('user')) {
+    // ?user=Username → open that profile
+    const username = params.get('user');
+    setTimeout(() => viewPublicProfile(username), 100);
+    return;
+  }
+  if (params.get('post')) {
+    // ?post=postId → open that build page
+    const postId = params.get('post');
+    setTimeout(() => {
+      const post = S.posts.find(p => p.id === postId);
+      if (post) { openCarPage(post); return; }
+      // Fetch from Supabase if not in local cache
+      DB.getPost(postId).then(row => {
+        if (row) { const p = dbPostToApp(row); if(p) openCarPage(p); }
+      }).catch(()=>{});
+    }, 200);
+    return;
+  }
+  if (hashPage && hashPage !== 'home') {
+    setTimeout(() => goTo(hashPage), 50);
+  }
 }
 
 // Mobile/browser back button
@@ -1383,24 +1432,12 @@ function initPostModal() {
     setTimeout(updateSocialPreview, 50);
   }
 
-  // Multi-select category pills — max 5
-  const MAX_CATS = 5;
+  // Multi-select category pills on post page
   document.querySelectorAll('.post-cat-pill').forEach(pill => {
     pill.addEventListener('click', () => {
-      const isActive  = pill.classList.contains('active');
-      const selected  = [...document.querySelectorAll('.post-cat-pill.active')];
-      if (!isActive && selected.length >= MAX_CATS) {
-        // Show limit note briefly
-        const note = el('postCatLimitNote');
-        if (note) { note.style.display = 'flex'; setTimeout(() => { note.style.display = 'none'; }, 2500); }
-        return; // block selection
-      }
       pill.classList.toggle('active');
-      const nowSelected = [...document.querySelectorAll('.post-cat-pill.active')].map(b => b.dataset.cat);
-      el('postCategory').value = nowSelected[0] || '';
-      // Dim unselected pills when at cap
-      const atCap = nowSelected.length >= MAX_CATS;
-      document.querySelectorAll('.post-cat-pill:not(.active)').forEach(p => p.classList.toggle('at-cap', atCap));
+      const selected = [...document.querySelectorAll('.post-cat-pill.active')].map(b=>b.dataset.cat);
+      el('postCategory').value = selected[0] || '';
     });
   });
   // Mod list entry — each card with data-modkey
@@ -1510,9 +1547,6 @@ function openEditPost(post) {
     setVal('postYear',  post.year);
     setVal('postHP',    post.hp);
     setVal('postDesc',  post.desc);
-    // Engine fields
-    const eSize = el('postEngineSize'); if (eSize) eSize.value = post.engineSize || '';
-    const eCfg  = el('postEngineConfig'); if (eCfg) eCfg.value = post.engineConfig || '';
 
     // Categories
     const cats = Array.isArray(post.categories) ? post.categories : [post.category].filter(Boolean);
@@ -1673,14 +1707,12 @@ async function submitPost() {
   }
   const title=val('postTitle'), make=val('postMake'), model=val('postModel'), year=val('postYear'),
         hp=val('postHP'), desc=val('postDesc');
-  const transmission  = el('postTransmission')?.value  || '';
-  const mileage       = val('postMileage')             || '';
-  const buildState    = el('postState')?.value          || '';
-  const zeroSixty     = val('postZeroSixty')           || '';
-  const quarterMile   = val('postQuarterMile')         || '';
-  const topSpeed      = val('postTopSpeed')            || '';
-  const engineSize    = val('postEngineSize')          || '';
-  const engineConfig  = el('postEngineConfig')?.value  || '';
+  const transmission = el('postTransmission')?.value || '';
+  const mileage      = val('postMileage') || '';
+  const buildState   = el('postState')?.value || '';
+  const zeroSixty    = val('postZeroSixty') || '';
+  const quarterMile  = val('postQuarterMile') || '';
+  const topSpeed     = val('postTopSpeed') || '';
   const selectedCats = [...document.querySelectorAll('.post-cat-pill.active')].map(b=>b.dataset.cat);
   const cat = selectedCats[0] || '';
 
@@ -1760,7 +1792,6 @@ async function submitPost() {
     const postData = appPostToDb({
       title, make, model, year, category:cat, categories:selectedCats,
       hp, mods, modsDetail, desc, transmission, mileage, buildState, zeroSixty, quarterMile, topSpeed,
-      engineSize, engineConfig,
       images: imageUrls,
       videos: pendingVideos.map(v=>v.dataUrl),
       liked_by:[], saved_by:[], reactions:{},
@@ -1775,7 +1806,6 @@ async function submitPost() {
     const localPost = dbPostToApp(newPost) || {
       id:newPost?.id||'u'+Date.now(), title, make, model, year,
       category:cat, categories:selectedCats, hp, mods, modsDetail, desc, transmission, mileage,
-      engineSize, engineConfig,
       user:S.user.username, likes:0, comments:[], images:imageUrls,
       videos:pendingVideos.map(v=>v.dataUrl), likedBy:[], savedBy:[], reactions:{},
       date:new Date().toISOString().slice(0,10),
@@ -1797,14 +1827,13 @@ function showPostError(msg) {
 }
 
 function resetPostForm() {
-  ['postTitle','postMake','postModel','postYear','postHP','postDesc','postEngineSize',
+  ['postTitle','postMake','postModel','postYear','postHP','postDesc',
    'modEngine','modDrivetrain','modSuspension','modWheels','modExterior','modInterior','modOther']
     .forEach(id=>{ const e=el(id); if(e) e.value=''; });
-  const ecEl=el('postEngineConfig'); if(ecEl) ecEl.value='';
+  // postCategory doesn't exist — categories use pills
   el('fileInput').value='';
   document.querySelectorAll('.post-cat-pill.active').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.post-cat-pill.at-cap').forEach(p=>p.classList.remove('at-cap'));
-  const note=el('postCatLimitNote'); if(note) note.style.display='none';
+  // Clear all mod list items and input fields
   document.querySelectorAll('.mod-item-list').forEach(l=>l.innerHTML='');
   document.querySelectorAll('.mod-item-input').forEach(i=>i.value='');
   pendingVideos=[]; renderVideoPreviews();
@@ -1916,15 +1945,13 @@ function handleLike() {
   if(idx>=0){post.likes=Math.max(0,post.likes-1); post.likedBy.splice(idx,1); el('carLike').classList.remove('liked');}
   else{post.likes++; post.likedBy.push(S.user.username); el('carLike').classList.add('liked'); pushNotif('like',S.user.username,`liked your build <b>${post.title}</b>`,'post:'+post.id);}
   el('carLikeCount').textContent=post.likes; save(); renderFeed();
-  recalcUserLikes(post.user);
-  DB.toggleLike(post.id, voterId()).catch(()=>{});
 }
 function handleSave() {
   if(!S.user){toast('Sign in to save builds','err'); el('authModal').classList.add('open'); return;}
   const post=S.posts.find(x=>x.id===S.openPost.id); if(!post)return;
   const idx=post.savedBy.indexOf(S.user.username);
   if(idx>=0){post.savedBy.splice(idx,1); el('carSave').classList.remove('saved'); el('carSave').innerHTML='<i class="fas fa-bookmark"></i> Save'; toast('Removed from garage','');}
-  else{post.savedBy.push(S.user.username); el('carSave').classList.add('saved'); el('carSave').innerHTML='<i class="fas fa-bookmark"></i> Saved'; toast('Saved to garage','ok');}
+  else{post.savedBy.push(S.user.username); el('carSave').classList.add('saved'); el('carSave').innerHTML='<i class="fas fa-bookmark"></i> Saved'; toast('Saved to garage ✓','ok');}
   save();
 }
 function handleShare() {
@@ -1973,7 +2000,7 @@ function addTimelineEntry(postId) {
   stored.push({date:new Date().toISOString().slice(0,10),title,body,icon:'fas fa-plus',color:'#a855f7'});
   localStorage.setItem('dl_tl_'+postId,JSON.stringify(stored));
   const post=S.posts.find(p=>p.id===postId); if(post)renderTimeline(post);
-  toast('Timeline updated','ok');
+  toast('Timeline updated ✓','ok');
 }
 
 // ─── LIGHTBOX ─────────────────────────────────────────────────
@@ -2457,33 +2484,20 @@ function attachCardEvents(container) {
     const vid  = S.user.username; // always use username for consistency
     const post = S.posts.find(p=>p.id===btn.dataset.id); if(!post) return;
     const idx  = post.likedBy.indexOf(vid);
+    // Update local state immediately
     if(idx>=0){ post.likes=Math.max(0,post.likes-1); post.likedBy.splice(idx,1); }
     else { post.likes++; post.likedBy.push(vid); }
+    // Update button immediately without full re-render
     btn.classList.toggle('liked', post.likedBy.includes(vid));
     const countEl = btn.querySelector('span, .card-like-count');
     if (countEl) countEl.textContent = post.likes;
+    // Fire DB in background
     DB.toggleLike(post.id, vid).catch(()=>{});
-    recalcUserLikes(post.user);
     save();
   }));
 }
 
 // ─── SIDEBAR ──────────────────────────────────────────────────
-// Recalculate a user's total likes from S.posts and update S.users + Supabase
-function recalcUserLikes(username) {
-  if (!username) return;
-  const total = S.posts.filter(p => p.user === username).reduce((a, p) => a + (p.likes || 0), 0);
-  // Update S.users in memory
-  const u = S.users.find(x => x.username === username);
-  if (u) u.totalLikes = total;
-  // Update S.user if it's their own likes
-  if (S.user?.username === username) S.user.totalLikes = total;
-  const uid = u?.id || (S.user?.username === username ? S.user.id : null);
-  if (uid) DB.updateProfile(uid, { total_likes: total }).catch(() => {});
-  renderSidebar();
-  animateStats();
-}
-
 function renderSidebar() {
   const top5=[...S.posts].sort((a,b)=>b.likes-a.likes).slice(0,5);
   el('trendingList').innerHTML=top5.map((p,i)=>{
@@ -2550,7 +2564,7 @@ function renderExplorePage() {
   const shopLink = el('merchShopLink');
   if (shopLink && shopLink.href === '#') {
     shopLink.href = '#'; // replace with real store URL
-    shopLink.onclick = e => { e.preventDefault(); toast('Merch store coming soon','ok'); };
+    shopLink.onclick = e => { e.preventDefault(); toast('Merch store coming soon! 🔥','ok'); };
   }
 }
 
@@ -2732,7 +2746,7 @@ async function castBotmVote(postId) {
     console.warn('BOTM vote save failed:', error);
     toast('Vote counted locally — will sync when connection is restored','');
   } else {
-    toast('Your vote has been cast — check back on the 26th','ok');
+    toast('Your vote has been cast! 🏆 Check back on the 26th.','ok');
   }
 }
 
@@ -2983,6 +2997,13 @@ function renderMembers() {
 async function viewMemberProfile(username) {
   S._editingPostId = null;
   if (!username) return;
+  // Update URL so this profile is shareable/linkable
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set('user', username);
+    url.hash = 'profile';
+    window.history.pushState({ page:'profile', user:username }, '', url.toString());
+  } catch(_) {}
   // Find user — try local first, then Supabase
   let u = S.users.find(x => x.username === username);
   if (!u) {
@@ -3175,7 +3196,7 @@ function saveSocial(entry) {
   }
   all.unshift({ ...entry, ts: Date.now() });
   localStorage.setItem('dl_socials_'+uname, JSON.stringify(all));
-  toast(entry.platform + ' saved to your Garage', 'ok');
+  toast(entry.platform + ' saved to your Garage ✓', 'ok');
   if (S.page === 'garage') renderSavedSocials();
 }
 
@@ -3369,10 +3390,6 @@ function esc(s)   {const d=document.createElement('div');d.textContent=String(s)
 function fmtDate(d){return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
 function timeAgo(ts){const m=Math.floor((Date.now()-ts)/60000);if(m<1)return'just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
 
-function toastSignIn(username) {
-  toast(`Welcome back, ${username}`, 'ok');
-}
-
 let _toastTimer;
 function toast(msg,type=''){
   let t=el('dl-toast');
@@ -3465,7 +3482,13 @@ function initCarPage() {
     const btn = el('cpLike');
     if (btn) { btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop'); setTimeout(() => btn.classList.remove('pop'), 400); }
   });
-  // BOTM vote button is wired per-post inside renderCarPage (needs post.id)
+  // BOTM vote button — appears on each post
+  const botmBtn = el('cpBotmVote');
+  if (botmBtn) {
+    botmBtn.dataset.id = post.id;
+    renderBotmVoteBtn(post.id);
+    botmBtn.addEventListener('click', () => castBotmVote(botmBtn.dataset.id));
+  }
   el('cpSave')?.addEventListener('click', () => {
     cpHandleSave();
     const btn = el('cpSave');
@@ -3479,6 +3502,13 @@ function initCarPage() {
 
 async function openCarPage(post) {
   S._prevPage   = S.page;
+  // Update URL so this build page is shareable
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set('post', post.id);
+    url.hash = 'car';
+    window.history.pushState({ page:'car', post:post.id }, '', url.toString());
+  } catch(_) {}
   // Clear stale content from any previously-viewed post BEFORE the page
   // becomes visible, so nothing flashes for a frame (e.g. old category tag)
   if (el('cpCat')) el('cpCat').innerHTML = '';
@@ -3626,17 +3656,16 @@ function renderCarPage(post) {
   const cpChipsEl = el('cpChips');
   if (cpChipsEl) {
     const specRows = [
-      { icon:'fas fa-calendar-alt',  label:'Year',         val: post.year },
-      { icon:'fas fa-industry',      label:'Make',         val: post.make },
-      { icon:'fas fa-car',           label:'Model',        val: post.model },
-      { icon:'fas fa-bolt',          label:'Power',        val: post.hp,                                   accent:true },
-      { icon:'fas fa-engine',        label:'Engine',       val: post.engineSize && post.engineConfig ? `${post.engineSize} ${post.engineConfig}` : (post.engineSize || post.engineConfig || '') },
-      { icon:'fas fa-cogs',          label:'Transmission', val: post.transmission },
-      { icon:'fas fa-road',          label:'Mileage',      val: post.mileage ? Number(post.mileage).toLocaleString()+' mi' : '' },
-      { icon:'fas fa-stopwatch',     label:'0–60 mph',     val: post.zeroSixty,                           accent:true },
-      { icon:'fas fa-flag',          label:'¼ Mile',       val: post.quarterMile,                         accent:true },
-      { icon:'fas fa-tachometer-alt',label:'Top Speed',    val: post.topSpeed,                            accent:true },
-      { icon:'fas fa-map-marker-alt',label:'State',        val: post.buildState },
+      { icon:'fas fa-calendar-alt', label:'Year',         val: post.year },
+      { icon:'fas fa-industry',     label:'Make',         val: post.make },
+      { icon:'fas fa-car',          label:'Model',        val: post.model },
+      { icon:'fas fa-bolt',         label:'Power',        val: post.hp,           accent:true },
+      { icon:'fas fa-cogs',         label:'Transmission', val: post.transmission },
+      { icon:'fas fa-road',         label:'Mileage',      val: post.mileage ? Number(post.mileage).toLocaleString()+' mi' : '' },
+      { icon:'fas fa-stopwatch',    label:'0–60 mph',     val: post.zeroSixty,    accent:true },
+      { icon:'fas fa-flag',         label:'¼ Mile',       val: post.quarterMile,  accent:true },
+      { icon:'fas fa-tachometer-alt',label:'Top Speed',   val: post.topSpeed,     accent:true },
+      { icon:'fas fa-map-marker-alt',label:'State',       val: post.buildState },
     ].filter(r => r.val && r.val.toString().trim());
 
     cpChipsEl.innerHTML = `
@@ -3714,13 +3743,6 @@ function renderCarPage(post) {
   // Reactions — only in the actions row
   // Videos in specs right panel
   renderCpVideos(post);
-  // BOTM vote button — wire per-post (needs post.id, so lives here not in initCarPage)
-  const botmBtn = el('cpBotmVote');
-  if (botmBtn) {
-    botmBtn.dataset.id = post.id;
-    renderBotmVoteBtn(post.id);
-    botmBtn.onclick = () => castBotmVote(botmBtn.dataset.id);
-  }
   // Compare button
   const cpCmp = el('cpCompare');
   if (cpCmp) cpCmp.onclick = () => { S.compareA = post; goTo('compare'); renderComparePage(); toast('Build loaded for comparison','ok'); };
@@ -3842,7 +3864,6 @@ function cpHandleLike() {
   S.openCarPost = post;
   syncCpActions(post);
   DB.toggleLike(post.id, vid).catch(()=>{});
-  recalcUserLikes(post.user);
   save();
 }
 function cpHandleSave() {
@@ -3851,7 +3872,7 @@ function cpHandleSave() {
   const vid = S.user.username;
   const idx = post.savedBy.indexOf(vid);
   if (idx >= 0) { post.savedBy.splice(idx,1); toast('Removed from garage',''); }
-  else { post.savedBy.push(vid); toast('Saved to garage','ok'); }
+  else { post.savedBy.push(vid); toast('Saved to garage ✓','ok'); }
   S.openCarPost = post;
   syncCpActions(post);
   DB.toggleSave(post.id, vid).catch(()=>{});
@@ -4141,7 +4162,7 @@ function cpRenderTimeline(post) {
     // Save to Supabase
     DB.addTimelineEntry(post.id, title, body, new Date().toISOString().slice(0,10), 'fas fa-plus', '#a855f7').catch(()=>{});
     cpRenderTimeline(post);
-    toast('Timeline updated','ok');
+    toast('Timeline updated ✓','ok');
   });
 }
 
@@ -4238,22 +4259,43 @@ function initMessages() {
   });
 }
 
-function renderMessages() {
+async function renderMessages() {
   if (!S.user) {
     el('msgConvList').innerHTML = '<div class="msg-empty"><i class="fas fa-lock"></i><p>Sign in to view messages</p></div>';
     return;
   }
+  // Merge local threads with Supabase conversations
+  if (_sbOk() && S.user.id) {
+    try {
+      const sbConvs = await DB.getConversations(S.user.id);
+      sbConvs.forEach(c => {
+        if (!c.otherName) return;
+        const local = loadDmThread(c.otherName);
+        const sbMsg = {
+          from: c.lastMsg.from_user_id === S.user.id ? S.user.username : c.otherName,
+          text: c.lastMsg.text || '',
+          ts:   new Date(c.lastMsg.created_at).getTime(),
+          read: !!c.lastMsg.read,
+        };
+        // Add to local if not already there
+        if (!local.find(m => Math.abs(m.ts - sbMsg.ts) < 3000 && m.from === sbMsg.from))
+          local.push(sbMsg);
+        local.sort((a,b) => a.ts - b.ts);
+        saveDmThread(c.otherName, local);
+      });
+    } catch(_) {}
+  }
   const q = (el('msgSearch')?.value||'').toLowerCase();
   const convs = getAllDmConversations().filter(c => !q || c.other.toLowerCase().includes(q));
   if (!convs.length) {
-    el('msgConvList').innerHTML = '<div class="msg-empty"><i class="fas fa-envelope-open"></i><p>No messages yet. Start a conversation!</p></div>';
+    el('msgConvList').innerHTML = '<div class="msg-empty"><i class="fas fa-envelope-open"></i><p>No conversations yet.<br><small>Start one by clicking + New Message</small></p></div>';
     return;
   }
   el('msgConvList').innerHTML = convs.map(c => {
-    const preview = c.last.text.length > 40 ? c.last.text.slice(0,40)+'…' : c.last.text;
+    const preview = (c.last.text||'').length > 40 ? c.last.text.slice(0,40)+'…' : (c.last.text||'📷 Image');
     const isMe = c.last.from === S.user.username;
-    return `<div class="msg-conv-item${S.openDm===c.other?' active':''}${c.unread?' unread':''}" data-user="${c.other}">
-      ${(()=>{const _mu=getAvatarUrl(c.other);return _mu?`<div class="msg-conv-av av-circle has-photo"><img src="${_mu}" alt="" class="av-photo"/></div>`:renderAv(c.other, 42, 'msg-conv-av');})()}
+    return `<div class="msg-conv-item${S.openDm===c.other?' active':''}${c.unread?' unread':''}" data-user="${esc(c.other)}">
+      ${renderAv(c.other, 42, 'msg-conv-av')}
       <div class="msg-conv-info">
         <div class="msg-conv-name">${esc(c.other)}${c.unread?`<span class="msg-unread-dot">${c.unread}</span>`:''}</div>
         <div class="msg-conv-preview">${isMe?'You: ':''}${esc(preview)}</div>
@@ -4374,8 +4416,23 @@ async function sendDmMessage() {
   el('msgInput').value = '';
   // Supabase
   const otherUser = S.users.find(u=>u.username===S.openDm);
-  if (otherUser?.id && txt) {
-    DB.sendMessage(S.user.id, otherUser.id, S.user.username, S.openDm, txt).catch(()=>{});
+  if (txt) {
+    if (otherUser?.id) {
+      DB.sendMessage(S.user.id, otherUser.id, S.user.username, S.openDm, txt).catch(e => {
+        console.warn('Message send failed:', e);
+        toast('Message sent locally — will sync when online','');
+      });
+    } else {
+      // Fetch user ID from Supabase then send
+      DB.getProfileByUsername(S.openDm).then(profile => {
+        if (profile?.id) {
+          DB.sendMessage(S.user.id, profile.id, S.user.username, S.openDm, txt).catch(()=>{});
+          // Cache for future sends
+          const u = dbUserToApp(profile);
+          if (!S.users.find(x=>x.username===u.username)) S.users.push(u);
+        }
+      }).catch(()=>{});
+    }
   }
   renderDmMessages(S.openDm);
   renderMessages();
@@ -4562,7 +4619,7 @@ function submitReport() {
     ).catch(()=>{});
   });
   el('reportModal').classList.remove('open');
-  toast('Report submitted — thank you', 'ok');
+  toast('Report submitted — thank you 🙏', 'ok');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -4942,7 +4999,7 @@ function enterChallenge(ch) {
       entries.push({ challengeId:ch.id, postId:post.id, user:S.user.username, ts:Date.now() });
       localStorage.setItem('dl_challenge_entries', JSON.stringify(entries));
       picker.remove();
-      toast(`"${post.title}" entered into the challenge`,'ok');
+      toast(`"${post.title}" entered into the challenge! 🏆`,'ok');
       renderChallenges();
     });
   });
@@ -5833,7 +5890,11 @@ function showUploadSuccess(post) {
   }, 8000);
 }
 
-// renderWhatsNew() removed — page replaced by Explore
+// ─── WHATS NEW PAGE ────────────────────────────────────────────
+function renderWhatsNew() {
+  // Page is static HTML — nothing dynamic to render yet
+  // Future: load updates from Supabase, pull live events feed
+}
 
 // Re-sync user state when returning from settings tab
 document.addEventListener('visibilitychange', async () => {
