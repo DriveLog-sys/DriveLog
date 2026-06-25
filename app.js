@@ -1442,19 +1442,48 @@ function initPostModal() {
   });
   // Mod list entry — each card with data-modkey
   document.querySelectorAll('.mod-cat-card[data-modkey]').forEach(card => {
-    const key  = card.dataset.modkey;
-    const inp  = card.querySelector('.mod-item-input');
-    const btn  = card.querySelector('.mod-add-btn');
-    const list = card.querySelector('.mod-item-list');
+    const key        = card.dataset.modkey;
+    const inp        = card.querySelector('.mod-item-input');
+    const linkInp    = card.querySelector('.mod-link-input');
+    const linkToggle = card.querySelector('.mod-link-toggle');
+    const btn        = card.querySelector('.mod-add-btn');
+    const list       = card.querySelector('.mod-item-list');
     if (!inp || !btn || !list) return;
+
+    // Toggle link input visibility
+    if (linkToggle && linkInp) {
+      linkToggle.addEventListener('click', () => {
+        const showing = linkInp.style.display !== 'none';
+        linkInp.style.display = showing ? 'none' : '';
+        linkToggle.classList.toggle('active', !showing);
+        if (!showing) linkInp.focus();
+      });
+    }
+
     function addItem() {
-      const val = inp.value.trim(); if (!val) return;
+      const text = inp.value.trim(); if (!text) return;
+      const url  = linkInp?.value.trim() || '';
       const itemEl = document.createElement('div');
       itemEl.className = 'mod-item-row';
-      itemEl.innerHTML = `<span class="mod-item-bullet">—</span><span class="mod-item-text-display">${escHtml(val)}</span><input type="hidden" class="mod-item-text" value="${escHtml(val)}"/><button type="button" class="mod-item-rm" aria-label="Remove"><i class="fas fa-times"></i></button>`;
+      // Store as JSON so URL survives form serialization
+      const dataVal = JSON.stringify({ text, url });
+      itemEl.innerHTML = `
+        <div class="mod-item-preview-wrap">
+          ${url ? `<div class="mod-item-link-thumb" data-url="${escHtml(url)}">
+            <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(new URL(url).hostname)}&sz=32" alt="" class="mod-item-favicon" loading="lazy" onerror="this.style.display='none'"/>
+          </div>` : '<div class="mod-item-bullet">—</div>'}
+        </div>
+        <div class="mod-item-body">
+          <span class="mod-item-text-display">${escHtml(text)}</span>
+          ${url ? `<a class="mod-item-link-label" href="${escHtml(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i> View Part</a>` : ''}
+        </div>
+        <input type="hidden" class="mod-item-text" value="${escHtml(dataVal)}"/>
+        <button type="button" class="mod-item-rm" aria-label="Remove"><i class="fas fa-times"></i></button>`;
       itemEl.querySelector('.mod-item-rm').addEventListener('click', () => itemEl.remove());
       list.appendChild(itemEl);
       inp.value = '';
+      if (linkInp) { linkInp.value = ''; linkInp.style.display = 'none'; }
+      if (linkToggle) linkToggle.classList.remove('active');
       inp.focus();
     }
     btn.addEventListener('click', addItem);
@@ -1555,7 +1584,7 @@ function openEditPost(post) {
     });
     el('postCategory').value = cats[0] || '';
 
-    // Mods detail
+    // Mods detail — restore with URL support
     if (post.modsDetail) {
       ['engine','drivetrain','suspension','wheels','exterior','interior','other'].forEach(key => {
         const list  = el('modList-' + key);
@@ -1563,10 +1592,25 @@ function openEditPost(post) {
         const arr   = Array.isArray(items) ? items : (items||'').split(',').map(s=>s.trim()).filter(Boolean);
         if (!list || !arr.length) return;
         list.innerHTML = '';
-        arr.forEach(text => {
+        arr.forEach(rawItem => {
+          const text = typeof rawItem === 'object' ? (rawItem.text||'') : String(rawItem);
+          const url  = typeof rawItem === 'object' ? (rawItem.url||'')  : '';
+          if (!text) return;
+          const dataVal = JSON.stringify({ text, url });
           const itemEl = document.createElement('div');
           itemEl.className = 'mod-item-row';
-          itemEl.innerHTML = `<span class="mod-item-bullet">—</span><span class="mod-item-text-display">${escHtml(text)}</span><input type="hidden" class="mod-item-text" value="${escHtml(text)}"/><button type="button" class="mod-item-rm" aria-label="Remove"><i class="fas fa-times"></i></button>`;
+          let thumbHTML = '';
+          try {
+            thumbHTML = url ? `<div class="mod-item-link-thumb"><img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(new URL(url).hostname)}&sz=32" alt="" class="mod-item-favicon" loading="lazy" onerror="this.style.display='none'"/></div>` : '<div class="mod-item-bullet">—</div>';
+          } catch(_) { thumbHTML = '<div class="mod-item-bullet">—</div>'; }
+          itemEl.innerHTML = `
+            <div class="mod-item-preview-wrap">${thumbHTML}</div>
+            <div class="mod-item-body">
+              <span class="mod-item-text-display">${escHtml(text)}</span>
+              ${url ? `<a class="mod-item-link-label" href="${escHtml(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"><i class="fas fa-external-link-alt"></i> View Part</a>` : ''}
+            </div>
+            <input type="hidden" class="mod-item-text" value="${escHtml(dataVal)}"/>
+            <button type="button" class="mod-item-rm" aria-label="Remove"><i class="fas fa-times"></i></button>`;
           itemEl.querySelector('.mod-item-rm').addEventListener('click', () => itemEl.remove());
           list.appendChild(itemEl);
         });
@@ -1721,13 +1765,17 @@ async function submitPost() {
   if(!model) { showPostError('Please enter the model.'); return; }
   if(!selectedCats.length){ showPostError('Please select at least one category.'); return; }
 
-  // Collect structured mods — stored as arrays of items, each item a single mod
+  // Collect structured mods — each item is {text, url} or legacy plain string
   function collectModItems(id) {
-    // Collect all mod-item inputs within a mod-cat-card for this key
     const card = document.querySelector(`.mod-cat-card[data-modkey="${id}"]`);
     if (!card) return [];
     return [...card.querySelectorAll('.mod-item-text')]
-      .map(i=>i.value.trim()).filter(Boolean);
+      .map(i => {
+        const raw = i.value.trim();
+        if (!raw) return null;
+        // Try to parse as JSON {text, url}
+        try { return JSON.parse(raw); } catch(_) { return { text: raw, url: '' }; }
+      }).filter(Boolean);
   }
   const modsDetail = {
     engine:     collectModItems('engine'),
@@ -1738,8 +1786,10 @@ async function submitPost() {
     interior:   collectModItems('interior'),
     other:      collectModItems('other'),
   };
-  // Legacy mods string: flat list of all items for search/filter compat
-  const mods = Object.values(modsDetail).flat().join(', ');
+  // Legacy mods string: flat list of all item texts for search/filter compat
+  const mods = Object.values(modsDetail).flat()
+    .map(item => (typeof item === 'object' ? item.text : item))
+    .join(', ');
 
   if (isEditing()) {
     // ── UPDATE existing post ──────────────────────────────────
@@ -3816,8 +3866,42 @@ function renderCarPage(post) {
       const val = post.modsDetail[c.key];
       const items = Array.isArray(val)
         ? val
-        : val.split(/[,\n]/).map(s=>s.trim()).filter(Boolean);
-      const listHTML = items.map(item => `<li class="cp-mod-item">${esc(item)}</li>`).join('');
+        : val.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
+      const listHTML = items.map(rawItem => {
+        // Support both old string and new {text, url} format
+        let text, url;
+        if (typeof rawItem === 'object' && rawItem !== null) {
+          text = rawItem.text || '';
+          url  = rawItem.url  || '';
+        } else {
+          // Try parsing as JSON (stored from new form)
+          try { const p = JSON.parse(rawItem); text = p.text||''; url = p.url||''; }
+          catch(_) { text = String(rawItem); url = ''; }
+        }
+        if (!text) return '';
+        // Build the link preview
+        let thumbHTML = '';
+        if (url) {
+          try {
+            const domain = new URL(url).hostname;
+            // Use Google's favicon API for a clean 32px icon — works for any site
+            thumbHTML = `<div class="cp-part-thumb">
+              <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64"
+                   alt="" class="cp-part-favicon" loading="lazy"
+                   onerror="this.parentElement.innerHTML='<i class=\\'fas fa-link cp-part-link-icon\\'></i>'"/>
+            </div>`;
+          } catch(_) { thumbHTML = '<div class="cp-part-thumb-placeholder"><i class="fas fa-link"></i></div>'; }
+        }
+        return `<li class="cp-mod-item${url?' has-link':''}">
+          ${thumbHTML}
+          <div class="cp-mod-item-body">
+            <span class="cp-mod-item-text">${esc(text)}</span>
+            ${url ? `<a class="cp-mod-item-link" href="${esc(url)}" target="_blank" rel="noopener">
+              <i class="fas fa-external-link-alt"></i> View Part
+            </a>` : ''}
+          </div>
+        </li>`;
+      }).join('');
       return `<div class="cp-mod-section">
         <div class="cp-mod-head"><span class="cp-mod-icon-wrap"><i class="${c.icon}"></i></span><span class="cp-mod-label">${c.label}</span></div>
         <ul class="cp-mod-list">${listHTML}</ul>

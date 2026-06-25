@@ -50,12 +50,10 @@ input,select,textarea{font-family:inherit}
 button{outline:none}
 button:focus{outline:none}
 button:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent-soft)}
-/* ── Scrollbar — GitHub dark style ───────────────────────────── */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: #161b22; }
-::-webkit-scrollbar-thumb { background: #30363d; border-radius: 6px; border: 2px solid #161b22; }
-::-webkit-scrollbar-thumb:hover { background: #484f58; }
-::-webkit-scrollbar-corner { background: #161b22; }
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(120,120,128,.5);border-radius:6px}
+::-webkit-scrollbar-thumb:hover{background:rgba(120,120,128,.75)}
 
 /* ─── TYPOGRAPHY ────────────────────────────────────────────── */
 .logo{font-family:var(--disp);font-size:1.7rem;letter-spacing:2px;color:var(--text);cursor:pointer}
@@ -760,28 +758,10 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
 /* ─── SEI EMPTY ─────────────────────────────────────────────── */
 .sei-empty{color:var(--muted);font-size:.8rem;padding:4px 0}
 
-.toast {
-  position: fixed; bottom: 26px; left: 50%;
-  transform: translateX(-50%) translateY(20px);
-  background: #166534;
-  border: none;
-  border-radius: 10px;
-  padding: 10px 24px;
-  font-family: var(--body);
-  font-size: .88rem;
-  font-weight: 600;
-  color: #dcfce7;
-  z-index: 9999;
-  opacity: 0;
-  transition: all .3s ease;
-  pointer-events: none;
-  white-space: nowrap;
-  box-shadow: 0 4px 16px rgba(0,0,0,.35);
-  letter-spacing: .01em;
-}
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-.toast.ok   { background: #166534; color: #dcfce7; }
-.toast.err  { background: #7f1d1d; color: #fee2e2; }
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--raised);border:1px solid var(--mid);border-radius:30px;padding:9px 22px;font-family:var(--cond);font-size:.86rem;font-weight:700;color:var(--text);z-index:9999;opacity:0;transition:all .3s ease;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.ok{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.1);color:#4ade80}
+.toast.err{border-color:rgba(232,57,42,.4);background:var(--accent-soft);color:var(--accent)}
 
 /* ─── RESPONSIVE ────────────────────────────────────────────── */
 @media(max-width:1100px){.feed-wrap{grid-template-columns:1fr}.sidebar{display:none}.footer-inner{grid-template-columns:1fr 1fr}.footer-brand{grid-column:1/-1}}
@@ -2080,13 +2060,7 @@ video.social-post-media{max-height:480px;background:#000}
 .boot-dots span:nth-child(3){animation-delay:.3s}
 
 /* ─── SCROLLBAR — soft white-grey hover, no blue ─────────────── */
-html { scrollbar-width: thin; scrollbar-color: #30363d #161b22; }
-/* ── Scrollbar — GitHub dark style ───────────────────────────── */
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: #161b22; }
-::-webkit-scrollbar-thumb { background: #30363d; border-radius: 6px; border: 2px solid #161b22; }
-::-webkit-scrollbar-thumb:hover { background: #484f58; }
-::-webkit-scrollbar-corner { background: #161b22; }
+html{scrollbar-width:thin;scrollbar-color:rgba(120,120,128,.5) transparent}
 
 /* ─── DARK MODE TEXT READABILITY PASS ───────────────────────── */
 /* Ensure secondary/muted text is readable in dark mode */
@@ -2289,15 +2263,10 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
 
 /* Profile body */
 .profile-body{max-width:1000px;margin:0 auto;padding:32px 48px 60px}
-.profile-builds-head { margin-bottom: 20px; border-bottom: 1px solid var(--subtle); padding-bottom: 12px; }
-.profile-builds-head h2 {
-  font-family: var(--disp);
-  font-size: 1.75rem;
-  font-weight: 400;
-  letter-spacing: 1px;
-  text-transform: none;
-  color: var(--text);
-  margin: 0;
+.profile-builds-head{margin-bottom:20px;border-bottom:1px solid var(--subtle);padding-bottom:12px}
+.profile-builds-head h2{
+  font-family:var(--cond);font-size:.78rem;font-weight:700;
+  letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin:0;
 }
 
 /* Responsive */
@@ -3877,7 +3846,7 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
 
 /* ─── TOAST — MOBILE ──────────────────────────────────────────── */
 @media(max-width:768px){
-  .toast { bottom: 84px; } /* above mobile bottom nav */
+  .toast{bottom:80px} /* above mobile bottom nav if any */
 }
 
 /* ─── GENERAL MOBILE SAFETY ───────────────────────────────────── */
@@ -5997,7 +5966,14 @@ body:not(.dark) .save-btn {
 .msg-chat-col:not(.active) {
   display: none !important;
 }
-/* msg-chat-col desktop display — see mobile polish block at bottom */
+/* On desktop always show chat col placeholder */
+@media(min-width:769px) {
+  .msg-chat-col {
+    /* display controlled by JS and .active class */
+    flex-direction: column;
+  }
+  .msg-chat-col.active { display: flex !important; }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    HERO2 FEATURED MEMBERS — inline row layout
@@ -6097,7 +6073,39 @@ body:not(.dark) .save-btn {
   display: none !important;
 }
 
+/* Chat column — flex but NOT fixed */
+.msg-chat-col {
+  /* display controlled by JS and .active class */
+  flex-direction: column !important;
+  overflow: hidden !important;
+  position: relative !important; /* NOT fixed */
+  min-height: 0;
+  height: auto !important;
+}
 
+/* On mobile, chat col is hidden until opened */
+@media(max-width:768px) {
+  .msg-wrap {
+    grid-template-columns: 1fr !important;
+  }
+  .msg-chat-col {
+    display: none !important;
+    position: relative !important; /* still not fixed */
+    inset: auto !important;
+    z-index: auto !important;
+  }
+  .msg-chat-col.active {
+    display: flex !important;
+  }
+  .msg-back-btn {
+    display: flex !important;
+  }
+}
+@media(min-width:769px) {
+  .msg-back-btn {
+    display: none !important;
+  }
+}
 
 /* ═══════════════════════════════════════════════════════════════
    EXPLORE PAGE
@@ -6529,272 +6537,178 @@ body:not(.dark) .save-btn {
   .exp-contact-inner { flex-direction: column; text-align: center; }
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   PROFILE — PINNED BUILD + SHARE BUTTON + SIGNED-OUT STATE
+   ═══════════════════════════════════════════════════════════════ */
+.profile-section-label {
+  font-family: var(--cond);
+  font-size: .68rem; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--muted);
+  display: flex; align-items: center; gap: 6px;
+  margin: 0 0 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--subtle);
+}
+.profile-section-label i { color: var(--accent); }
+#profilePinnedWrap {
+  margin-bottom: 28px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+}
+#profilePinnedWrap .card-grid {
+  grid-template-columns: repeat(auto-fill, minmax(260px,1fr));
+}
+/* Pin hint button */
+.profile-pin-hint {
+  background: transparent; border: none;
+  color: var(--muted); font-size: .8rem;
+  cursor: pointer; padding: 4px 6px;
+  border-radius: 4px; transition: color var(--tr);
+}
+.profile-pin-hint:hover { color: var(--accent); }
+/* Share button */
+#profileShareBtn { gap: 6px; }
+/* Follow button always visible even when signed out */
+#followBtn { display: inline-flex !important; }
+/* Profile header — show actions even when signed out */
+#profileActions { display: flex !important; flex-wrap: wrap; gap: 8px; }
+/* But hide message/edit when signed out — handled by JS inline styles */
 
 /* ═══════════════════════════════════════════════════════════════
-   MOBILE POLISH — comprehensive pass
-   Fixes: iOS safe area, keyboard push, messages layout,
-   social page, profile, modals, car page, tap targets
+   PARTS / MODS — LINK PREVIEW (car page view)
    ═══════════════════════════════════════════════════════════════ */
+.cp-mod-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 
-/* ── 1. iOS safe area — apply to anything that sits at the bottom ── */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .mob-nav         { padding-bottom: env(safe-area-inset-bottom); }
-  .msg-input-row   { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
-  .filter-sidebar  { padding-bottom: env(safe-area-inset-bottom); }
-  .toast           { bottom: calc(80px + env(safe-area-inset-bottom)); }
-  body             { padding-bottom: env(safe-area-inset-bottom); }
-}
-
-/* ── 2. Messages — fix desktop display + mobile keyboard push ── */
-/* Desktop: chat col must be flex by default */
-.msg-chat-col {
+.cp-mod-item {
   display: flex;
-  flex-direction: column;
-  flex: 1;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--subtle);
+  min-height: 36px;
+}
+.cp-mod-item:last-child { border-bottom: none; }
+
+/* Thumbnail — favicon or link icon */
+.cp-part-thumb {
+  width: 32px; height: 32px;
+  border-radius: 6px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; overflow: hidden;
+}
+.cp-part-favicon {
+  width: 20px; height: 20px;
+  object-fit: contain; display: block;
+}
+.cp-part-link-icon { color: var(--muted); font-size: .8rem; }
+.cp-part-thumb-placeholder {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: .8rem; flex-shrink: 0;
+}
+
+/* Body */
+.cp-mod-item-body {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.cp-mod-item-text {
+  font-size: .86rem;
+  color: var(--text);
+  line-height: 1.3;
+}
+.cp-mod-item-link {
+  font-size: .74rem;
+  color: var(--accent);
+  text-decoration: none;
+  display: inline-flex; align-items: center; gap: 4px;
+  transition: opacity .15s;
+}
+.cp-mod-item-link:hover { opacity: .75; text-decoration: underline; }
+.cp-mod-item-link i { font-size: .68rem; }
+
+/* ═══════════════════════════════════════════════════════════════
+   PARTS / MODS — POST FORM entry rows
+   ═══════════════════════════════════════════════════════════════ */
+.mod-entry-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.mod-item-input {
+  flex: 1; min-width: 140px;
+}
+.mod-link-input {
+  flex: 1; min-width: 160px;
+  font-size: .8rem;
+}
+.mod-link-toggle {
+  width: 32px; height: 32px;
+  border-radius: var(--r-sm);
+  background: var(--raised);
+  border: 1px solid var(--border);
+  color: var(--muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .78rem; flex-shrink: 0;
+  transition: all var(--tr);
+}
+.mod-link-toggle:hover,
+.mod-link-toggle.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Mod item rows in form — with preview */
+.mod-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 5px;
+}
+.mod-item-preview-wrap { flex-shrink: 0; display: flex; align-items: center; }
+.mod-item-link-thumb {
+  width: 28px; height: 28px;
+  border-radius: 5px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
   overflow: hidden;
-  background: var(--bg);
 }
-/* Mobile overrides */
-@media (max-width: 768px) {
-  .msg-wrap {
-    grid-template-columns: 1fr;
-    height: calc(100dvh - 56px);
-    height: calc(var(--vh, 1vh) * 100 - 56px); /* fallback for older iOS */
-    position: relative;
-  }
-  .msg-list-col {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    width: 100%;
-  }
-  .msg-list-col.msg-hide-list { display: none !important; }
-  /* Chat col hidden by default on mobile, shown when .active */
-  .msg-chat-col {
-    display: none;
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    height: 100%;
-  }
-  .msg-chat-col.active { display: flex; }
-  .msg-chat-body { padding: 10px 12px; }
-  .msg-input-row { padding: 8px 10px; }
-  /* Bubbles wider on small screens */
-  .msg-bubble { max-width: 82%; }
-  .msg-bubble-group { max-width: 82%; }
-  /* Back button visible */
-  .msg-back-btn { display: flex !important; }
-  /* Larger tap targets for conversation list */
-  .msg-conv-item { padding: 14px 16px; min-height: 64px; }
+.mod-item-favicon { width: 18px; height: 18px; object-fit: contain; }
+.mod-item-bullet { color: var(--muted); font-size: .9rem; width: 28px; text-align: center; }
+.mod-item-body { flex: 1; min-width: 0; }
+.mod-item-text-display { font-size: .85rem; color: var(--text); display: block; }
+.mod-item-link-label {
+  font-size: .72rem; color: var(--accent);
+  text-decoration: none; display: inline-flex; align-items: center; gap: 3px;
+  margin-top: 2px;
 }
+.mod-item-link-label:hover { text-decoration: underline; }
+.mod-item-rm {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--muted); cursor: pointer; font-size: .65rem;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all var(--tr);
+}
+.mod-item-rm:hover { background: rgba(232,57,42,.1); border-color: var(--red); color: var(--red); }
 
-/* ── 3. Social page — mobile feed improvements ── */
-@media (max-width: 768px) {
-  .social-layout {
-    grid-template-columns: 1fr;
-    padding: 0 0 80px; /* room for nav */
-    gap: 0;
-  }
-  .social-sidebar-col { display: none; }
-  .social-feed-header {
-    position: sticky;
-    top: 56px; /* below main nav */
-    z-index: 10;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    padding: 10px 14px 0;
-    margin-bottom: 0;
-  }
-  .social-feed-title { font-size: 1.1rem; margin-bottom: 8px; }
-  .social-feed-tabs { gap: 4px; }
-  .soc-tab { font-size: .78rem; padding: 6px 12px; }
-  .social-search-bar { margin: 8px 14px; }
-  .social-posts-wrap { padding: 0; }
-  /* Cards edge-to-edge on mobile */
-  .social-post-card {
-    border-radius: 0;
-    border-left: none;
-    border-right: none;
-    margin-bottom: 8px;
-  }
-  /* Media fills full width */
-  .social-post-media { max-height: 400px; }
-  video.social-post-media { max-height: 360px; }
-  /* Post head padding */
-  .social-post-head { padding: 10px 14px; }
-  .social-post-caption { padding: 0 14px 6px; }
-  .social-post-actions { padding: 4px 10px 10px; }
-  /* Comment section */
-  .social-comment-input { padding: 8px 14px 12px; }
-  /* Upload button smaller */
-  .social-upload-btn { padding: 6px 12px; font-size: .8rem; }
-}
-
-/* ── 4. Profile page — consolidate conflicting mobile rules ── */
-@media (max-width: 768px) {
-  .profile-header-wrap { min-height: 140px; }
-  .profile-header-inner {
-    padding: 0 14px;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-  .profile-header-left { flex-direction: row; align-items: center; gap: 14px; }
-  .profile-header-right { width: 100%; }
-  .profile-header-actions {
-    width: 100%;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding-bottom: 14px;
-  }
-  .profile-body { padding: 20px 14px 60px; }
-  /* Avatar smaller on mobile */
-  #profileAv { width: 68px !important; height: 68px !important; font-size: 1.4rem !important; }
-  .profile-name { font-size: 1.2rem; }
-  .profile-stats { gap: 12px; }
-  .pstat-n { font-size: 1.3rem; }
-  /* Builds grid 2 columns on mobile */
-  #profileGrid.card-grid { grid-template-columns: 1fr 1fr !important; gap: 10px; }
-}
-@media (max-width: 420px) {
-  #profileGrid.card-grid { grid-template-columns: 1fr !important; }
-}
-
-/* ── 5. Car page — gallery thumb strip, touch targets ── */
-@media (max-width: 768px) {
-  .car-layout { grid-template-columns: 1fr; }
-  .car-left { border-radius: var(--r-xl) var(--r-xl) 0 0; }
-  .car-gallery-main { min-height: 260px; max-height: 340px; }
-  /* Bigger thumb targets */
-  .car-gallery-strip { gap: 6px; padding: 8px; }
-  .car-gallery-thumb {
-    width: 56px !important;
-    height: 56px !important;
-    min-width: 56px;
-    border-radius: 6px;
-  }
-  /* Car info section */
-  .car-right { max-height: none; padding: 0; }
-  .car-page-details { padding: 16px 14px 4px; }
-  /* Action buttons stack on small screens */
-  .car-actions { flex-wrap: wrap; gap: 8px; }
-  .car-actions .btn-primary,
-  .car-actions .btn-ghost { flex: 1; min-width: 100px; justify-content: center; }
-}
-
-/* ── 6. Modals — prevent overflow on small screens ── */
-@media (max-width: 768px) {
-  .modal-inner,
-  .post-modal-inner,
-  .auth-inner,
-  .rpt-inner,
-  .dm-new-modal-inner {
-    max-height: 90dvh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    border-radius: var(--r-lg) var(--r-lg) 0 0 !important;
-    margin: auto 0 0 !important; /* slide up from bottom */
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-  /* Modals sit at bottom of screen on mobile (sheet style) */
-  .modal, .post-modal, .auth-modal, .rpt-modal {
-    align-items: flex-end !important;
-  }
-  /* Social upload modal */
-  #socialUploadModal .modal-inner {
-    max-height: 92dvh;
-  }
-}
-
-/* ── 7. Feed cards — 1 column on small phones ── */
-@media (max-width: 480px) {
-  .card-grid {
-    grid-template-columns: 1fr !important;
-    padding: 0 10px 60px;
-    gap: 12px;
-  }
-  .card { border-radius: var(--r-lg); }
-}
-
-/* ── 8. Hot Right Now slider — touch friendly ── */
-@media (max-width: 768px) {
-  .hot-wrap { border-radius: 0; }
-  .hot-panel { padding: 16px 0 20px; }
-  .hot-item-info { padding: 12px 14px 16px; }
-  .hot-item-title { font-size: 1rem; }
-  /* Nav dots bigger tap target */
-  .hot-dot { width: 10px; height: 10px; }
-}
-
-/* ── 9. Filter bar — horizontal scroll on mobile ── */
-@media (max-width: 768px) {
-  .filter-bar { padding: 0; }
-  .filter-scroll { padding: 7px 14px; gap: 6px; }
-  .filter-pill { font-size: .72rem; padding: 5px 12px; white-space: nowrap; }
-}
-
-/* ── 10. Notifications dropdown — full width on phones ── */
-@media (max-width: 480px) {
-  .notif-drop {
-    width: calc(100vw - 20px) !important;
-    right: -10px !important;
-    left: auto !important;
-  }
-}
-
-/* ── 11. Search overlay — full screen on mobile ── */
-@media (max-width: 768px) {
-  .search-inner {
-    padding: 20px 16px;
-    max-width: 100%;
-    width: 100%;
-  }
-  .search-bar input { font-size: 16px; } /* prevent iOS zoom */
-  .sr-item { padding: 10px 12px; min-height: 52px; }
-}
-
-/* ── 12. Leaderboard — stack on mobile ── */
-@media (max-width: 600px) {
-  .lb-tabs { flex-wrap: wrap; gap: 4px; }
-  .lb-tab  { font-size: .72rem; padding: 6px 10px; }
-  .lb-row  { gap: 10px; padding: 10px 12px; }
-  .lb-standalone-section { padding: 0 10px; }
-}
-
-/* ── 13. General tap target enforcement ── */
-@media (max-width: 768px) {
-  /* All buttons/links at least 44px tall for WCAG */
-  button, .btn-primary, .btn-ghost, .mob-link, .nav-link {
-    min-height: 44px;
-  }
-  /* Exception: small pill-style buttons */
-  .btn-primary.small, .btn-ghost.small,
-  .filter-pill, .soc-tab, .lb-tab, .post-cat-pill {
-    min-height: unset;
-  }
-  /* Inputs don't zoom on iOS */
-  input, select, textarea { font-size: 16px !important; }
-  /* No horizontal overflow anywhere */
-  .page { overflow-x: hidden; max-width: 100vw; }
-}
-
-/* ── 14. Garage page — tabs scroll on mobile ── */
-@media (max-width: 600px) {
-  .garage-tabs {
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 2px;
-  }
-  .garage-tabs::-webkit-scrollbar { display: none; }
-  .garage-tab { white-space: nowrap; font-size: .78rem; padding: 7px 14px; }
-}
-
-/* ── 15. Admin panel — table scroll on mobile ── */
-@media (max-width: 768px) {
-  .admin-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .admin-table { min-width: 600px; }
-  .admin-tabs { flex-wrap: wrap; gap: 6px; }
+/* ═══════════════════════════════════════════════════════════════
+   PROFILE — fix share button + actions always visible
+   ═══════════════════════════════════════════════════════════════ */
+#profileActions {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
