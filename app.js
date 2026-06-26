@@ -186,6 +186,11 @@ async function loadStorage() {
       S._loading = false;
       try { localStorage.setItem('dl_posts_cache', JSON.stringify(S.posts)); localStorage.setItem('dl_cache_ts', String(Date.now())); } catch(_) {}
       renderFeed(); renderSidebar(); renderBOTW(); renderHotPanel(); animateStats();
+      // After re-render, restore liked/saved states for current user
+      // (avoids stale state after Supabase refresh)
+      if (S.user?.username) {
+        requestAnimationFrame(() => refreshLikedStates());
+      }
       // Fetch real comment counts in ONE bulk query, then patch + re-render
       // (keeps initial render fast, counts appear a beat later)
       DB.getCommentCounts(freshPosts.map(p => p.id)).then(counts => {
@@ -470,7 +475,12 @@ function goTo(page) {
   if (page==='events')      renderEventsGrid();
   if (page==='members')     renderMembers();
   if (page==='social')      renderSocialFeed(true);
-  if (page==='messages')    renderMessages();
+  if (page==='messages') {
+    // Messages page needs display:flex, not the default block from .page.active
+    const mp = el('page-messages');
+    if (mp) { mp.style.display = 'flex'; mp.style.flexDirection = 'column'; }
+    renderMessages();
+  }
   // Always reset messages UI state on page nav
   if (page !== 'messages') {
     const cw = el('msgChatWrap');
@@ -486,6 +496,10 @@ function goTo(page) {
   if (page==='compare')     renderComparePage();
   if (page==='admin')       renderAdmin();
   updateDmBadge();
+  // Sync bottom tab bar active state
+  document.querySelectorAll('.mob-bottom-tab[data-page]').forEach(t =>
+    t.classList.toggle('active', t.dataset.page === page)
+  );
 }
 
 // ─── SHAREABLE URL ROUTING ────────────────────────────────────
@@ -675,22 +689,57 @@ function hideSignupNudge() {
 // ─── MOBILE NAV ───────────────────────────────────────────────
 function initMobileNav() {
   function openMobNav() {
-    el('mobNav') && el('mobNav').classList.add('open');
-    el('mobOverlay') && el('mobOverlay').classList.add('open');
+    el('mobNav')?.classList.add('open');
+    el('mobOverlay')?.classList.add('open');
     document.body.style.overflow = 'hidden';
   }
+  window.openMobNav = openMobNav;
+
   function closeMobNav() {
-    el('mobNav') && el('mobNav').classList.remove('open');
-    el('mobOverlay') && el('mobOverlay').classList.remove('open');
+    el('mobNav')?.classList.remove('open');
+    el('mobOverlay')?.classList.remove('open');
     document.body.style.overflow = '';
   }
+  window.closeMobNav = closeMobNav;
+
   el('hamburger')?.addEventListener('click', openMobNav);
   el('mobNavClose')?.addEventListener('click', closeMobNav);
   el('mobOverlay')?.addEventListener('click', closeMobNav);
-  el('mobClose')?.addEventListener('click', closeMobNav);
-  el('mobOverlay')?.addEventListener('click', closeMobNav);
+
+  // Theme toggle (in drawer)
+  el('mobThemeToggle')?.addEventListener('click', () => {
+    document.body.classList.toggle('dark');
+    const isDark = document.body.classList.contains('dark');
+    try {
+      const p = JSON.parse(localStorage.getItem('dl_prefs')||'{}');
+      p.theme = isDark ? 'dark' : 'light';
+      localStorage.setItem('dl_prefs', JSON.stringify(p));
+    } catch(_) {}
+    el('mobThemeToggle').innerHTML = isDark ? '<i class="fas fa-sun"></i> Light Mode' : '<i class="fas fa-moon"></i> Dark Mode';
+    if (el('themeToggleBtn')) el('themeToggleBtn').innerHTML = isDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+  });
+
+  // Drawer nav links
+  document.querySelectorAll('.mob-link[data-page]').forEach(link => {
+    link.addEventListener('click', () => { closeMobNav(); goTo(link.dataset.page); });
+  });
+
+  // Post build in drawer
+  el('mobPostBuildBtn')?.addEventListener('click', () => { closeMobNav(); openPostModal(); });
+
+  // ── Bottom tab bar ──────────────────────────────────────────
+  document.querySelectorAll('.mob-bottom-tab[data-page]').forEach(tab => {
+    tab.addEventListener('click', () => goTo(tab.dataset.page));
+  });
+  el('mobBottomPost')?.addEventListener('click', openPostModal);
+  el('mobBottomMenu')?.addEventListener('click', openMobNav);
 }
-function closeMobNav() { el('mobNav').classList.remove('open'); el('mobOverlay').classList.remove('open'); document.body.style.overflow=''; }
+
+function closeMobNav() {
+  el('mobNav')?.classList.remove('open');
+  el('mobOverlay')?.classList.remove('open');
+  document.body.style.overflow = '';
+}
 
 // ─── ANIMATED STATS ───────────────────────────────────────────
 function animateStats() {
@@ -962,15 +1011,114 @@ function startHotProgress(dur) {
 // ─── SEARCH ───────────────────────────────────────────────────
 let _searchTimer;
 function initSearch() {
-  el('searchBtn')?.addEventListener('click', openSearch);
+  const trigger  = el('searchBtn');
+  const wrap     = el('headerSearchWrap');
+  const input    = el('headerSearchInput');
+  const results  = el('headerSearchResults');
+  const closeBtn = el('headerSearchClose');
+  const expandBtn= el('headerSearchExpand');
+  let _searchTimer = null;
+  let _isOpen = false;
+
+  function openInlineSearch() {
+    _isOpen = true; wrap?.classList.add('open');
+    if (trigger) trigger.style.display = 'none';
+    setTimeout(() => input?.focus(), 80);
+  }
+  function closeInlineSearch() {
+    _isOpen = false; wrap?.classList.remove('open');
+    if (trigger) trigger.style.display = '';
+    if (input) input.value = '';
+    if (results) { results.innerHTML = ''; results.style.display = 'none'; }
+    if (expandBtn) expandBtn.style.display = 'none';
+  }
+  // Expose for external use
+  window._closeInlineSearch = closeInlineSearch;
+
+  trigger?.addEventListener('click', openInlineSearch);
+  closeBtn?.addEventListener('click', closeInlineSearch);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeInlineSearch(); closeSearch(); }
+  });
   el('searchClose')?.addEventListener('click', closeSearch);
-  el('searchOverlay')?.addEventListener('click', e=>{if(e.target===el('searchOverlay'))closeSearch();});
-  document.addEventListener('keydown', e=>{if(e.key==='Escape')closeSearch();});
-  el('searchInput')?.addEventListener('input', ()=>{clearTimeout(_searchTimer); _searchTimer=setTimeout(doSearch,120);});
-  document.querySelectorAll('.stag').forEach(t=>t.addEventListener('click',()=>{el('searchInput').value=t.dataset.q; doSearch();}));
+  el('searchOverlay')?.addEventListener('click', e => { if(e.target===el('searchOverlay')) closeSearch(); });
+  el('searchInput')?.addEventListener('input', () => { clearTimeout(_searchTimer); _searchTimer=setTimeout(doSearch,120); });
+  document.querySelectorAll('.stag').forEach(t => t.addEventListener('click',()=>{el('searchInput').value=t.dataset.q; doSearch();}));
+
+  input?.addEventListener('input', () => {
+    const q = input.value.trim();
+    if (!q) { if(results){results.innerHTML='';results.style.display='none';} if(expandBtn)expandBtn.style.display='none'; return; }
+    if (expandBtn) expandBtn.style.display = 'inline-flex';
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(() => runInlineSearch(q), 150);
+  });
+  input?.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeInlineSearch();
+    if (e.key === 'Enter' && input.value.trim()) {
+      el('searchInput').value = input.value;
+      closeInlineSearch(); openSearch(); doSearch();
+    }
+  });
+  expandBtn?.addEventListener('click', () => {
+    const q = input?.value.trim()||'';
+    el('searchInput').value = q;
+    closeInlineSearch(); openSearch(); if(q) doSearch();
+  });
+  document.addEventListener('click', e => {
+    if (_isOpen && wrap && !wrap.contains(e.target)) closeInlineSearch();
+  });
 }
-function openSearch(){el('searchOverlay').classList.add('open'); setTimeout(()=>el('searchInput').focus(),80);}
-function closeSearch(){el('searchOverlay').classList.remove('open'); el('searchInput').value=''; el('searchResults').innerHTML='';}
+
+async function runInlineSearch(q) {
+  const results = el('headerSearchResults'); if (!results) return;
+  const lq = q.toLowerCase();
+  const postMatches = S.posts.filter(p =>
+    p.title?.toLowerCase().includes(lq) || p.make?.toLowerCase().includes(lq) ||
+    p.model?.toLowerCase().includes(lq) || (p.year||'').includes(lq)
+  ).slice(0,4);
+  const userMatches = S.users.filter(u => u.username?.toLowerCase().includes(lq)).slice(0,3);
+
+  results.style.display = 'block';
+  if (!postMatches.length && !userMatches.length) {
+    results.innerHTML = `<div class="hsr-empty">No results for "<b>${esc(q)}</b>"</div>`; return;
+  }
+  const avSVG = _defaultAvSVG();
+  results.innerHTML = [
+    userMatches.length ? `<div class="hsr-section">People</div>${userMatches.map(u => {
+      const url = getAvatarUrl(u.username);
+      return `<div class="hsr-item hsr-user" data-user="${esc(u.username)}">
+        ${url?`<img src="${url}" class="hsr-av" alt=""/>`:`<div class="hsr-av">${avSVG}</div>`}
+        <div class="hsr-info"><div class="hsr-name">${esc(u.username)}</div><div class="hsr-sub">${u.posts||0} builds</div></div>
+      </div>`; }).join('')}` : '',
+    postMatches.length ? `<div class="hsr-section">${userMatches.length?'Builds':'Results'}</div>${postMatches.map(p => {
+      const img = p.images?.[0];
+      return `<div class="hsr-item hsr-post" data-id="${esc(p.id)}">
+        <div class="hsr-thumb"${img?'':` style="background:${phBg(p.id)}"`}>${img?`<img src="${img}" alt="" loading="lazy"/>`:''}
+        </div>
+        <div class="hsr-info"><div class="hsr-name">${esc(p.title)}</div><div class="hsr-sub">${esc(p.user)} · ♥ ${p.likes}</div></div>
+      </div>`; }).join('')}` : '',
+  ].join('');
+  results.querySelectorAll('.hsr-user').forEach(item =>
+    item.addEventListener('click', () => { window._closeInlineSearch?.(); viewPublicProfile(item.dataset.user); })
+  );
+  results.querySelectorAll('.hsr-post').forEach(item =>
+    item.addEventListener('click', () => {
+      window._closeInlineSearch?.();
+      const p = S.posts.find(x=>x.id===item.dataset.id); if(p) openCarPage(p);
+    })
+  );
+  if (_sbOk() && q.length > 1) {
+    Promise.all([DB.searchPostsFTS(q,8).catch(()=>[]), DB.searchUsers(q,4).catch(()=>[])]).then(([sbP,sbU]) => {
+      let changed = false;
+      sbP.forEach(r=>{const p=dbPostToApp(r);if(p&&!S.posts.find(x=>x.id===p.id)){S.posts.push(p);changed=true;}});
+      sbU.forEach(r=>{const u=dbUserToApp(r);if(u&&!S.users.find(x=>x.username===u.username)){S.users.push(u);changed=true;}});
+      if(changed && el('headerSearchInput')?.value.trim()===q) runInlineSearch(q);
+    });
+  }
+}
+function openSearch(){ el('searchOverlay').classList.add('open'); setTimeout(()=>el('searchInput')?.focus(),80); }
+function closeSearch(){ el('searchOverlay').classList.remove('open'); if(el('searchInput'))el('searchInput').value=''; if(el('searchResults'))el('searchResults').innerHTML=''; }
+
 async function doSearch() {
   const q   = el('searchInput').value.trim();
   const res = el('searchResults');
@@ -1992,9 +2140,16 @@ function handleLike() {
   if(!canInteract()){toast(gateMsg(),'err'); return;}
   const post=S.posts.find(x=>x.id===S.openPost.id); if(!post)return;
   const idx=post.likedBy.indexOf(S.user.username);
-  if(idx>=0){post.likes=Math.max(0,post.likes-1); post.likedBy.splice(idx,1); el('carLike').classList.remove('liked');}
-  else{post.likes++; post.likedBy.push(S.user.username); el('carLike').classList.add('liked'); pushNotif('like',S.user.username,`liked your build <b>${post.title}</b>`,'post:'+post.id);}
-  el('carLikeCount').textContent=post.likes; save(); renderFeed();
+  if(idx>=0){post.likes=Math.max(0,post.likes-1); post.likedBy.splice(idx,1); el('carLike')?.classList.remove('liked');}
+  else{post.likes++; post.likedBy.push(S.user.username); el('carLike')?.classList.add('liked'); pushNotif('like',S.user.username,`liked your build <b>${post.title}</b>`,'post:'+post.id);}
+  el('carLikeCount').textContent=post.likes;
+  // Update feed cards in-place — no full re-render needed
+  document.querySelectorAll(`.card-likes[data-id="${post.id}"]`).forEach(btn => {
+    btn.classList.toggle('liked', post.likedBy.includes(S.user.username));
+    const span = btn.querySelector('span,.card-like-count');
+    if (span) span.textContent = post.likes;
+  });
+  save(); DB.toggleLike(post.id, S.user.username).catch(()=>{});
 }
 function handleSave() {
   if(!S.user){toast('Sign in to save builds','err'); el('authModal').classList.add('open'); return;}
@@ -2031,7 +2186,7 @@ function submitComment() {
   pushNotif('comment',S.user.username,`commented on <b>${post.title}</b>`,'post:'+post.id); save();
 }
 function renderTimeline(post) {
-  const wrap = el('timelineContent');
+  const wrap = el('cpTimelineContent') || el('timelineContent');
   if (!wrap) return;
   wrap.innerHTML = '<p class="no-timeline" style="color:var(--muted);font-size:.85rem">Loading timeline…</p>';
 
@@ -2068,7 +2223,7 @@ function addTimelineEntry(postId) {
   if (!post || post.user !== S.user.username) { toast('You can only edit your own timeline','err'); return; }
 
   // Use a clean inline form instead of browser prompt()
-  const content = el('timelineContent');
+  const content = el('cpTimelineContent') || el('timelineContent');
   if (!content) return;
 
   // If form already open, close it
@@ -2632,6 +2787,27 @@ function attachCardEvents(container) {
   }));
 }
 
+
+// Re-apply liked/saved visual states to all card buttons
+// Called after Supabase refreshes the feed to prevent stale icons
+function refreshLikedStates() {
+  if (!S.user?.username) return;
+  const vid = S.user.username;
+  document.querySelectorAll('.card-likes[data-id]').forEach(btn => {
+    const post = S.posts.find(p => p.id === btn.dataset.id);
+    if (!post) return;
+    const liked = post.likedBy.includes(vid);
+    btn.classList.toggle('liked', liked);
+    const span = btn.querySelector('span,.card-like-count');
+    if (span) span.textContent = post.likes;
+  });
+  document.querySelectorAll('.card-save[data-id]').forEach(btn => {
+    const post = S.posts.find(p => p.id === btn.dataset.id);
+    if (!post) return;
+    btn.classList.toggle('saved', post.savedBy.includes(vid));
+  });
+}
+
 // ─── SIDEBAR ──────────────────────────────────────────────────
 function renderSidebar() {
   const top5=[...S.posts].sort((a,b)=>b.likes-a.likes).slice(0,5);
@@ -2870,7 +3046,12 @@ async function castBotmVote(postId) {
   const now = new Date();
   if (now.getDate() > 25) { toast(`Voting closed on the 25th — check the Leaderboard for this month's winner`,''); return; }
   const existing = getUserBotmVote();
-  if (existing === postId) { toast('You already voted for this build this month!',''); return; }
+  if (existing === postId) { toast('You already voted for this build this month! ✓','err'); return; }
+  if (existing && existing !== postId) {
+    const votedPost = S.posts.find(p=>p.id===existing);
+    toast(`You already voted for "${votedPost?.title||'another build'}" this month. You can only vote once.`,'err');
+    return;
+  }
   const voteKey = `botm_${now.getFullYear()}_${String(now.getMonth()+1).padStart(2,'0')}`;
   // Save locally first for instant feedback
   localStorage.setItem(getBotmVoteKey(), postId);
@@ -3476,38 +3657,95 @@ function renderSavedSocials() {
   });
 }
 
+
+// ─── SAVE PART FROM BUILD ─────────────────────────────────────
+function savePartFromBuild(partData) {
+  if (!S.user) { toast('Sign in to save parts','err'); el('authModal')?.classList.add('open'); return; }
+  const uname = S.user.username;
+  const parts = JSON.parse(localStorage.getItem('dl_parts_'+uname)||'[]');
+  // Don't duplicate same part from same post
+  if (parts.find(p => p.text === partData.text && p.fromPostId === partData.fromPostId)) {
+    toast('Part already saved to Garage',''); return;
+  }
+  parts.unshift({ ...partData, ts: Date.now() });
+  localStorage.setItem('dl_parts_'+uname, JSON.stringify(parts));
+  toast('Part saved to Garage ✓','ok');
+  // Animate the button
+}
+
+function wirePartSaveButtons(post) {
+  document.querySelectorAll('.cp-save-part-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      try {
+        const partData = JSON.parse(decodeURIComponent(btn.dataset.part));
+        savePartFromBuild(partData);
+        btn.classList.add('saved');
+        btn.innerHTML = '<i class="fas fa-check"></i>';
+        setTimeout(() => { btn.classList.remove('saved'); btn.innerHTML = '<i class="fas fa-bookmark"></i>'; }, 2000);
+      } catch(err) { console.warn('Save part failed:', err); }
+    });
+    // Mark already-saved parts
+    if (S.user) {
+      try {
+        const partData = JSON.parse(decodeURIComponent(btn.dataset.part));
+        const parts = JSON.parse(localStorage.getItem('dl_parts_'+S.user.username)||'[]');
+        if (parts.find(p => p.text === partData.text && p.fromPostId === partData.fromPostId)) {
+          btn.classList.add('saved');
+          btn.innerHTML = '<i class="fas fa-check"></i>';
+        }
+      } catch(_) {}
+    }
+  });
+}
+
 function renderParts() {
   const uname = S.user?.username; if (!uname) return;
   const parts = JSON.parse(localStorage.getItem('dl_parts_'+uname)||'[]');
   el('partsPanel').innerHTML = `
     <div class="parts-section">
-      <div class="parts-header"><h3>Saved Parts</h3><p>Track parts you want to buy or are researching.</p></div>
+      <div class="parts-header"><h3>Saved Parts</h3><p>Parts you've saved from builds or added manually.</p></div>
       <div class="parts-add-row">
-        <input class="finput" id="partsInput" placeholder="Part name (e.g. Tein coilovers, HKS turbo kit, Rays CE28N 18x9.5)…" style="flex:1;margin-bottom:0"/>
-        <button class="btn-primary small" id="partsAddBtn"><i class="fas fa-plus"></i> Add Part</button>
+        <input class="finput" id="partsInput" placeholder="Add a part manually (e.g. Tein coilovers, HKS turbo kit…)" style="flex:1;margin-bottom:0"/>
+        <button class="btn-primary small" id="partsAddBtn"><i class="fas fa-plus"></i> Add</button>
       </div>
       <div class="parts-list" id="partsList">
-        ${parts.length ? parts.map((p,i)=>`
-          <div class="parts-item">
-            <span class="parts-item-icon"><i class="fas fa-wrench"></i></span>
-            <span class="parts-item-text">${esc(p.text)}</span>
-            <span class="parts-item-date">${timeAgo(p.ts)}</span>
+        ${parts.length ? parts.map((p,i) => {
+          const hasFavicon = p.url && p.url.startsWith('http');
+          let faviconHTML = '';
+          try {
+            if (hasFavicon) {
+              const domain = new URL(p.url).hostname;
+              faviconHTML = `<div class="parts-item-thumb"><img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32" alt="" loading="lazy" onerror="this.parentElement.innerHTML='<i class=\\'fas fa-link\\'></i>'"/></div>`;
+            } else {
+              faviconHTML = `<span class="parts-item-icon"><i class="fas fa-wrench"></i></span>`;
+            }
+          } catch(_) { faviconHTML = `<span class="parts-item-icon"><i class="fas fa-wrench"></i></span>`; }
+          return `<div class="parts-item">
+            ${faviconHTML}
+            <div class="parts-item-body">
+              <span class="parts-item-text">${esc(p.text||p)}</span>
+              ${p.fromUser ? `<span class="parts-item-from">from <b>${esc(p.fromUser)}</b>'s build</span>` : ''}
+              ${p.url ? `<a class="parts-item-link" href="${esc(p.url)}" target="_blank" rel="noopener"><i class="fas fa-external-link-alt"></i> View Part</a>` : ''}
+            </div>
+            <span class="parts-item-date">${timeAgo(p.ts||Date.now())}</span>
             <button class="parts-rm-btn" data-i="${i}" title="Remove"><i class="fas fa-times"></i></button>
-          </div>`).join('') : '<p class="parts-empty"><i class="fas fa-wrench" style="margin-right:6px"></i>No saved parts yet.</p>'}
+          </div>`;
+        }).join('') : '<p class="parts-empty"><i class="fas fa-wrench" style="margin-right:6px"></i>No saved parts yet. Browse builds and click the bookmark icon on any part.</p>'}
       </div>
     </div>`;
   el('partsAddBtn')?.addEventListener('click', () => {
     const txt = el('partsInput')?.value.trim(); if(!txt) return;
     const parts2 = JSON.parse(localStorage.getItem('dl_parts_'+uname)||'[]');
-    parts2.unshift({text:txt, ts:Date.now()});
+    parts2.unshift({ text: txt, ts: Date.now() });
     localStorage.setItem('dl_parts_'+uname, JSON.stringify(parts2));
     renderParts();
   });
-  el('partsInput')?.addEventListener('keydown', e=>{ if(e.key==='Enter') el('partsAddBtn')?.click(); });
-  el('partsList')?.querySelectorAll('.parts-rm-btn').forEach(btn=>btn.addEventListener('click',()=>{
-    const parts2=JSON.parse(localStorage.getItem('dl_parts_'+uname)||'[]');
-    parts2.splice(+btn.dataset.i,1);
-    localStorage.setItem('dl_parts_'+uname,JSON.stringify(parts2));
+  el('partsInput')?.addEventListener('keydown', e => { if(e.key==='Enter') el('partsAddBtn')?.click(); });
+  el('partsList')?.querySelectorAll('.parts-rm-btn').forEach(btn => btn.addEventListener('click', () => {
+    const parts2 = JSON.parse(localStorage.getItem('dl_parts_'+uname)||'[]');
+    parts2.splice(+btn.dataset.i, 1);
+    localStorage.setItem('dl_parts_'+uname, JSON.stringify(parts2));
     renderParts();
   }));
 }
@@ -3708,8 +3946,6 @@ function accountAge(user) {
 // ─── CAR DETAIL PAGE ──────────────────────────────────────────
 function initCarPage() {
   el('carPageBack')?.addEventListener('click', () => {
-    history.back ? history.go(-1) : goTo('home');
-    // fallback: just go home if no history
     goTo(S._prevPage || 'home');
   });
   el('cpLike')?.addEventListener('click', () => {
@@ -3977,6 +4213,8 @@ function renderCarPage(post) {
             </div>`;
           } catch(_) { thumbHTML = '<div class="cp-part-thumb-placeholder"><i class="fas fa-link"></i></div>'; }
         }
+        // Encode for data attribute
+        const encodedPart = encodeURIComponent(JSON.stringify({text, url, fromUser: post.user, fromPostId: post.id}));
         return `<li class="cp-mod-item${url?' has-link':''}">
           ${thumbHTML}
           <div class="cp-mod-item-body">
@@ -3985,6 +4223,9 @@ function renderCarPage(post) {
               <i class="fas fa-external-link-alt"></i> View Part
             </a>` : ''}
           </div>
+          <button class="cp-save-part-btn" data-part="${esc(encodedPart)}" title="Save part to Garage">
+            <i class="fas fa-bookmark"></i>
+          </button>
         </li>`;
       }).join('');
       return `<div class="cp-mod-section">
@@ -4001,10 +4242,12 @@ function renderCarPage(post) {
   } else {
     modsEl.innerHTML = '';
   }
+  // Wire save-part buttons now that mods are rendered
+  wirePartSaveButtons(post);
+
   // Show/hide the details section
   const detailsEl = el('cpDetails');
   if (detailsEl) {
-    // Always show details — every post has at least year/make/model chips
     detailsEl.style.display = '';
   }
   // Like / save state
@@ -4014,7 +4257,7 @@ function renderCarPage(post) {
   renderCpVideos(post);
   // Compare button
   const cpCmp = el('cpCompare');
-  if (cpCmp) cpCmp.onclick = () => { S.compareA = post; goTo('compare'); renderComparePage(); toast('Build loaded for comparison','ok'); };
+  if (cpCmp) cpCmp.onclick = () => { S.compareA = post; goTo('compare'); renderComparePage(); toast('Build loaded for comparison ✓',''); };
   // Comments
   cpRenderComments(post);
   // Timeline
@@ -4110,10 +4353,13 @@ function cpRenderGallery(post) {
 }
 
 function syncCpActions(post) {
-  const liked = post.likedBy.includes(S.user ? S.user.username : getDeviceId());
-  const saved = !!(S.user && post.savedBy.includes(S.user.username));
+  // Always read from S.posts (source of truth after save())
+  const canonical = S.posts.find(p => p.id === post.id) || post;
+  const vid   = S.user?.username || getDeviceId();
+  const liked = (canonical.likedBy||[]).includes(vid);
+  const saved = !!(S.user && (canonical.savedBy||[]).includes(S.user.username));
   el('cpLike').className = 'act-btn like-btn' + (liked ? ' liked' : '');
-  el('cpLikeCount').textContent = post.likes;
+  el('cpLikeCount').textContent = canonical.likes;
   el('cpSave').className = 'act-btn save-btn' + (saved ? ' saved' : '');
   el('cpSave').innerHTML = saved ? '<i class="fas fa-bookmark"></i> Saved' : '<i class="fas fa-bookmark"></i> Save';
 }
@@ -4351,12 +4597,12 @@ function cpSubmitComment() {
 function renderCpVideos(post) {
   const panel = el('specsRightPanel'); if (!panel) return;
   const videos = post.videos || [];
+  panel.style.display = 'flex';
   if (!videos.length) {
-    panel.innerHTML = '';
-    panel.style.display = 'none';
+    panel.innerHTML = `<div class="cp-videos-label"><i class="fas fa-video"></i> Videos</div>
+      <p class="cp-videos-none">No videos uploaded for this build.</p>`;
     return;
   }
-  panel.style.display = 'flex';
   panel.innerHTML = `
     <div class="cp-videos-label"><i class="fas fa-video"></i> Videos</div>
     <div class="cp-videos-grid">
@@ -4475,9 +4721,9 @@ function getAllDmConversations() {
 }
 
 function updateDmBadge() {
-  if (!S.user) { hideEl('navDmBadge'); hideEl('mobDmBadge'); return; }
+  if (!S.user) { hideEl('navDmBadge'); hideEl('mobDmBadge'); hideEl('mobTabDmBadge'); return; }
   const total = getAllDmConversations().reduce((a,c)=>a+c.unread,0);
-  ['navDmBadge','mobDmBadge'].forEach(id => {
+  ['navDmBadge','mobDmBadge','mobTabDmBadge'].forEach(id => {
     const b = el(id); if(!b) return;
     if (total > 0) { b.textContent = total > 9 ? '9+' : total; b.style.display='inline-flex'; }
     else b.style.display = 'none';
@@ -4575,6 +4821,7 @@ async function renderMessages() {
   el('msgConvList').querySelectorAll('.msg-conv-item').forEach(item =>
     item.addEventListener('click', () => openDmWith(item.dataset.user))
   );
+  updateDmBadge();
 }
 
 async function openDmWith(username) {
@@ -5731,6 +5978,11 @@ function switchCpTab(tab) {
   ['cptab-comments','cptab-timeline','cptab-costs'].forEach(id => {
     const p = el(id);
     if (p) p.style.display = (p.id === 'cptab-' + tab) ? '' : 'none';
+  });
+  // Also handle legacy panel IDs
+  ['dtab-comments','dtab-timeline'].forEach(id => {
+    const p = el(id);
+    if (p) p.style.display = 'none';
   });
 }
 

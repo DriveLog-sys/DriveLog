@@ -229,8 +229,18 @@
       <a class="nav-link" data-page="explore">More</a>
     </nav>
     <div class="header-right">
-      <button class="icon-btn" id="searchBtn"><i class="fas fa-search"></i></button>
-      <button class="icon-btn" id="themeToggleBtn" title="Toggle dark/light mode"><i class="fas fa-moon"></i></button>
+      <!-- Inline expanding search -->
+      <div class="header-search-wrap" id="headerSearchWrap">
+        <button class="icon-btn header-search-trigger" id="searchBtn" title="Search"><i class="fas fa-search"></i></button>
+        <div class="header-search-bar" id="headerSearchBar">
+          <i class="fas fa-search header-search-icon"></i>
+          <input type="text" class="header-search-input" id="headerSearchInput" placeholder="Search builds, members…" autocomplete="off" spellcheck="false"/>
+          <button class="header-search-expand" id="headerSearchExpand" style="display:none">Expand</button>
+          <button class="header-search-close" id="headerSearchClose"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="header-search-results" id="headerSearchResults"></div>
+      </div>
+      <button class="icon-btn" id="themeToggleBtn" title="Toggle dark/light mode" aria-label="Toggle theme"><i class="fas fa-moon"></i></button>
       <!-- Notification bell -->
       <div class="notif-wrap">
         <button class="icon-btn" id="notifBtn"><i class="fas fa-bell"></i><span class="notif-badge" id="notifBadge"></span></button>
@@ -268,6 +278,31 @@
 
 <!-- PAGES -->
 <main class="page-wrap">
+
+<!-- MOBILE BOTTOM TAB BAR (phones only, shown via CSS) -->
+<nav class="mob-bottom-nav" id="mobBottomNav" aria-label="Main navigation">
+  <button class="mob-bottom-tab active" data-page="home" aria-label="Feed">
+    <i class="fas fa-home"></i>
+    <span>Feed</span>
+  </button>
+  <button class="mob-bottom-tab" data-page="social" aria-label="Social">
+    <i class="fas fa-film"></i>
+    <span>Social</span>
+  </button>
+  <button class="mob-bottom-tab mob-post-tab" id="mobBottomPost" aria-label="Post Build">
+    <i class="fas fa-plus-circle"></i>
+    <span>Post</span>
+  </button>
+  <button class="mob-bottom-tab" data-page="messages" aria-label="Messages">
+    <i class="fas fa-envelope"></i>
+    <span>Messages</span>
+    <span class="mob-tab-badge" id="mobTabDmBadge" style="display:none"></span>
+  </button>
+  <button class="mob-bottom-tab" id="mobBottomMenu" aria-label="Menu">
+    <i class="fas fa-bars"></i>
+    <span>Menu</span>
+  </button>
+</nav>
 
   <!-- HOME -->
   <section class="page active" id="page-home">
