@@ -973,6 +973,20 @@ function renderHotPanel() {
   // Arrows
   el('hotPrev').onclick = () => hotGoTo((_hotSliderIdx - 1 + top.length) % top.length);
   el('hotNext').onclick = () => hotGoTo((_hotSliderIdx + 1) % top.length);
+  // Touch swipe on hot slider for mobile
+  const _hs = el('hotSlider');
+  if (_hs && !_hs._swipeWired) {
+    _hs._swipeWired = true;
+    let _hsTx = 0;
+    _hs.addEventListener('touchstart', e => { _hsTx = e.touches[0].clientX; }, {passive:true});
+    _hs.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - _hsTx;
+      if (Math.abs(dx) > 40) hotGoTo(dx < 0
+        ? (_hotSliderIdx + 1) % top.length
+        : (_hotSliderIdx - 1 + top.length) % top.length
+      );
+    }, {passive:true});
+  }
 
   // Auto-advance
   _hotSliderIdx = 0;
