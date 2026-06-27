@@ -154,7 +154,7 @@ const DB = {
     if (!_sbOk()) { console.warn('DriveLog: Supabase not ready'); return []; }
     let q = _sb
       .from('posts')
-      .select('*, comments(count)')
+      .select('*')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
     if (category) q = q.contains('categories', [category]);
@@ -580,12 +580,9 @@ function dbPostToApp(row) {
     reactions:    row.reactions   || {},
     images:       row.images      || [],
     videos:       row.videos      || [],
-    // Comments aren't embedded in the post row, but Supabase can return a
-    // count via the comments(count) relation. We stash that count as the
-    // array length so card previews show the real number without an extra
-    // fetch per post. Full comment objects load lazily when a build page opens.
-    comments:     Array(row.comments?.[0]?.count || 0).fill(null),
-    commentCount: row.comments?.[0]?.count || 0,
+    // Comment count comes from separate getCommentCounts() call after render
+    comments:     [],
+    commentCount: 0,
     date:         (row.created_at || '').slice(0, 10),
     createdAt:    row.created_at || '',
     editedAt:     row.edited_at,

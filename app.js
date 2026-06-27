@@ -78,16 +78,10 @@ document.addEventListener('DOMContentLoaded', () => {
   updateNotifBadge();
   renderAll();
 
-  // ── Phase 2: Load fresh data from Supabase in background ─────
-  // No blocking, no spinner — just update when data arrives
-  loadStorage().then(() => {
-    renderAll();
-    updateAuthUI();
-    updateNotifBadge();
-    if (S.user) setupRealtimeSubscriptions();
-  }).catch(e => {
-    console.warn('Background Supabase load error:', e);
-  });
+  // ── Phase 2: Load fresh data from Supabase — completely non-blocking ──
+  // Fire and forget — the site is already rendered from cache above.
+  // loadStorage() calls renderFeed() internally as soon as posts arrive.
+  loadStorage().catch(e => console.warn('Supabase load error:', e));
 
   // Handle ?user= and ?post= URL params after a brief delay
   // so S.posts has a chance to populate from cache first
@@ -95,6 +89,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function loadFromCache() {
+  // Initialize in-memory avatar cache from localStorage first
+  _initAvCache();
   try {
     const cp = localStorage.getItem('dl_posts_cache');
     const cu = localStorage.getItem('dl_users_cache');
@@ -103,9 +99,9 @@ function loadFromCache() {
     if (cp) S.posts = JSON.parse(cp);
     if (cu) {
       S.users = JSON.parse(cu);
-      // Re-populate avatar URL cache from S.users so avatars show instantly
+      // Populate in-memory avatar cache from S.users immediately
       S.users.forEach(u => {
-        if (u.avatarUrl?.startsWith('http')) cacheAvatarUrl(u.username, u.avatarUrl);
+        if (u.avatarUrl?.startsWith('http')) _avCache.set(u.username, u.avatarUrl);
       });
     }
     // Also load per-user avatar_url from the avatar cache
@@ -250,22 +246,43 @@ async function loadStorage() {
     localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
     localStorage.setItem('dl_user', JSON.stringify(S.user));
   } else if (sessionResult.status === 'fulfilled' && !sessionResult.value) {
-    // Supabase says no session — but only clear if the auth token is truly gone
-    // Check if Supabase auth itself has a session (not just the profile fetch)
-    const rawSession = await (async () => {
-      try { const { data } = await _sb?.auth?.getSession(); return data?.session || null; }
-      catch(_) { return null; }
-    })();
-    if (!rawSession) {
-      // Truly logged out — clear everything
-      S.user = null;
-      localStorage.removeItem('dl_user_cache');
-      localStorage.removeItem('dl_user');
+    // Supabase returned null session. This can happen if:
+    // 1. User genuinely logged out
+    // 2. Supabase CDN wasn't fully ready when prefetch fired (race condition)
+    // 3. Token refresh is in progress
+    //
+    // Strategy: if we have a cached user, KEEP them — don't log them out
+    // based on a potentially-stale prefetch result.
+    // Instead, attempt a fresh token refresh. If that fails, THEN log out.
+    if (cachedUser?.username) {
+      try {
+        const { data: refreshed } = await _sb.auth.refreshSession();
+        if (refreshed?.session) {
+          // Token refreshed — user is still logged in
+          const meta = refreshed.session.user.user_metadata || {};
+          const authUser = dbUserToApp({ ...refreshed.session.user,
+            username: meta.username || refreshed.session.user.email?.split('@')[0] || cachedUser.username
+          });
+          S.user = { ...authUser, ...cachedUser, id: authUser.id };
+          localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
+          localStorage.setItem('dl_user', JSON.stringify(S.user));
+        } else {
+          // Refresh failed — genuinely logged out
+          S.user = null;
+          localStorage.removeItem('dl_user_cache');
+          localStorage.removeItem('dl_user');
+          localStorage.removeItem('dl_avatar_url');
+        }
+      } catch(_) {
+        // Network error during refresh — keep cached user, try again next load
+        S.user = S.user || cachedUser;
+      }
     }
-    // If rawSession exists but profile fetch failed (RLS issue), keep cached user
-    // The user IS logged in, the DB just can't read the profile yet
+    // No cached user and no session — already logged out, nothing to do
   }
   updateAuthUI(); updateNotifBadge();
+  // Wire realtime now that we have confirmed session
+  if (S.user?.id) setupRealtimeSubscriptions();
 
   // ── Fire non-critical in background without blocking ──────────
   // Profiles: only re-fetch if cache is >10 min old
@@ -684,14 +701,31 @@ function _defaultAvSVG() {
 
 // Set an avatar DOM element — shows photo or default grey SVG
 function setAvEl(domEl, username) {
-  if (!domEl) return;
+  if (!domEl || !username) return;
+  domEl.dataset.user = username;
   const url = getAvatarUrl(username);
+  // If the element already shows this exact URL, skip the DOM write
+  const existing = domEl.querySelector('img');
+  if (url && existing && existing.src === url) return;
   if (url) {
-    domEl.innerHTML = `<img src="${url}" alt="" class="av-photo" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block"/>`;
+    const isOwn = S.user?.username === username;
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = '';
+    img.className = 'av-photo';
+    img.loading = isOwn ? 'eager' : 'lazy';
+    if (isOwn) img.fetchPriority = 'high';
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:50%;display:block';
+    img.onerror = () => { domEl.innerHTML = _defaultAvSVG(); };
+    domEl.innerHTML = '';
+    domEl.appendChild(img);
     domEl.style.background = 'transparent';
   } else {
-    domEl.innerHTML = _defaultAvSVG();
-    domEl.style.background = 'transparent';
+    // Only write SVG if not already showing it
+    if (!domEl.querySelector('svg')) {
+      domEl.innerHTML = _defaultAvSVG();
+      domEl.style.background = 'transparent';
+    }
   }
 }
 
@@ -3986,36 +4020,44 @@ function toast(msg,type=''){
 
 // ─── AVATAR HELPERS ────────────────────────────────────────────
 // Returns the avatar URL for a user if they have one, otherwise null
+// In-memory avatar URL cache — populated from localStorage at boot,
+// updated on every cacheAvatarUrl() call. No JSON.parse on every lookup.
+const _avCache = new Map();
+
+function _initAvCache() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
+    Object.entries(stored).forEach(([u, url]) => { if (url?.startsWith('http')) _avCache.set(u, url); });
+  } catch(_) {}
+}
+// Called once from loadFromCache()
 function getAvatarUrl(username) {
   if (!username) return null;
-  // 1. S.users (from Supabase) — most authoritative for cross-device
+  // 1. In-memory cache (fastest, populated from S.users + localStorage at boot)
+  if (_avCache.has(username)) return _avCache.get(username);
+  // 2. S.users array
   const u = S.users.find(x => x.username === username);
-  if (u?.avatarUrl && u.avatarUrl.startsWith('http')) return u.avatarUrl;
-  // 2. Own user object
-  if (S.user?.username === username && S.user.avatarUrl?.startsWith('http')) return S.user.avatarUrl;
-  // 3. Local avatar_url key (set right after upload on this device)
+  if (u?.avatarUrl?.startsWith('http')) { _avCache.set(username, u.avatarUrl); return u.avatarUrl; }
+  // 3. Own user's avatarUrl
+  if (S.user?.username === username && S.user.avatarUrl?.startsWith('http')) {
+    _avCache.set(username, S.user.avatarUrl); return S.user.avatarUrl;
+  }
+  // 4. Own device upload key
   if (S.user?.username === username) {
     const local = localStorage.getItem('dl_avatar_url');
-    if (local?.startsWith('http')) return local;
+    if (local?.startsWith('http')) { _avCache.set(username, local); return local; }
   }
-  // 4. Per-user avatar cache
-  try {
-    const cache = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
-    const cached = cache[username];
-    if (cached?.startsWith('http')) return cached;
-  } catch(_) {}
-  // 5. Any URL even non-http
-  if (u?.avatarUrl) return u.avatarUrl;
-  return null; // null = use default grey SVG avatar
+  return null;
 }
 
-// Called when we know an avatar URL — cache it for instant display
+// Called when we know an avatar URL — update both in-memory and localStorage
 function cacheAvatarUrl(username, url) {
-  if (!username || !url) return;
+  if (!username || !url?.startsWith('http')) return;
+  _avCache.set(username, url);
   try {
-    const cache = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
-    cache[username] = url;
-    localStorage.setItem('dl_avatar_cache', JSON.stringify(cache));
+    const stored = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
+    stored[username] = url;
+    localStorage.setItem('dl_avatar_cache', JSON.stringify(stored));
   } catch(_) {}
 }
 
