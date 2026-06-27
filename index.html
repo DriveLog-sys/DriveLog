@@ -22,8 +22,8 @@
   <link rel="preconnect" href="https://lsnpxneywkrirfkfszbo.supabase.co"/>
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net"/>
   <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com"/>
-  <!-- Supabase loads async — non-render-blocking -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+  <!-- Supabase must load before our scripts - no defer -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 

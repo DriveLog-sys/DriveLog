@@ -35,7 +35,17 @@ _prefetchPostsPromise = DB.getPosts({ limit: 60 }).catch(() => null);
 }
 }
 try { _initSb(); startPrefetch(); } catch(_) {}
-document.addEventListener('DOMContentLoaded', () => {
+
+// Safe init — works whether script runs before or after DOMContentLoaded
+// (important when scripts use defer)
+function _domReady(fn) {
+if (document.readyState === 'loading') {
+document.addEventListener('DOMContentLoaded', fn);
+} else {
+fn(); // DOM already ready (e.g. script loaded after parse)
+}
+}
+_domReady(() => {
 applyPrefs();
 // Fire prefetch immediately — scripts are deferred so DOMContentLoaded
 // is the earliest safe point. Re-run in case top-level call failed.
