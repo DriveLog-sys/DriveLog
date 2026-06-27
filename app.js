@@ -4284,17 +4284,29 @@ function cpRenderGallery(post) {
   const gallMain = el('cpGallMain');
   if (gallMain && !gallMain._swipeWired) {
     gallMain._swipeWired = true;
-    let _swipeStartX = 0, _swipeStartY = 0;
+    let _swipeStartX = 0, _swipeStartY = 0, _swipeMoved = false;
     gallMain.addEventListener('touchstart', e => {
       _swipeStartX = e.touches[0].clientX;
       _swipeStartY = e.touches[0].clientY;
+      _swipeMoved = false;
+    }, { passive: true });
+    gallMain.addEventListener('touchmove', e => {
+      const dx = Math.abs(e.touches[0].clientX - _swipeStartX);
+      const dy = Math.abs(e.touches[0].clientY - _swipeStartY);
+      if (dx > 8) _swipeMoved = true; // track that user swiped
     }, { passive: true });
     gallMain.addEventListener('touchend', e => {
       const dx = e.changedTouches[0].clientX - _swipeStartX;
       const dy = e.changedTouches[0].clientY - _swipeStartY;
-      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
-        if (dx < 0) el('cpGallNext')?.click();
-        else el('cpGallPrev')?.click();
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 35) {
+        // Horizontal swipe — navigate gallery
+        if (dx < 0) el('cpGalNext')?.click();
+        else el('cpGalPrev')?.click();
+      } else if (!_swipeMoved) {
+        // Pure tap — open lightbox (the img has pointer-events:none on mobile
+        // so we handle the tap here on the parent instead)
+        const img = gallMain.querySelector('#cpMainImg');
+        if (img) img.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       }
     }, { passive: true });
   }

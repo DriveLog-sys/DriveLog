@@ -8226,3 +8226,196 @@ body { overflow-x: hidden; max-width: 100vw; }
   .header-inner { padding: 0 6px !important; }
   #openAuthBtn { padding: 4px 8px !important; font-size: .68rem !important; }
 }
+
+/* ╔═══════════════════════════════════════════════════════════════╗
+   ║  MOBILE POLISH v3 — Car Spotting, gallery swipe, filter bar  ║
+   ╚═══════════════════════════════════════════════════════════════╝ */
+
+/* ─── "New!" badge on Car Spotting heading ─────────────────── */
+.new-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--cond);
+  font-size: .55rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 20px;
+  vertical-align: middle;
+  margin-left: 8px;
+  position: relative;
+  top: -2px;
+  animation: badgePulse 2s ease-in-out infinite;
+}
+@keyframes badgePulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .7; }
+}
+
+@media (max-width: 768px) {
+
+  /* ─── MOBILE NAV DRAWER — clean top, no X button ─────────── */
+  .mob-nav-top {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important; /* logo left, no X */
+    padding: 16px 18px !important;
+    border-bottom: 1px solid var(--border) !important;
+  }
+  .mob-nav-close { display: none !important; } /* belt-and-suspenders */
+  .mob-nav-top .logo {
+    font-size: 1.3rem !important;
+    letter-spacing: 1.5px !important;
+  }
+
+  /* ─── FILTER BAR: hidden on mobile ───────────────────────── */
+  /* Users have the filter pills in the hot section already.
+     The category filter stays accessible via the filter row
+     (the sort + category row) but the big pill strip is redundant */
+  .filter-bar { display: none !important; }
+
+  /* ─── GALLERY: swipeable without click-first ─────────────── */
+  /* Make the gallery main fill width and not intercept taps for zoom */
+  .car-page-gallery-main {
+    overflow: hidden !important;
+    touch-action: pan-y !important; /* allow horizontal swipe */
+    -webkit-overflow-scrolling: touch !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+  }
+  /* The img inside should not intercept pointer events for swipe */
+  .car-page-gallery-main img {
+    pointer-events: none !important; /* swipe fires on parent */
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+  /* Re-enable pointer events for lightbox click via JS only */
+  .car-page-gallery-main img.allow-tap {
+    pointer-events: auto !important;
+  }
+  /* Hide gallery arrows — swipe only on mobile */
+  .gal-nav, .gal-prev, .gal-next,
+  #cpGalPrev, #cpGalNext { display: none !important; }
+  /* Gallery count pill stays visible */
+  .gal-count {
+    display: flex !important;
+    position: absolute !important;
+    bottom: 8px !important; right: 10px !important;
+    background: rgba(0,0,0,.5) !important;
+    color: #fff !important;
+    font-size: .68rem !important;
+    padding: 2px 8px !important;
+    border-radius: 20px !important;
+    font-family: var(--cond) !important;
+    font-weight: 700 !important;
+    letter-spacing: .5px !important;
+    pointer-events: none !important;
+  }
+
+  /* ─── HOT SLIDER: swipe dots visible, cleaner ────────────── */
+  .hot-controls {
+    display: flex !important;
+    justify-content: center !important;
+    padding: 6px 0 2px !important;
+  }
+  #hotPrev, #hotNext,
+  .hot-ctrl-btn { display: none !important; }
+
+  /* ─── MOBILE NAV: bottom tab icon for Car Spotting ──────── */
+  .mob-bottom-tab[data-page="social"] i { font-size: 1.05rem !important; }
+
+  /* ─── SOCIAL FEED TITLE ──────────────────────────────────── */
+  .social-feed-title {
+    font-size: 1.3rem !important;
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+
+  /* ─── CARD: tap feedback, no hover effects ───────────────── */
+  .card { transition: transform .1s !important; }
+  .card:hover { transform: none !important; box-shadow: none !important; }
+  .card:active { transform: scale(.97) !important; }
+
+  /* ─── BUILD PAGE: gallery counter always visible ─────────── */
+  .car-page-gallery-main { position: relative !important; }
+
+  /* ─── POST FORM: compact on mobile ──────────────────────── */
+  .mod-cat-card { padding: 12px !important; }
+  .mod-entry-row { flex-wrap: wrap !important; gap: 5px !important; }
+  .mod-item-input { min-width: 100% !important; order: 1 !important; }
+  .mod-link-input { min-width: 100% !important; order: 2 !important; }
+  .mod-link-toggle, .mod-add-btn { order: 3 !important; }
+
+  /* ─── PROFILE: share button hidden (copy URL via browser) ── */
+  #profileShareBtn { display: none !important; }
+
+  /* ─── LEADERBOARD: ATG grid single column ───────────────── */
+  .atg-grid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+  .atg-item { padding: 10px 8px !important; }
+
+  /* ─── GARAGE: parts list compact ────────────────────────── */
+  .parts-item { gap: 7px !important; }
+  .parts-item-date { display: none !important; } /* save space */
+
+  /* ─── MESSAGES: input row better on mobile ───────────────── */
+  .msg-input-row {
+    padding: 6px 8px !important;
+    gap: 6px !important;
+  }
+  .msg-input {
+    font-size: .9rem !important;
+    padding: 8px 12px !important;
+  }
+
+  /* ─── SEARCH: compact on mobile ─────────────────────────── */
+  .search-results { max-height: 55vh !important; }
+  .search-result-item { padding: 10px 14px !important; }
+
+  /* ─── SIGN UP NUDGE: above bottom bar ───────────────────── */
+  .signup-nudge {
+    bottom: 56px !important;
+    left: 0 !important; right: 0 !important;
+    border-radius: 0 !important;
+    padding: 10px 14px !important;
+  }
+
+  /* ─── TOASTS: above bottom bar, centered ────────────────── */
+  #toastContainer,
+  .toast {
+    bottom: 62px !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    white-space: nowrap !important;
+  }
+  .toast.show {
+    transform: translateX(-50%) translateY(-4px) !important;
+  }
+
+  /* ─── BUILD PAGE TABS: scroll on mobile ─────────────────── */
+  .car-page-tabs {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    padding-bottom: 2px !important;
+    scrollbar-width: none !important;
+  }
+  .car-page-tabs::-webkit-scrollbar { display: none !important; }
+  .cptab { flex-shrink: 0 !important; }
+
+  /* ─── COMPARE PAGE: single column on mobile ─────────────── */
+  .compare-layout { grid-template-columns: 1fr !important; }
+  .compare-col + .compare-col { margin-top: 16px !important; }
+
+  /* ─── EVENTS PAGE: compact ───────────────────────────────── */
+  .events-grid { grid-template-columns: 1fr !important; }
+
+  /* ─── MISC: remove desktop-only elements on mobile ────────── */
+  .desktop-only { display: none !important; }
+  .mobile-only  { display: block !important; }
+}
