@@ -31,15 +31,29 @@ let _prefetchPostsPromise = null;
 let _prefetchSessionPromise = null;
 
 function startPrefetch() {
-  // Don't prefetch if we have recent cache (< 5 min old)
+  // Check cache freshness — if recent cache exists skip posts prefetch
   const cacheAge = Date.now() - (parseInt(localStorage.getItem('dl_cache_ts')||'0'));
-  if (cacheAge < 300000 && localStorage.getItem('dl_posts_cache')) return;
-  // Start both requests immediately — no waiting
-  _prefetchPostsPromise   = DB.getPosts({ limit: 60 }).catch(() => null);
-  _prefetchSessionPromise = DB.getSession().catch(() => null);
+  const hasFreshCache = cacheAge < 300000 && !!localStorage.getItem('dl_posts_cache'); // 5 min
+
+  if (!_sbOk()) { _initSb(); }
+  if (!_sbOk()) return; // Supabase CDN not ready yet — loadStorage will retry
+
+  // Always prefetch session (small, fast)
+  _prefetchSessionPromise = _sb.auth.getSession()
+    .then(({ data }) => {
+      if (!data?.session) return null;
+      const meta = data.session.user.user_metadata || {};
+      return { ...data.session.user, username: meta.username || data.session.user.email?.split('@')[0] || 'User' };
+    })
+    .catch(() => null);
+
+  // Only prefetch posts if cache is stale
+  if (!hasFreshCache) {
+    _prefetchPostsPromise = DB.getPosts({ limit: 60 }).catch(() => null);
+  }
 }
 
-// Fire immediately — _sb may not be ready yet, _initSb() handles that
+// Fire immediately when script executes
 try { _initSb(); startPrefetch(); } catch(_) {}
 
 // ─── BOOT ─────────────────────────────────────────────────────
@@ -155,14 +169,8 @@ function gateMsg() {
 // This makes the site feel instant on repeat visits.
 
 async function loadStorage() {
-  // Supabase CDN is in <head> — usually ready immediately
-  // Poll briefly just in case (max 3s)
-  let sbWait = 0;
-  while (!_sbOk() && sbWait < 15) {
-    await new Promise(r => setTimeout(r, 200));
-    sbWait++;
-    _initSb();
-  }
+  // Ensure Supabase is initialized — one attempt, then move on
+  if (!_sbOk()) _initSb();
   if (!_sbOk()) {
     console.warn('Supabase unavailable — showing cached data only');
     S._loading = false;
@@ -175,11 +183,19 @@ async function loadStorage() {
   })();
 
   // ── Only await CRITICAL: session + posts ─────────────────────
-  // Use prefetch results if available (they started firing on script load)
-  const sessionFetch = _prefetchSessionPromise || DB.getSession().catch(() => null);
-  const postsFetch   = _prefetchPostsPromise   || DB.getPosts({ limit: 60 }).catch(() => []);
-  // Clear so next loadStorage() call makes fresh requests
-  _prefetchPostsPromise = null; _prefetchSessionPromise = null;
+  // Use prefetch results — they started before DOMContentLoaded
+  const sessionFetch = _prefetchSessionPromise
+    || _sb.auth.getSession().then(({ data }) => {
+      if (!data?.session) return null;
+      const meta = data.session.user.user_metadata || {};
+      return { ...data.session.user, username: meta.username || data.session.user.email?.split('@')[0] || 'User' };
+    }).catch(() => null);
+
+  const postsFetch = _prefetchPostsPromise
+    || DB.getPosts({ limit: 60 }).catch(() => []);
+
+  _prefetchPostsPromise = null;
+  _prefetchSessionPromise = null;
 
   const [sessionResult, postsResult] = await Promise.allSettled([
     sessionFetch,
@@ -205,18 +221,21 @@ async function loadStorage() {
       // No waiting — paint the feed right now
       renderFeed(); renderSidebar(); renderBOTW(); renderHotPanel(); animateStats();
       if (S.user?.username) requestAnimationFrame(() => refreshLikedStates());
-      // Fetch comment counts in background — doesn't block feed display
-      DB.getCommentCounts(freshPosts.map(p => p.id)).then(counts => {
-        let changed = false;
-        S.posts.forEach(p => {
-          const c = counts[p.id] || 0;
-          if (p.comments?.length !== c) {
-            p.comments = Array(c).fill(null);
-            changed = true;
-          }
-        });
-        if (changed) renderFeed();
-      }).catch(() => {});
+      // Comment counts — fire after a delay so they don't compete with
+      // the initial posts render. 2s delay means feed is already painted.
+      setTimeout(() => {
+        DB.getCommentCounts(freshPosts.map(p => p.id)).then(counts => {
+          let changed = false;
+          S.posts.forEach(p => {
+            const c = counts[p.id] || 0;
+            if (p.comments?.length !== c) {
+              p.comments = Array(c).fill(null);
+              changed = true;
+            }
+          });
+          if (changed) renderFeed();
+        }).catch(() => {});
+      }, 2000);
       return rows;
     }).catch(() => []),
   ]);
@@ -249,13 +268,19 @@ async function loadStorage() {
   updateAuthUI(); updateNotifBadge();
 
   // ── Fire non-critical in background without blocking ──────────
-  // Run all three in parallel instead of chaining them
+  // Profiles: only re-fetch if cache is >10 min old
+  const profileCacheAge = Date.now() - (parseInt(localStorage.getItem('dl_profile_cache_ts')||'0'));
+  const profilesStale   = profileCacheAge > 10 * 60 * 1000; // 10 minutes
+  const profilesFetch   = profilesStale ? DB.getAllProfiles().catch(() => []) : Promise.resolve(S.users.length ? null : []);
+
   Promise.all([
-    DB.getAllProfiles().catch(() => []),
+    profilesFetch,
     DB.getEvents().catch(() => []),
-    S.user?.id ? DB.getFollowing(S.user.id).catch(() => []) : Promise.resolve([]),
+    // Only fetch following from DB if we don't have it locally already
+    (S.user?.id && !S.following.length) ? DB.getFollowing(S.user.id).catch(() => []) : Promise.resolve(null),
     S.user?.id ? DB.getNotifications(S.user.id).catch(() => []) : Promise.resolve([]),
   ]).then(([profiles, evts, following, notifs]) => {
+    if (profiles === null) return; // cache is fresh — skip profile processing
     // Profiles + avatars
     if (profiles?.length) {
       S.users = profiles.map(dbUserToApp).filter(Boolean);
@@ -268,6 +293,7 @@ async function loadStorage() {
         const fl = JSON.parse(localStorage.getItem('dl_featured_users') || '[]');
         S.users.forEach(u => { if (fl.includes(u.username)) u.isFeatured = true; });
         localStorage.setItem('dl_users_cache', JSON.stringify(S.users));
+        localStorage.setItem('dl_profile_cache_ts', String(Date.now()));
       } catch(_) {}
       if (S.user) {
         const fresh = S.users.find(u => u.username === S.user.username);
@@ -316,7 +342,7 @@ async function loadStorage() {
       }));
     }
 
-    // Following
+    // Following (null = already had it from cache)
     if (following?.length) { S.following = following; save(); }
 
     // Notifications

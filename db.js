@@ -73,14 +73,15 @@ const DB = {
     if (!_sbOk()) return null;
     const { data } = await _sb.auth.getSession();
     if (!data?.session) return null;
-    // Try to get profile, but don't require it — session is valid regardless
-    try {
-      const profile = await DB.getProfile(data.session.user.id);
-      if (profile) return { ...data.session.user, ...profile };
-    } catch(_) {}
-    // Profile fetch failed (likely RLS) — return auth user with username from metadata
+    // Return immediately from session metadata — don't wait for profile fetch
+    // Profile enrichment happens via getAllProfiles in background
     const meta = data.session.user.user_metadata || {};
-    return { ...data.session.user, username: meta.username || data.session.user.email?.split('@')[0] || 'User' };
+    const base = { ...data.session.user, username: meta.username || data.session.user.email?.split('@')[0] || 'User' };
+    // Non-blocking profile enrich — fires but doesn't block session return
+    DB.getProfile(data.session.user.id).then(profile => {
+      if (profile) Object.assign(base, profile);
+    }).catch(() => {});
+    return base;
   },
 
   // ─── PROFILES ──────────────────────────────────────────────
@@ -105,12 +106,13 @@ const DB = {
 
   async getAllProfiles() {
     if (!_sbOk()) return [];
+    // Only fetch fields needed for display — skip heavy fields like bio/awards/socials
+    // Full profile loads on demand when someone opens a profile page
     const { data, error } = await _sb
       .from('profiles')
-      .select('*')
+      .select('id,username,avatar_url,is_featured,is_admin,joined_at,posts_count')
       .order('joined_at', { ascending: true });
     if (error) console.error('DriveLog getAllProfiles error:', error.message, error.code);
-    if (data) console.log('DriveLog: got', data.length, 'profiles');
     return data || [];
   },
 
@@ -320,13 +322,20 @@ const DB = {
   // so card previews can show real comment counts without N+1 queries)
   async getCommentCounts(postIds) {
     if (!_sbOk() || !postIds?.length) return {};
+    // Use Supabase's count aggregation — returns one row per post_id, not all comment rows
     const { data, error } = await _sb
       .from('comments')
-      .select('post_id')
+      .select('post_id, id.count()')
       .in('post_id', postIds);
-    if (error) { console.warn('DriveLog getCommentCounts error:', error.message); return {}; }
+    if (error) {
+      // Fallback: count manually if aggregation not supported
+      const { data: d2 } = await _sb.from('comments').select('post_id').in('post_id', postIds);
+      const counts = {};
+      (d2||[]).forEach(r => { counts[r.post_id] = (counts[r.post_id]||0)+1; });
+      return counts;
+    }
     const counts = {};
-    (data || []).forEach(row => { counts[row.post_id] = (counts[row.post_id] || 0) + 1; });
+    (data||[]).forEach(row => { counts[row.post_id] = parseInt(row.count||row['id.count()']||0); });
     return counts;
   },
 
