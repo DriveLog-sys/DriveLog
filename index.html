@@ -4,24 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>DriveLog — The Car Community</title>
-  <!-- Boot loader renders INSTANTLY before any external CSS/JS loads -->
-  <style>
-    #bootLoader{
-      position:fixed;inset:0;z-index:99999;
-      background:rgba(8,10,18,.92);
-      backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-      display:flex;flex-direction:column;align-items:center;justify-content:center;
-      gap:20px;transition:opacity .3s ease;
-    }
-    #bootLoader.hiding{opacity:0;pointer-events:none}
-    .boot-logo{font-family:'Arial Black',Arial,sans-serif;font-size:2.6rem;font-weight:900;letter-spacing:3px;color:#fff}
-    .boot-logo span{color:#3b82f6}
-    .boot-dots{display:flex;gap:8px;margin-top:4px}
-    .boot-dots span{width:8px;height:8px;border-radius:50%;background:#3b82f6;animation:bdot .7s ease-in-out infinite}
-    .boot-dots span:nth-child(2){animation-delay:.15s}
-    .boot-dots span:nth-child(3){animation-delay:.3s}
-    @keyframes bdot{0%,80%,100%{transform:scale(.6);opacity:.4}40%{transform:scale(1);opacity:1}}
-  </style>
+
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
   <link rel="stylesheet" href="main.css"/>
@@ -38,11 +21,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-<!-- Boot loader lives in HTML so it shows INSTANTLY before JS parses -->
-<div id="bootLoader">
-  <div class="boot-logo">DRIVE<span>LOG</span></div>
-  <div class="boot-dots"><span></span><span></span><span></span></div>
-</div>
+
 
 <!-- LIGHTBOX -->
 <div id="lightbox" class="lightbox">
@@ -587,24 +566,70 @@
 
   <!-- SOCIAL UPLOAD MODAL -->
   <div class="modal-overlay" id="socialUploadModal">
-    <div class="modal-box" style="max-width:520px">
+    <div class="modal-box social-upload-box" style="max-width:560px">
       <button class="modal-close" id="socialUploadClose"><i class="fas fa-times"></i></button>
-      <h2 style="margin-bottom:6px">Share a Moment</h2>
-      <p style="color:var(--muted);font-size:.82rem;margin-bottom:16px">Photos or video from your build journey</p>
-      <div class="upload-zone upload-zone-sm" id="socialUploadZone">
-        <i class="fas fa-images"></i>
-        <p>Drop photos or video here or <span>browse</span></p>
-        <small>Images or 1 video · Max 50MB</small>
-        <input type="file" id="socialFileInput" accept="image/*,video/*" multiple hidden/>
+      <h2 style="margin-bottom:4px">Car Spotting</h2>
+
+      <!-- PRIVACY WARNING — shown before user uploads -->
+      <div class="cs-privacy-warn" id="csPrivacyWarn">
+        <div class="cs-warn-icon"><i class="fas fa-shield-alt"></i></div>
+        <div class="cs-warn-body">
+          <div class="cs-warn-title">Privacy Notice — Required</div>
+          <p class="cs-warn-text">Before posting, you <strong>must blur out all license plates and faces</strong> in your photos. Posts containing visible plates or unblurred faces may be removed without notice to protect the privacy of others.</p>
+          <p class="cs-warn-text" style="margin-top:6px">Our blur tool will open automatically after you select a photo.</p>
+          <label class="cs-warn-accept">
+            <input type="checkbox" id="csPrivacyAccept"/>
+            <span>I understand — I will blur any license plates and faces before posting</span>
+          </label>
+        </div>
       </div>
-      <div id="socialUploadPreview" style="margin-top:10px"></div>
-      <textarea class="finput" id="socialCaption" rows="3" placeholder="Add a caption… what's going on with the build?" style="margin-top:12px;resize:none"></textarea>
-      <div class="social-upload-tags" id="socialUploadTags">
-        <div class="post-cat-label" style="margin-bottom:7px">Tag a category <span class="post-cat-hint">Optional</span></div>
-        <div class="social-tag-pills" id="socialTagPills"></div>
+
+      <!-- Upload zone — only enabled after accepting warning -->
+      <div class="upload-zone upload-zone-sm cs-upload-zone" id="socialUploadZone">
+        <i class="fas fa-camera"></i>
+        <p>Drop photos here or <span>browse</span></p>
+        <small>Images · Max 20MB each</small>
+        <input type="file" id="socialFileInput" accept="image/*" multiple hidden/>
       </div>
-      <progress id="socialUploadProgress" value="0" max="100" style="display:none;width:100%;height:6px;margin-top:8px;border-radius:3px;overflow:hidden"></progress>
-      <button class="btn-primary full" id="socialSubmitBtn" style="margin-top:10px"><i class="fas fa-paper-plane"></i> Share</button>
+
+      <!-- Blur editor — shown after image selected -->
+      <div class="cs-blur-editor" id="csBlurEditor" style="display:none">
+        <div class="cs-blur-toolbar">
+          <span class="cs-blur-label"><i class="fas fa-mouse-pointer"></i> Drag to blur faces & plates</span>
+          <div class="cs-blur-tools">
+            <button class="cs-tool-btn active" id="csToolBlur" title="Draw blur box"><i class="fas fa-eraser"></i> Blur</button>
+            <button class="cs-tool-btn" id="csToolUndo" title="Undo last box"><i class="fas fa-undo"></i> Undo</button>
+            <button class="cs-tool-btn" id="csToolClear" title="Clear all boxes"><i class="fas fa-trash"></i> Clear</button>
+          </div>
+        </div>
+        <div class="cs-canvas-wrap" id="csCanvasWrap">
+          <canvas id="csCanvas"></canvas>
+          <canvas id="csOverlay"></canvas>
+        </div>
+        <div class="cs-blur-nav" id="csBlurNav" style="display:none">
+          <button class="btn-ghost small" id="csPrevImg"><i class="fas fa-chevron-left"></i></button>
+          <span id="csImgCount">1 / 1</span>
+          <button class="btn-ghost small" id="csNextImg"><i class="fas fa-chevron-right"></i></button>
+        </div>
+        <button class="btn-primary full cs-apply-btn" id="csApplyBlur">
+          <i class="fas fa-check"></i> Apply Blur & Continue
+        </button>
+      </div>
+
+      <!-- Post form — shown after blur is applied -->
+      <div class="cs-post-form" id="csPostForm" style="display:none">
+        <div id="socialUploadPreview" class="cs-preview-strip"></div>
+        <textarea class="finput" id="socialCaption" rows="3"
+          placeholder="Add a caption… describe what you spotted, where, when." style="margin-top:10px;resize:none"></textarea>
+        <div class="social-upload-tags" id="socialUploadTags">
+          <div class="post-cat-label" style="margin-bottom:7px;margin-top:8px">Tag a category <span class="post-cat-hint">Optional</span></div>
+          <div class="social-tag-pills" id="socialTagPills"></div>
+        </div>
+        <progress id="socialUploadProgress" value="0" max="100" style="display:none;width:100%;height:5px;margin-top:8px;border-radius:3px;overflow:hidden"></progress>
+        <button class="btn-primary full" id="socialSubmitBtn" style="margin-top:10px;background:#16a34a;border-color:#16a34a">
+          <i class="fas fa-paper-plane"></i> Post to Car Spotting
+        </button>
+      </div>
     </div>
   </div>
 

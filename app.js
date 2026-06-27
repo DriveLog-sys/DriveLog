@@ -43,15 +43,11 @@ function startPrefetch() {
 try { _initSb(); startPrefetch(); } catch(_) {}
 
 // ─── BOOT ─────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
-  // Loader is already in HTML — just make sure it's showing
-  const bl = el('bootLoader');
-  if (bl) { bl.classList.remove('hiding'); bl.style.display = 'flex'; }
-
-  // Apply theme immediately to avoid flash
+document.addEventListener('DOMContentLoaded', () => {
+  // Apply theme immediately — prevents flash of wrong theme
   applyPrefs();
 
-  // Init all UI modules — errors in one don't stop others
+  // Init all UI modules
   const inits = [initHeader, initMobileNav, initSearch, initAuth,
     initPostModal, initCarModal, initLightbox, initGarage, initEvents,
     initMembers, initNavLinks, initFilterSidebar, initMessages, initCarPage,
@@ -61,34 +57,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { fn(); } catch(e) { console.warn('Init failed:', fn.name, e); }
   }
 
-  // Phase 1: render from cache instantly (feed appears behind loader)
+  // ── Phase 1: Render from localStorage cache IMMEDIATELY ──────
+  // Page is visible and interactive before any network requests finish
   loadFromCache();
-  updateAuthUI(); updateNotifBadge();
+  updateAuthUI();
+  updateNotifBadge();
   renderAll();
 
-  // If we have cached posts, hide loader now and refresh in background
-  if (S.posts.length > 0) {
-    hideBootLoader();
-    loadStorage().then(() => {
-      renderAll(); updateAuthUI(); updateNotifBadge();
-      if (S.user) setupRealtimeSubscriptions();
-    }).catch(() => {});
-  } else {
-    // No cache — keep loader visible, wait for Supabase
-    const fallback = setTimeout(() => hideBootLoader(), 6000);
-    try {
-      await loadStorage();
-      clearTimeout(fallback);
-    } catch(e) {
-      clearTimeout(fallback);
-      console.warn('Supabase load error:', e);
-    }
-    hideBootLoader();
-    renderAll(); updateAuthUI(); updateNotifBadge();
+  // ── Phase 2: Load fresh data from Supabase in background ─────
+  // No blocking, no spinner — just update when data arrives
+  loadStorage().then(() => {
+    renderAll();
+    updateAuthUI();
+    updateNotifBadge();
     if (S.user) setupRealtimeSubscriptions();
-  }
-  // Handle URL parameters AFTER data loads so posts/profiles are available
-  handleURLRouting();
+  }).catch(e => {
+    console.warn('Background Supabase load error:', e);
+  });
+
+  // Handle ?user= and ?post= URL params after a brief delay
+  // so S.posts has a chance to populate from cache first
+  setTimeout(handleURLRouting, 100);
 });
 
 function loadFromCache() {
@@ -96,19 +85,41 @@ function loadFromCache() {
     const cp = localStorage.getItem('dl_posts_cache');
     const cu = localStorage.getItem('dl_users_cache');
     const uu = localStorage.getItem('dl_user_cache');
+    const ac = localStorage.getItem('dl_avatar_cache');
     if (cp) S.posts = JSON.parse(cp);
-    if (cu) S.users = JSON.parse(cu);
+    if (cu) {
+      S.users = JSON.parse(cu);
+      // Re-populate avatar URL cache from S.users so avatars show instantly
+      S.users.forEach(u => {
+        if (u.avatarUrl?.startsWith('http')) cacheAvatarUrl(u.username, u.avatarUrl);
+      });
+    }
+    // Also load per-user avatar_url from the avatar cache
+    // (set after upload — most up-to-date URL)
+    if (ac) {
+      try {
+        const avMap = JSON.parse(ac);
+        Object.entries(avMap).forEach(([username, url]) => {
+          const u = S.users.find(x => x.username === username);
+          if (u && url?.startsWith('http')) u.avatarUrl = url;
+        });
+      } catch(_) {}
+    }
     if (uu) {
       const cachedUser = JSON.parse(uu);
-      // Only restore if this is the same session (not a logged-out state)
       S.user = cachedUser;
       if (S.user?.username) {
         const fl = localStorage.getItem('dl_following_'+S.user.username);
         if (fl) S.following = JSON.parse(fl);
+        // Own avatar
+        const ownAvUrl = localStorage.getItem('dl_avatar_url');
+        if (ownAvUrl?.startsWith('http')) {
+          S.user.avatarUrl = ownAvUrl;
+          cacheAvatarUrl(S.user.username, ownAvUrl);
+        }
       }
     }
     if (!cp) S._loading = true;
-    // Apply locally-saved featured list
     try {
       const featuredList = JSON.parse(localStorage.getItem('dl_featured_users') || '[]');
       S.users.forEach(u => { if (featuredList.includes(u.username)) u.isFeatured = true; });
@@ -173,8 +184,9 @@ async function loadStorage() {
   const [sessionResult, postsResult] = await Promise.allSettled([
     sessionFetch,
     postsFetch.then(rows => {
-      if (!rows?.length) console.warn('DriveLog: 0 posts returned from Supabase. Check RLS policies — run fix_all.sql in Supabase SQL Editor.');
+      if (!rows?.length) console.warn('DriveLog: 0 posts returned. Check Supabase RLS policies.');
       const freshPosts = (rows||[]).map(dbPostToApp).filter(Boolean);
+      // Preserve local like/save state over stale Supabase state
       freshPosts.forEach(fp => {
         const local = S.posts.find(p => p.id === fp.id);
         if (local) {
@@ -184,25 +196,26 @@ async function loadStorage() {
       });
       S.posts = freshPosts;
       S._loading = false;
-      try { localStorage.setItem('dl_posts_cache', JSON.stringify(S.posts)); localStorage.setItem('dl_cache_ts', String(Date.now())); } catch(_) {}
+      // Persist to cache so next load is instant
+      try {
+        localStorage.setItem('dl_posts_cache', JSON.stringify(S.posts));
+        localStorage.setItem('dl_cache_ts', String(Date.now()));
+      } catch(_) {}
+      // ── Render immediately as soon as posts arrive ──────────
+      // No waiting — paint the feed right now
       renderFeed(); renderSidebar(); renderBOTW(); renderHotPanel(); animateStats();
-      // After re-render, restore liked/saved states for current user
-      // (avoids stale state after Supabase refresh)
-      if (S.user?.username) {
-        requestAnimationFrame(() => refreshLikedStates());
-      }
-      // Fetch real comment counts in ONE bulk query, then patch + re-render
-      // (keeps initial render fast, counts appear a beat later)
+      if (S.user?.username) requestAnimationFrame(() => refreshLikedStates());
+      // Fetch comment counts in background — doesn't block feed display
       DB.getCommentCounts(freshPosts.map(p => p.id)).then(counts => {
         let changed = false;
         S.posts.forEach(p => {
           const c = counts[p.id] || 0;
-          if (!p.comments || p.comments.length !== c) {
-            p.comments = Array(c).fill(null); // placeholder array — length is what UI reads
+          if (p.comments?.length !== c) {
+            p.comments = Array(c).fill(null);
             changed = true;
           }
         });
-        if (changed) { renderFeed(); renderSidebar(); renderHotPanel(); }
+        if (changed) renderFeed();
       }).catch(() => {});
       return rows;
     }).catch(() => []),
@@ -246,7 +259,11 @@ async function loadStorage() {
     // Profiles + avatars
     if (profiles?.length) {
       S.users = profiles.map(dbUserToApp).filter(Boolean);
-      S.users.forEach(u => { if (u.avatarUrl?.startsWith('http')) cacheAvatarUrl(u.username, u.avatarUrl); });
+      // Cache avatar URLs immediately — on next load they'll show from cache
+      S.users.forEach(u => {
+        if (u.avatarUrl?.startsWith('http')) cacheAvatarUrl(u.username, u.avatarUrl);
+      });
+      // Persist full user list (with avatarUrls) to users_cache
       try {
         const fl = JSON.parse(localStorage.getItem('dl_featured_users') || '[]');
         S.users.forEach(u => { if (fl.includes(u.username)) u.isFeatured = true; });
@@ -362,23 +379,7 @@ function setAccent(c) {
 }
 
 // ─── BOOT LOADER ──────────────────────────────────────────────
-function showBootLoader() {
-  let bl = el('bootLoader');
-  if (!bl) {
-    bl = document.createElement('div');
-    bl.id = 'bootLoader';
-    bl.innerHTML = `<div class="boot-logo">DRIVE<span>LOG</span></div><div class="boot-dots"><span></span><span></span><span></span></div>`;
-    document.body.prepend(bl); // prepend so it's above everything
-  }
-  bl.classList.remove('hiding');
-  bl.style.display = 'flex';
-}
-function hideBootLoader() {
-  const bl = el('bootLoader');
-  if (!bl) return;
-  bl.classList.add('hiding');
-  setTimeout(() => { if (bl.parentNode) bl.parentNode.removeChild(bl); }, 350);
-}
+// Boot loader functions removed — site renders immediately from cache
 
 // ─── REALTIME SUBSCRIPTIONS ────────────────────────────────────
 let _realtimeSubs = [];
@@ -6125,30 +6126,68 @@ function initSocialPage() {
   const fileInput = el('socialFileInput');
   const submitBtn = el('socialSubmitBtn');
 
-  if (uploadBtn) uploadBtn.addEventListener('click', () => {
-    if (!S.user) { toast('Sign in to post','err'); el('authModal').classList.add('open'); return; }
-    modal.classList.add('open');
+  function resetModal() {
     el('socialCaption').value = '';
     el('socialUploadPreview').innerHTML = '';
     _socialPendingFiles = [];
+    _blurredDataURLs = [];
+    // Reset steps
+    el('csPrivacyWarn').style.display   = 'block';
+    el('socialUploadZone').style.display = 'block';
+    el('csBlurEditor').style.display    = 'none';
+    el('csPostForm').style.display      = 'none';
+    el('csPrivacyAccept').checked       = false;
+    el('socialUploadZone').classList.remove('cs-enabled');
     el('socialTagPills').innerHTML = CATS.slice(0,12).map(c =>
-      `<button type="button" class="post-cat-pill" data-cat="${c.name}" style="font-size:.7rem;padding:4px 11px"><i class="${c.fa} pill-icon"></i>${c.name}</button>`
+      `<button type="button" class="post-cat-pill" data-cat="${c.name}" style="font-size:.7rem;padding:4px 11px">
+        <i class="${c.fa} pill-icon"></i>${c.name}
+      </button>`
     ).join('');
     el('socialTagPills').querySelectorAll('.post-cat-pill').forEach(p => p.addEventListener('click', () => {
       el('socialTagPills').querySelectorAll('.post-cat-pill').forEach(x=>x.classList.remove('active'));
       p.classList.toggle('active');
     }));
-  });
-  if (closeBtn) closeBtn.addEventListener('click', () => modal.classList.remove('open'));
-  if (modal) modal.addEventListener('click', e => { if(e.target===modal) modal.classList.remove('open'); });
-  if (zone) {
-    zone.addEventListener('click', () => fileInput && fileInput.click());
-    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-    zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('drag-over'); handleSocialFiles(Array.from(e.dataTransfer.files)); });
   }
-  if (fileInput) fileInput.addEventListener('change', () => handleSocialFiles(Array.from(fileInput.files)));
+
+  if (uploadBtn) uploadBtn.addEventListener('click', () => {
+    if (!S.user) { toast('Sign in to post','err'); el('authModal').classList.add('open'); return; }
+    modal.classList.add('open');
+    resetModal();
+  });
+  if (closeBtn) closeBtn.addEventListener('click', () => { modal.classList.remove('open'); resetModal(); });
+  if (modal) modal.addEventListener('click', e => {
+    if (e.target === modal) { modal.classList.remove('open'); resetModal(); }
+  });
+
+  // Privacy acceptance enables the upload zone
+  el('csPrivacyAccept')?.addEventListener('change', () => {
+    const accepted = el('csPrivacyAccept').checked;
+    zone.classList.toggle('cs-enabled', accepted);
+  });
+
+  // Zone click — only if accepted
+  if (zone) {
+    zone.addEventListener('click', () => {
+      if (!el('csPrivacyAccept')?.checked) {
+        el('csPrivacyAccept').closest('.cs-warn-accept').classList.add('cs-warn-shake');
+        setTimeout(() => el('csPrivacyAccept').closest('.cs-warn-accept').classList.remove('cs-warn-shake'), 600);
+        return;
+      }
+      fileInput?.click();
+    });
+    zone.addEventListener('dragover', e => { e.preventDefault(); if (el('csPrivacyAccept')?.checked) zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('drag-over');
+      if (!el('csPrivacyAccept')?.checked) return;
+      handleSocialFiles(Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/')));
+    });
+  }
+  if (fileInput) fileInput.addEventListener('change', () =>
+    handleSocialFiles(Array.from(fileInput.files).filter(f => f.type.startsWith('image/')))
+  );
   if (submitBtn) submitBtn.addEventListener('click', submitSocialPost);
+
   // Render sidebar widgets
   renderSocialEventsPreview();
   renderSuggestedFollows('socialWhoToFollow');
@@ -6157,23 +6196,19 @@ function initSocialPage() {
     t.classList.add('active');
     socialTab = t.dataset.soctab;
     if (socialTab === 'builds') {
-      // Show actual build posts (not social posts) as cards
       const wrap = el('socialPostsWrap');
       if (wrap) {
         const recBuilds = [...S.posts].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,12);
         wrap.innerHTML = `<div class="card-grid social-builds-grid">${recBuilds.map((p,i)=>cardHTML(p,i)).join('')}</div>`;
-        attachCardEvents(wrap);
-        return;
+        attachCardEvents(wrap); return;
       }
     }
     socialPage = 0;
-    // Clear search when switching tabs
     const si = el('socialSearchInput');
     if (si) { si.value = ''; S._socialSearchQ = ''; }
     el('socialSearchClear').style.display = 'none';
     renderSocialFeed(true);
   }));
-  // Social search
   el('socialSearchInput')?.addEventListener('input', () => {
     const q = el('socialSearchInput').value.trim();
     el('socialSearchClear').style.display = q ? 'block' : 'none';
@@ -6182,72 +6217,292 @@ function initSocialPage() {
   el('socialSearchClear')?.addEventListener('click', () => {
     el('socialSearchInput').value = '';
     el('socialSearchClear').style.display = 'none';
-    S._socialSearchQ = '';
-    socialPage = 0;
+    S._socialSearchQ = ''; socialPage = 0;
     renderSocialFeed(true);
   });
 }
 
-let _socialPendingFiles = [];
+// ─── BLUR EDITOR ENGINE ────────────────────────────────────────
+let _socialPendingFiles  = [];
+let _blurredDataURLs     = [];   // final blurred images to upload
+let _blurBoxes           = [];   // array of arrays, one per image
+let _blurImgIdx          = 0;    // current image being edited
+let _blurImages          = [];   // loaded Image objects
+let _blurDrawing         = false;
+let _blurStartX = 0, _blurStartY = 0;
 
 function handleSocialFiles(files) {
-  _socialPendingFiles = files.slice(0, 5);
-  const preview = el('socialUploadPreview');
-  if (!preview) return;
-  preview.innerHTML = '';
-  _socialPendingFiles.forEach(f => {
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'display:inline-block;margin:3px;position:relative;vertical-align:top';
-    if (f.type.startsWith('video/')) {
-      // Show actual video preview
-      const objUrl = URL.createObjectURL(f);
-      wrap.innerHTML = `<video src="${objUrl}" class="social-file-thumb-video" muted playsinline preload="metadata"></video>
-        <div class="social-file-thumb-play"><i class="fas fa-play"></i></div>`;
-    } else {
-      const reader = new FileReader();
-      reader.onload = e2 => { wrap.innerHTML = `<img src="${e2.target.result}" class="social-file-thumb-img"/>`; };
-      reader.readAsDataURL(f);
-    }
-    preview.appendChild(wrap);
+  if (!files.length) return;
+  _socialPendingFiles = files.slice(0, 6);
+  _blurImages = [];
+  _blurBoxes  = _socialPendingFiles.map(() => []);
+  _blurredDataURLs = [];
+  _blurImgIdx = 0;
+
+  // Hide upload zone, show blur editor
+  el('socialUploadZone').style.display = 'none';
+  el('csPrivacyWarn').style.display    = 'none';
+  el('csBlurEditor').style.display     = 'block';
+  el('csPostForm').style.display       = 'none';
+
+  // Load all images first, then show editor for first one
+  let loaded = 0;
+  _socialPendingFiles.forEach((f, i) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e2 => {
+      img.onload = () => {
+        _blurImages[i] = img;
+        loaded++;
+        if (loaded === _socialPendingFiles.length) {
+          initBlurEditor(_blurImgIdx);
+        }
+      };
+      img.src = e2.target.result;
+    };
+    reader.readAsDataURL(f);
   });
+}
+
+function initBlurEditor(idx) {
+  _blurImgIdx = idx;
+  const img     = _blurImages[idx];
+  if (!img) return;
+  const canvas  = el('csCanvas');
+  const overlay = el('csOverlay');
+  const wrap    = el('csCanvasWrap');
+  if (!canvas || !overlay || !wrap) return;
+
+  // Size canvas to fit modal width, maintain aspect ratio
+  const maxW = Math.min(520, window.innerWidth - 48);
+  const scale = maxW / img.naturalWidth;
+  const displayW = Math.round(img.naturalWidth  * scale);
+  const displayH = Math.round(img.naturalHeight * scale);
+  canvas.width    = overlay.width    = img.naturalWidth;
+  canvas.height   = overlay.height   = img.naturalHeight;
+  canvas.style.width  = overlay.style.width  = displayW + 'px';
+  canvas.style.height = overlay.style.height = displayH + 'px';
+  wrap.style.width  = displayW + 'px';
+  wrap.style.height = displayH + 'px';
+
+  // Draw base image
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+
+  // Re-draw saved boxes for this image
+  redrawBlurBoxes(idx);
+
+  // Multi-image navigation
+  const nav = el('csBlurNav');
+  if (_socialPendingFiles.length > 1) {
+    nav.style.display = 'flex';
+    el('csImgCount').textContent = `${idx+1} / ${_socialPendingFiles.length}`;
+  } else {
+    nav.style.display = 'none';
+  }
+
+  // Wire drag-to-blur on overlay canvas
+  wireBlurCanvas(overlay, canvas, displayW, displayH);
+}
+
+function wireBlurCanvas(overlay, canvas, dW, dH) {
+  // Remove old listeners by replacing element
+  const fresh = overlay.cloneNode(true);
+  overlay.parentNode.replaceChild(fresh, overlay);
+  const ov = el('csOverlay');
+  const ctx = canvas.getContext('2d');
+  const scaleX = canvas.width  / dW;
+  const scaleY = canvas.height / dH;
+  let curBox = null;
+
+  function getPos(e) {
+    const rect = ov.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: (clientX - rect.left)  * scaleX,
+      y: (clientY - rect.top)   * scaleY,
+    };
+  }
+
+  function startDraw(e) {
+    e.preventDefault();
+    _blurDrawing = true;
+    const p = getPos(e);
+    _blurStartX = p.x; _blurStartY = p.y;
+    curBox = { x:p.x, y:p.y, w:0, h:0 };
+  }
+  function moveDraw(e) {
+    if (!_blurDrawing || !curBox) return;
+    e.preventDefault();
+    const p = getPos(e);
+    curBox.w = p.x - _blurStartX;
+    curBox.h = p.y - _blurStartY;
+    // Draw rubber-band rect on overlay
+    const ovCtx = ov.getContext('2d');
+    ovCtx.clearRect(0, 0, ov.width, ov.height);
+    ovCtx.strokeStyle = '#3b82f6';
+    ovCtx.lineWidth = 2;
+    ovCtx.setLineDash([6,3]);
+    ovCtx.strokeRect(_blurStartX, _blurStartY, curBox.w, curBox.h);
+    ovCtx.fillStyle = 'rgba(59,130,246,.12)';
+    ovCtx.fillRect(_blurStartX, _blurStartY, curBox.w, curBox.h);
+  }
+  function endDraw(e) {
+    if (!_blurDrawing || !curBox) return;
+    _blurDrawing = false;
+    const p = e.changedTouches ? {
+      x: (e.changedTouches[0].clientX - ov.getBoundingClientRect().left) * scaleX,
+      y: (e.changedTouches[0].clientY - ov.getBoundingClientRect().top)  * scaleY,
+    } : getPos(e);
+    curBox.w = p.x - _blurStartX;
+    curBox.h = p.y - _blurStartY;
+    // Only save if box has meaningful size
+    if (Math.abs(curBox.w) > 8 && Math.abs(curBox.h) > 8) {
+      _blurBoxes[_blurImgIdx].push({ ...curBox });
+      redrawBlurBoxes(_blurImgIdx);
+    }
+    const ovCtx = ov.getContext('2d');
+    ovCtx.clearRect(0, 0, ov.width, ov.height);
+    curBox = null;
+  }
+
+  ov.addEventListener('mousedown',  startDraw, { passive: false });
+  ov.addEventListener('mousemove',  moveDraw,  { passive: false });
+  ov.addEventListener('mouseup',    endDraw);
+  ov.addEventListener('mouseleave', endDraw);
+  ov.addEventListener('touchstart', startDraw, { passive: false });
+  ov.addEventListener('touchmove',  moveDraw,  { passive: false });
+  ov.addEventListener('touchend',   endDraw,   { passive: false });
+}
+
+function redrawBlurBoxes(idx) {
+  const canvas = el('csCanvas');
+  const img    = _blurImages[idx];
+  if (!canvas || !img) return;
+  const ctx = canvas.getContext('2d');
+  // Redraw clean image first
+  ctx.drawImage(img, 0, 0);
+  // Apply each blur box via pixelation
+  (_blurBoxes[idx] || []).forEach(box => {
+    applyBlurBox(ctx, box);
+  });
+}
+
+function applyBlurBox(ctx, box) {
+  // Normalize negative width/height boxes
+  let { x, y, w, h } = box;
+  if (w < 0) { x += w; w = -w; }
+  if (h < 0) { y += h; h = -h; }
+  if (w < 4 || h < 4) return;
+
+  // Pixelation blur — sample pixels at low res and scale back up
+  // Pixel size controls how strong the blur is
+  const pixelSize = Math.max(8, Math.round(Math.min(w, h) / 10));
+  const imgData = ctx.getImageData(x, y, w, h);
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width  = w;
+  tempCanvas.height = h;
+  const tc = tempCanvas.getContext('2d');
+  tc.putImageData(imgData, 0, 0);
+
+  // Draw tiny version then scale back up (pixelation effect)
+  const smallW = Math.max(1, Math.floor(w / pixelSize));
+  const smallH = Math.max(1, Math.floor(h / pixelSize));
+  tc.drawImage(tempCanvas, 0, 0, smallW, smallH);
+
+  // Scale back up with no smoothing = blocky pixelation
+  tc.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(tempCanvas, 0, 0, smallW, smallH, x, y, w, h);
+  ctx.imageSmoothingEnabled = true;
+}
+
+// Wire toolbar buttons
+document.addEventListener('DOMContentLoaded', () => {
+  el('csToolUndo')?.addEventListener('click', () => {
+    if (_blurBoxes[_blurImgIdx]?.length) {
+      _blurBoxes[_blurImgIdx].pop();
+      redrawBlurBoxes(_blurImgIdx);
+    }
+  });
+  el('csToolClear')?.addEventListener('click', () => {
+    _blurBoxes[_blurImgIdx] = [];
+    redrawBlurBoxes(_blurImgIdx);
+  });
+  el('csPrevImg')?.addEventListener('click', () => {
+    if (_blurImgIdx > 0) initBlurEditor(_blurImgIdx - 1);
+  });
+  el('csNextImg')?.addEventListener('click', () => {
+    if (_blurImgIdx < _blurImages.length - 1) initBlurEditor(_blurImgIdx + 1);
+  });
+  el('csApplyBlur')?.addEventListener('click', applyAllBlurs);
+});
+
+async function applyAllBlurs() {
+  const btn = el('csApplyBlur');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying…'; }
+
+  _blurredDataURLs = [];
+  for (let i = 0; i < _blurImages.length; i++) {
+    // Apply blur to each image
+    const img = _blurImages[i];
+    const c   = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    (_blurBoxes[i] || []).forEach(box => applyBlurBox(ctx, box));
+    // Compress + convert to data URL
+    _blurredDataURLs.push(c.toDataURL('image/jpeg', 0.88));
+  }
+
+  // Update preview strip
+  const preview = el('socialUploadPreview');
+  if (preview) {
+    preview.innerHTML = _blurredDataURLs.map((url, i) =>
+      `<div class="cs-preview-item">
+        <img src="${url}" class="cs-preview-img" alt="Photo ${i+1}"/>
+        <span class="cs-preview-label">Photo ${i+1}</span>
+      </div>`
+    ).join('');
+  }
+
+  // Show post form
+  el('csBlurEditor').style.display = 'none';
+  el('csPostForm').style.display   = 'block';
+
+  if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Apply Blur & Continue'; }
 }
 
 async function submitSocialPost() {
   if (!S.user) { toast('Sign in to post','err'); return; }
   const caption = el('socialCaption')?.value.trim() || '';
   const tag     = el('socialTagPills')?.querySelector('.post-cat-pill.active')?.dataset.cat || '';
-  const hasContent = caption.length > 0 || _socialPendingFiles.length > 0;
+  const hasContent = caption.length > 0 || _blurredDataURLs.length > 0;
   if (!hasContent) { toast('Add a caption or photo to share','err'); return; }
-  const btn = el('socialSubmitBtn');
+  const btn     = el('socialSubmitBtn');
   const progBar = el('socialUploadProgress');
-  if (btn) { btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Sharing…'; }
+  if (btn) { btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Posting…'; }
   if (progBar) { progBar.style.display='block'; progBar.value=0; }
-  const mediaItems = [];
-  const total = _socialPendingFiles.length || 1;
-  for (let i=0; i<_socialPendingFiles.length; i++) {
-    const f = _socialPendingFiles[i];
-    if (f.type.startsWith('image/')) {
-      const url = await compressImage(f, 1200, 0.88);
-      mediaItems.push({ type:'image', url });
-    } else if (f.type.startsWith('video/')) {
-      const url = await new Promise(res => { const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(f); });
-      mediaItems.push({ type:'video', url });
-    }
-    if (progBar) progBar.value = Math.round(((i+1)/total)*90);
-  }
+
+  // Use blurred images (or original if no images)
+  const mediaItems = _blurredDataURLs.map(url => ({ type:'image', url }));
+  if (progBar) progBar.value = 90;
+
   const post = {
-    id:'sp'+Date.now(), user:S.user.username, caption, tag, media:mediaItems,
-    likes:0, likedBy:[], comments:[], reactions:{}, ts:Date.now(),
-    date:new Date().toISOString().slice(0,10),
+    id:'sp'+Date.now(), user:S.user.username, caption, tag,
+    media:mediaItems, likes:0, likedBy:[], comments:[],
+    reactions:{}, ts:Date.now(), date:new Date().toISOString().slice(0,10),
   };
   const stored = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
   stored.unshift(post);
   localStorage.setItem('dl_social_posts', JSON.stringify(stored));
+
   if (progBar) { progBar.value=100; setTimeout(()=>{ progBar.style.display='none'; progBar.value=0; },400); }
   el('socialUploadModal').classList.remove('open');
-  _socialPendingFiles = [];
-  if (btn) { btn.disabled=false; btn.innerHTML='<i class="fas fa-paper-plane"></i> Share'; }
-  toast('Posted!','ok');
+  _socialPendingFiles = []; _blurredDataURLs = [];
+  if (btn) { btn.disabled=false; btn.innerHTML='<i class="fas fa-paper-plane"></i> Post to Car Spotting'; }
+  toast('Posted to Car Spotting ✓','ok');
   socialPage=0; renderSocialFeed(true);
 }
 
