@@ -18,7 +18,7 @@
   --accent-soft: rgba(59,130,246,.09);
   --blue:  #3b82f6; --gold: #f0a030; --green: #22c55e;
   --purple:#a855f7; --teal: #14b8a6; --red:#e8392a;
-  --text:  #111827; --sec: #4b5563; --muted: #9ca3af;
+  --text:  #111827; --sec: #374151; --muted: #6b7280;
   --disp:  'Bebas Neue', Impact, 'Arial Narrow', sans-serif;
   --cond:  'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
   --body:  'Inter', 'Barlow', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -32,7 +32,7 @@
 body.dark {
   --bg:#141414; --surface:#1a1a1a; --card:#1f1f1f; --raised:#252525; --hover:#2a2a2a;
   --border:#2e2e2e; --mid:#383838; --subtle:#202020;
-  --text:#efefef; --sec:#c0c0c0; --muted:#888888;
+  --text:#f0f0f0; --sec:#d1d5db; --muted:#9ca3af;
   --sh:0 4px 24px rgba(0,0,0,.45); --shm:0 28px 90px rgba(0,0,0,.75);
 }
 
@@ -2463,7 +2463,7 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
   display:flex;align-items:center;gap:6px;
 }
 .hot-slide-rank-num{
-  font-family:var(--disp);font-size:1.1rem;color:#fff;line-height:1;
+  font-family:var(--cond);font-size:.95rem;font-weight:600;color:#fff;line-height:1;letter-spacing:1px;
 }
 /* Featured badge */
 .hot-slide-featured{
@@ -5333,15 +5333,15 @@ body:not(.dark) .save-btn {
 }
 /* Liked state — red */
 .like-btn.liked {
-  background: #ef4444 !important;
-  border-color: #ef4444 !important;
-  color: #fff !important;
+  background: rgba(239,68,68,.08) !important;
+  border-color: rgba(239,68,68,.4) !important;
+  color: #ef4444 !important;
 }
 /* Saved state — amber/yellow */
 .save-btn.saved {
-  background: #f59e0b !important;
-  border-color: #f59e0b !important;
-  color: #fff !important;
+  background: rgba(245,158,11,.08) !important;
+  border-color: rgba(245,158,11,.4) !important;
+  color: #f59e0b !important;
 }
 /* Pop animation on click */
 @keyframes btn-pop {
@@ -6333,15 +6333,29 @@ body:not(.dark) .save-btn {
    BOTM VOTING BUTTON
    ═══════════════════════════════════════════════════════════════ */
 .botm-vote-btn {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 7px 16px; border-radius: var(--r-sm);
-  border: 1px solid var(--border); background: var(--raised);
-  font-family: var(--cond); font-size: .75rem; font-weight: 700;
-  letter-spacing: .5px; color: var(--sec); cursor: pointer;
-  transition: all var(--tr); margin-top: 8px;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 20px; border-radius: var(--r-sm);
+  border: 1.5px solid rgba(251,191,36,.5);
+  background: linear-gradient(135deg, rgba(251,191,36,.12) 0%, rgba(245,158,11,.08) 100%);
+  font-family: var(--cond); font-size: .78rem; font-weight: 700;
+  letter-spacing: .8px; text-transform: uppercase;
+  color: #f59e0b; cursor: pointer;
+  transition: all var(--tr); margin-top: 10px;
+  box-shadow: 0 2px 8px rgba(251,191,36,.15);
 }
-.botm-vote-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
-.botm-vote-btn.voted { background: var(--accent); border-color: var(--accent); color: #fff; }
+.botm-vote-btn i { color: #f59e0b; font-size: .82rem; }
+.botm-vote-btn:hover {
+  background: linear-gradient(135deg, rgba(251,191,36,.25) 0%, rgba(245,158,11,.18) 100%);
+  border-color: #f59e0b;
+  box-shadow: 0 4px 16px rgba(251,191,36,.25);
+  transform: translateY(-1px);
+}
+.botm-vote-btn.voted {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border-color: #d97706; color: #fff;
+  box-shadow: 0 4px 16px rgba(251,191,36,.35);
+}
+.botm-vote-btn.voted i { color: #fff; }
 
 /* ═══════════════════════════════════════════════════════════════
    HERO REMOVED — Feed is now first, reduce top padding
@@ -6949,13 +6963,8 @@ body:not(.dark) .save-btn {
 /* ═══════════════════════════════════════════════════════════════
    LIKES — always stay red, consistent across feed and car page
    ═══════════════════════════════════════════════════════════════ */
-.card-likes.liked,
-.card-likes.liked i,
-.like-btn.liked,
-.like-btn.liked i {
-  color: #ef4444 !important;
-}
-/* Ensure the heart icon inside liked buttons is always red */
+.card-likes.liked, .card-likes.liked i,
+.like-btn.liked, .like-btn.liked i,
 .liked .fa-heart { color: #ef4444 !important; }
 /* Transition is smooth */
 .card-likes, .like-btn {

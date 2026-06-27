@@ -2835,7 +2835,7 @@ function cardHTML(post,animIdx) {
       <div class="card-title">${esc(post.title)}</div>
       <div class="card-sub">${post.year?post.year+' · ':''}${post.hp?post.hp+' · ':''}by ${esc(post.user)}</div>
       <div class="card-foot">
-        <div class="card-av-row">${(()=>{const _u=getAvatarUrl(post.user);return _u?`<div class="card-av av-circle clickable-user has-photo" data-user="${post.user}"><img src="${_u}" alt="" class="av-photo"/></div>`:`<div class="card-av av-circle clickable-user" data-user="${post.user}" style="background:${avColor(post.user)}">${post.user[0].toUpperCase()}</div>`;})()} <span class="card-poster clickable-user" data-user="${post.user}">${esc(post.user)}</span></div>
+        <div class="card-av-row"><div class="card-av av-circle clickable-user" data-user="${post.user}" id="cav-${post.id}">${_defaultAvSVG()}</div> <span class="card-poster clickable-user" data-user="${post.user}">${esc(post.user)}</span></div>
         <div class="card-stats">
           <span class="card-comments"><i class="fas fa-comment"></i> ${(post.comments||[]).length}</span>
           <span class="card-likes${liked?' liked':''}" data-id="${post.id}"><i class="fas fa-heart"></i> ${post.likes}</span>
@@ -2845,6 +2845,10 @@ function cardHTML(post,animIdx) {
 }
 
 function attachCardEvents(container) {
+  // Set real avatars for all cards in this container
+  container.querySelectorAll('.card-av.av-circle[data-user]').forEach(av => {
+    setAvEl(av, av.dataset.user);
+  });
   container.querySelectorAll('.card').forEach(card=>card.addEventListener('click',e=>{
     if(e.target.closest('.card-likes'))return;
     const p=S.posts.find(x=>x.id===card.dataset.id); if(p)openCarPage(p);
@@ -5268,12 +5272,22 @@ function grantAward(username, awardId) {
   if (S.page === 'profile') updateProfilePage();
 }
 
-function toggleFeaturedUser(username) {
-  const u = S.users.find(x=>x.username===username); if(!u) return;
+async function toggleFeaturedUser(username) {
+  let u = S.users.find(x=>x.username===username);
+  if (!u) {
+    // Fetch from Supabase if not in local cache
+    try {
+      const p = await DB.getProfileByUsername(username);
+      if (p) { u = dbUserToApp(p); S.users.push(u); }
+    } catch(_) {}
+    if (!u) { toast('User not found', 'err'); return; }
+  }
   u.isFeatured = !u.isFeatured;
   // Persist to Supabase
-  if (u.id) DB.updateProfile(u.id, { is_featured: u.isFeatured }).catch(()=>{});
-  // Also persist locally so it survives page reload
+  if (u.id) {
+    const { error } = await DB.updateProfile(u.id, { is_featured: u.isFeatured }).catch(e=>({error:e}));
+    if (error) { toast('Save failed: ' + (error.message||'unknown error'), 'err'); return; }
+  }
   try {
     const featuredList = JSON.parse(localStorage.getItem('dl_featured_users') || '[]');
     if (u.isFeatured) { if (!featuredList.includes(username)) featuredList.push(username); }
@@ -5281,7 +5295,7 @@ function toggleFeaturedUser(username) {
     localStorage.setItem('dl_featured_users', JSON.stringify(featuredList));
   } catch(_) {}
   save(); renderAdminUsers(); renderFeaturedMembers();
-  toast(`${u.isFeatured?'Added to':'Removed from'} Featured Members`, 'ok');
+  toast(`${u.isFeatured?'✓ Added to':'Removed from'} Featured Members`, 'ok');
 }
 
 function revokeAward(username, awardId) {
