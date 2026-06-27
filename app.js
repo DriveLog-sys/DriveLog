@@ -236,56 +236,86 @@ async function loadStorage() {
   updateAuthUI(); updateNotifBadge();
 
   // ── Fire non-critical in background without blocking ──────────
-  DB.getAllProfiles().then(profiles => {
-    if (!profiles?.length) return;
-    S.users = profiles.map(dbUserToApp).filter(Boolean);
-    S.users.forEach(u => { if (u.avatarUrl) cacheAvatarUrl(u.username, u.avatarUrl); });
-    try {
-      const fl = JSON.parse(localStorage.getItem('dl_featured_users') || '[]');
-      S.users.forEach(u => { if (fl.includes(u.username)) u.isFeatured = true; });
-      localStorage.setItem('dl_users_cache', JSON.stringify(S.users));
-    } catch(_) {}
-    if (S.user) {
-      const fresh = S.users.find(u => u.username === S.user.username);
-      if (fresh) {
-        const localAvatar = localStorage.getItem('dl_avatar_url') || S.user.avatarUrl || null;
-        S.user = { ...fresh, ...S.user,
-          avatarUrl: localAvatar || fresh.avatarUrl || null,
-          bio: S.user.bio || fresh.bio || '',
-          instagram: S.user.instagram || fresh.instagram || '',
-          tiktok: S.user.tiktok || fresh.tiktok || '',
-          youtube: S.user.youtube || fresh.youtube || '',
-          website: S.user.website || fresh.website || '',
-          location: S.user.location || fresh.location || '',
-          id: fresh.id || S.user.id,
-          isAdmin: fresh.isAdmin || S.user.isAdmin || false,
-          awards: (fresh.awards||[]).length ? fresh.awards : (S.user.awards||[]),
-        };
-        localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
-        localStorage.setItem('dl_user', JSON.stringify(S.user));
+  // Run all three in parallel instead of chaining them
+  Promise.all([
+    DB.getAllProfiles().catch(() => []),
+    DB.getEvents().catch(() => []),
+    S.user?.id ? DB.getFollowing(S.user.id).catch(() => []) : Promise.resolve([]),
+    S.user?.id ? DB.getNotifications(S.user.id).catch(() => []) : Promise.resolve([]),
+  ]).then(([profiles, evts, following, notifs]) => {
+    // Profiles + avatars
+    if (profiles?.length) {
+      S.users = profiles.map(dbUserToApp).filter(Boolean);
+      S.users.forEach(u => { if (u.avatarUrl?.startsWith('http')) cacheAvatarUrl(u.username, u.avatarUrl); });
+      try {
+        const fl = JSON.parse(localStorage.getItem('dl_featured_users') || '[]');
+        S.users.forEach(u => { if (fl.includes(u.username)) u.isFeatured = true; });
+        localStorage.setItem('dl_users_cache', JSON.stringify(S.users));
+      } catch(_) {}
+      if (S.user) {
+        const fresh = S.users.find(u => u.username === S.user.username);
+        if (fresh) {
+          const localAvatar = localStorage.getItem('dl_avatar_url') || S.user.avatarUrl || null;
+          S.user = { ...fresh, ...S.user,
+            avatarUrl: localAvatar || fresh.avatarUrl || null,
+            bio: S.user.bio || fresh.bio || '',
+            instagram: S.user.instagram || fresh.instagram || '',
+            tiktok: S.user.tiktok || fresh.tiktok || '',
+            youtube: S.user.youtube || fresh.youtube || '',
+            website: S.user.website || fresh.website || '',
+            location: S.user.location || fresh.location || '',
+            id: fresh.id || S.user.id,
+            isAdmin: fresh.isAdmin || S.user.isAdmin || false,
+            awards: (fresh.awards||[]).length ? fresh.awards : (S.user.awards||[]),
+          };
+          localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
+          localStorage.setItem('dl_user', JSON.stringify(S.user));
+        }
       }
+      updateAuthUI(); renderFeaturedMembers(); renderMembers();
+      if (S.page === 'profile') updateProfilePage();
+      // Update ALL currently visible avatars in one pass
+      requestAnimationFrame(() => {
+        document.querySelectorAll('[data-user]').forEach(node => {
+          const uname = node.dataset.user; if (!uname) return;
+          const cls = node.className || '';
+          if (cls.includes('av-circle') || cls.includes('msg-conv-av') ||
+              cls.includes('card-av') || cls.includes('member-av') ||
+              cls.includes('profile-av') || cls.includes('fm-av') ||
+              cls.includes('social-wtf-av') || cls.includes('notif-av') ||
+              cls.includes('hsr-av')) {
+            setAvEl(node, uname);
+          }
+        });
+      });
     }
-    updateAuthUI(); renderFeaturedMembers(); renderMembers();
-    if (S.page === 'profile') updateProfilePage();
-  }).catch(() => {});
 
-  DB.getEvents().then(evts => {
-    if (!evts?.length) return;
-    S.events = evts.map(e => ({ id:e.id, title:e.title, type:e.type, location:e.location, date:e.date, time:e.time||'', description:e.description||'', host:e.host_username, capacity:e.capacity||null, attendees:e.attendees||[] }));
-  }).catch(() => {});
+    // Events
+    if (evts?.length) {
+      S.events = evts.map(e => ({
+        id:e.id, title:e.title, type:e.type, location:e.location,
+        date:e.date, time:e.time||'', description:e.description||'',
+        host:e.host_username, capacity:e.capacity||null, attendees:e.attendees||[]
+      }));
+    }
 
-  if (S.user?.id) {
-    DB.getFollowing(S.user.id).then(f => { if (f) S.following = f; }).catch(() => {});
-    DB.getNotifications(S.user.id).then(notifs => {
-      if (!notifs?.length) return;
-      S.notifs = notifs.map(n => ({ id:n.id, type:n.type, from:n.from_username, msg:n.message, link:n.link||null, time:new Date(n.created_at).getTime(), read:n.read }));
+    // Following
+    if (following?.length) { S.following = following; save(); }
+
+    // Notifications
+    if (notifs?.length) {
+      S.notifs = notifs.map(n => ({
+        id:n.id, type:n.type, from:n.from_username, msg:n.message,
+        link:n.link||null, time:new Date(n.created_at).getTime(), read:n.read
+      }));
       updateNotifBadge();
-    }).catch(() => {});
-    setupRealtimeSubscriptions();
-  }
-}
+    }
 
-let _saveTimer;
+    if (S.user?.id) setupRealtimeSubscriptions();
+  });
+} // end loadStorage
+
+
 // save() is kept for legacy calls but most writes go direct via DB.*
 function save() { clearTimeout(_saveTimer); _saveTimer = setTimeout(_doSave, 300); }
 function _doSave() {
@@ -1049,7 +1079,16 @@ function initSearch() {
   // Expose for external use
   window._closeInlineSearch = closeInlineSearch;
 
-  trigger?.addEventListener('click', openInlineSearch);
+  trigger?.addEventListener('click', () => {
+    // On mobile, always open the fullscreen search overlay directly
+    if (window.innerWidth <= 768) {
+      openSearch();
+      // Force keyboard open immediately
+      setTimeout(() => el('searchInput')?.focus(), 50);
+    } else {
+      openInlineSearch();
+    }
+  });
   closeBtn?.addEventListener('click', closeInlineSearch);
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') { closeInlineSearch(); closeSearch(); }
@@ -1130,7 +1169,16 @@ async function runInlineSearch(q) {
     });
   }
 }
-function openSearch(){ el('searchOverlay').classList.add('open'); setTimeout(()=>el('searchInput')?.focus(),80); }
+function openSearch(){
+  el('searchOverlay').classList.add('open');
+  // Focus immediately — critical for keyboard to appear on mobile
+  const inp = el('searchInput');
+  if (inp) {
+    inp.focus();
+    // Belt-and-suspenders: try again after a frame (iOS Safari needs this)
+    requestAnimationFrame(() => inp.focus());
+  }
+}
 function closeSearch(){ el('searchOverlay').classList.remove('open'); if(el('searchInput'))el('searchInput').value=''; if(el('searchResults'))el('searchResults').innerHTML=''; }
 
 async function doSearch() {
@@ -1390,7 +1438,26 @@ function initAuth() {
     }
     S.user = dbUserToApp(data);
     // Refresh users list
-    try { const profiles = await DB.getAllProfiles(); S.users = profiles.map(dbUserToApp); } catch(_) {}
+    try {
+    const profiles = await DB.getAllProfiles();
+    S.users = profiles.map(dbUserToApp).filter(Boolean);
+    // Pre-cache all avatar URLs so they're available immediately on render
+    S.users.forEach(u => {
+      if (u.avatarUrl?.startsWith('http')) cacheAvatarUrl(u.username, u.avatarUrl);
+    });
+    // Re-render with real avatars now that we have them
+    requestAnimationFrame(() => {
+      document.querySelectorAll('[data-user]').forEach(el2 => {
+        const uname = el2.dataset.user;
+        if (!uname) return;
+        if (el2.classList.contains('av-circle') || el2.classList.contains('msg-conv-av') ||
+            el2.classList.contains('card-av') || el2.classList.contains('cp-av') ||
+            el2.classList.contains('profile-av') || el2.classList.contains('member-av')) {
+          setAvEl(el2, uname);
+        }
+      });
+    });
+  } catch(e) { console.warn('getAllProfiles failed:', e); }
     el('authModal').classList.remove('open');
     document.body.classList.remove('modal-open');
     loginUser(S.user.username);
