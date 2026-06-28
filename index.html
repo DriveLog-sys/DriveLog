@@ -16,14 +16,9 @@
   <meta name="twitter:card"       content="summary_large_image"/>
   <meta name="description"        content="DriveLog is the car community for builders and enthusiasts. Post your build, browse the feed, and connect with other gearheads."/>
   <meta name="theme-color"        content="#3b82f6"/>
-  <!-- Preconnect to external resources for faster loading -->
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link rel="preconnect" href="https://lsnpxneywkrirfkfszbo.supabase.co"/>
-  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net"/>
-  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com"/>
-  <!-- Supabase must load before our scripts - no defer -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -1534,9 +1529,9 @@
   </div>
 </aside>
 
-<script src="data.js" defer></script>
-<script src="db.js" defer></script>
-<script src="app.js" defer></script>
+<script src="data.js"></script>
+<script src="db.js"></script>
+<script src="app.js"></script>
 <!-- Sign up nudge banner — shown to signed-out users -->
 <div class="signup-nudge" id="signupNudge" style="display:none">
   <div class="signup-nudge-inner">
