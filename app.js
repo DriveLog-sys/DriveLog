@@ -29,6 +29,38 @@ const S = {
 // with HTML/CSS parsing. Result is stored and consumed in loadStorage.
 let _prefetchPostsPromise = null;
 let _prefetchSessionPromise = null;
+// ─── AVATAR CACHE — declared at top so loadFromCache() can use it ─
+const _avCache = new Map();
+function _initAvCache() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
+    Object.entries(stored).forEach(([u, url]) => { if (url?.startsWith('http')) _avCache.set(u, url); });
+  } catch(_) {}
+}
+function getAvatarUrl(username) {
+  if (!username) return null;
+  if (_avCache.has(username)) return _avCache.get(username);
+  const u = S.users.find(x => x.username === username);
+  if (u?.avatarUrl?.startsWith('http')) { _avCache.set(username, u.avatarUrl); return u.avatarUrl; }
+  if (S.user?.username === username && S.user.avatarUrl?.startsWith('http')) {
+    _avCache.set(username, S.user.avatarUrl); return S.user.avatarUrl;
+  }
+  if (S.user?.username === username) {
+    const local = localStorage.getItem('dl_avatar_url');
+    if (local?.startsWith('http')) { _avCache.set(username, local); return local; }
+  }
+  return null;
+}
+function cacheAvatarUrl(username, url) {
+  if (!username || !url?.startsWith('http')) return;
+  _avCache.set(username, url);
+  try {
+    const stored = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
+    stored[username] = url;
+    localStorage.setItem('dl_avatar_cache', JSON.stringify(stored));
+  } catch(_) {}
+}
+
 
 function startPrefetch() {
   // Check cache freshness — if recent cache exists skip posts prefetch
@@ -4022,44 +4054,7 @@ function toast(msg,type=''){
 // Returns the avatar URL for a user if they have one, otherwise null
 // In-memory avatar URL cache — populated from localStorage at boot,
 // updated on every cacheAvatarUrl() call. No JSON.parse on every lookup.
-const _avCache = new Map();
-
-function _initAvCache() {
-  try {
-    const stored = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
-    Object.entries(stored).forEach(([u, url]) => { if (url?.startsWith('http')) _avCache.set(u, url); });
-  } catch(_) {}
-}
-// Called once from loadFromCache()
-function getAvatarUrl(username) {
-  if (!username) return null;
-  // 1. In-memory cache (fastest, populated from S.users + localStorage at boot)
-  if (_avCache.has(username)) return _avCache.get(username);
-  // 2. S.users array
-  const u = S.users.find(x => x.username === username);
-  if (u?.avatarUrl?.startsWith('http')) { _avCache.set(username, u.avatarUrl); return u.avatarUrl; }
-  // 3. Own user's avatarUrl
-  if (S.user?.username === username && S.user.avatarUrl?.startsWith('http')) {
-    _avCache.set(username, S.user.avatarUrl); return S.user.avatarUrl;
-  }
-  // 4. Own device upload key
-  if (S.user?.username === username) {
-    const local = localStorage.getItem('dl_avatar_url');
-    if (local?.startsWith('http')) { _avCache.set(username, local); return local; }
-  }
-  return null;
-}
-
-// Called when we know an avatar URL — update both in-memory and localStorage
-function cacheAvatarUrl(username, url) {
-  if (!username || !url?.startsWith('http')) return;
-  _avCache.set(username, url);
-  try {
-    const stored = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
-    stored[username] = url;
-    localStorage.setItem('dl_avatar_cache', JSON.stringify(stored));
-  } catch(_) {}
-}
+// avatar cache moved to top of file
 
 // Returns HTML string for an avatar circle — img if custom, letter if not
 // size: css class suffix ('sm'=26px, 'md'=36px, 'lg'=48px, null=use inline style)
