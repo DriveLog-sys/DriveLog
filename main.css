@@ -114,7 +114,7 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 .header-right{display:flex;align-items:center;gap:10px;position:relative}
 
 /* Notif */
-.notif-badge{position:absolute;top:-3px;right:-3px;width:16px;height:16px;background:var(--accent);border-radius:50%;font-family:var(--cond);font-size:.6rem;font-weight:700;color:#fff;display:none;align-items:center;justify-content:center;border:2px solid var(--bg)}
+.notif-badge{position:absolute;top:-3px;right:-3px;min-width:17px;height:17px;background:linear-gradient(135deg,#f97316 0%,#ef4444 100%);border-radius:50%;font-family:var(--cond);font-size:.58rem;font-weight:800;color:#fff;display:none;align-items:center;justify-content:center;border:2px solid var(--bg);box-shadow:0 2px 6px rgba(239,68,68,.35);padding:0 2px;line-height:1;}
 .notif-badge[style*="flex"]{display:flex}
 .notif-wrap{position:relative}
 .notif-drop{position:absolute;top:calc(100% + 10px);right:0;width:320px;background:var(--raised);border:1px solid var(--mid);border-radius:var(--r-lg);box-shadow:0 16px 48px rgba(0,0,0,.7);display:none;z-index:200;overflow:hidden;animation:slideUp .18s ease}
@@ -905,7 +905,7 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
 .msg-conv-av{width:42px;height:42px;border-radius:50%;font-family:var(--disp);font-size:1rem;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
 .msg-conv-info{flex:1;min-width:0}
 .msg-conv-name{font-family:var(--cond);font-weight:600;font-size:.88rem;display:flex;align-items:center;gap:6px;margin-bottom:2px}
-.msg-unread-dot{background:var(--accent);color:#fff;border-radius:30px;padding:1px 6px;font-size:.65rem;font-weight:700}
+.msg-unread-dot{background:linear-gradient(135deg,#f97316 0%,#ef4444 100%);color:#fff;border-radius:30px;padding:1px 6px;font-size:.65rem;font-weight:700;box-shadow:0 2px 6px rgba(239,68,68,.35)}
 .msg-conv-preview{font-size:.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .msg-conv-time{font-size:.68rem;color:var(--muted);flex-shrink:0;align-self:flex-start;margin-top:2px}
 .msg-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:50px 20px;color:var(--muted);text-align:center;gap:10px}
@@ -953,7 +953,7 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
 .msg-new-result:hover{background:var(--hover)}
 
 /* Nav DM badge */
-.nav-dm-badge{background:var(--accent);color:#fff;border-radius:30px;padding:1px 6px;font-family:var(--cond);font-size:.65rem;font-weight:700;margin-left:4px;vertical-align:middle}
+.nav-dm-badge{background:linear-gradient(135deg,#f97316 0%,#ef4444 100%);color:#fff;border-radius:30px;padding:1px 6px;font-family:var(--cond);font-size:.65rem;font-weight:700;margin-left:4px;vertical-align:middle;box-shadow:0 2px 6px rgba(239,68,68,.35)}
 
 /* Mobile messages */
 @media(max-width:700px){
@@ -2718,8 +2718,9 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
 
 /* ─── SIGNIN TOAST — solid green, more prominent ─────────────── */
 .toast-signin{
-  background:#16a34a !important;
-  border-color:#15803d !important;
+  background:linear-gradient(135deg,#22c55e 0%,#16a34a 100%)!important;
+  border-color:#16a34a!important;
+  box-shadow:0 2px 8px rgba(34,197,94,.25)!important;
   color:#fff !important;
   padding:12px 28px !important;
   font-size:.92rem !important;
@@ -6946,12 +6947,9 @@ body:not(.dark) .save-btn {
 /* ═══════════════════════════════════════════════════════════════
    PUBLISH BUTTON — green (confirmation action)
    ═══════════════════════════════════════════════════════════════ */
-#submitPost {
-  background: #16a34a !important;
-  border-color: #16a34a !important;
-}
-#submitPost:hover { background: #15803d !important; border-color: #15803d !important; }
-#submitPost:disabled { opacity: .6; }
+#submitPost {background:linear-gradient(135deg,#22c55e 0%,#16a34a 100%)!important;border-color:#16a34a!important;box-shadow:0 2px 8px rgba(34,197,94,.25)!important;}
+#submitPost:hover{background:linear-gradient(135deg,#16a34a 0%,#15803d 100%)!important;border-color:#15803d!important;box-shadow:0 6px 20px rgba(34,197,94,.35)!important;transform:translateY(-1px);}
+#submitPost:disabled{opacity:.6;}
 
 /* ═══════════════════════════════════════════════════════════════
    SAVE PART BUTTON — on car page mod items
@@ -8730,12 +8728,8 @@ body { overflow-x: hidden; max-width: 100vw; }
 }
 
 /* Apply button */
-.cs-apply-btn {
-  margin-top: 12px !important;
-  background: #16a34a !important;
-  border-color: #16a34a !important;
-}
-.cs-apply-btn:hover { background: #15803d !important; }
+.cs-apply-btn{margin-top:12px!important;background:linear-gradient(135deg,#22c55e 0%,#16a34a 100%)!important;border-color:#16a34a!important;box-shadow:0 2px 8px rgba(34,197,94,.25)!important;}
+.cs-apply-btn:hover{background:linear-gradient(135deg,#16a34a 0%,#15803d 100%)!important;box-shadow:0 6px 20px rgba(34,197,94,.35)!important;transform:translateY(-1px);}
 
 /* ─── Post form (after blur applied) ─────────────────────── */
 .cs-post-form { }
@@ -8771,3 +8765,26 @@ body { overflow-x: hidden; max-width: 100vw; }
   .cs-canvas-wrap { touch-action: none; }
 }
 
+
+/* ─── NOTIFICATION BADGE — perfect centering ─────────────────── */
+.notif-badge,
+.nav-dm-badge,
+.msg-unread-dot {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  line-height: 1 !important;
+  vertical-align: middle !important;
+}
+/* Hide when empty */
+.notif-badge:empty,
+.notif-badge[style*="display: none"],
+.notif-badge[style*="display:none"] {
+  display: none !important;
+}
+/* Ensure numbers are always centered in circular badges */
+.notif-badge {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
