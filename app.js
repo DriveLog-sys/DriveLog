@@ -1,27 +1,83 @@
 /* ============================================================
-   DRIVELOG — APP.JS   (v2 — optimized, polished, age-gated)
+   DRIVELOG — APP.JS
+   ─────────────────────────────────────────────────────────────
+   Main application file. All UI logic lives here.
+   Load order in index.html: data.js → db.js → app.js
+   data.js   : constants (CATS, AWARDS_DEF, seed data helpers)
+   db.js     : all Supabase calls — never call _sb directly here
+   app.js    : everything else (this file)
+
+   Key globals:
+     S            — single app state object (see below)
+     _avCache     — in-memory Map of username → avatar URL
+     DB.*         — all database calls (defined in db.js)
+     goTo(page)   — navigate between pages
+     el(id)       — shorthand for getElementById
+     esc(str)     — HTML-escape a string before injecting into DOM
+
+   Boot sequence:
+     1. _initSb() + startPrefetch() fire immediately on script load
+        (before DOMContentLoaded) to overlap network latency with parsing
+     2. DOMContentLoaded: init all UI modules, loadFromCache(), renderAll()
+     3. loadStorage() fires async: fetches posts + session from Supabase,
+        re-renders feed as soon as posts arrive
+     4. Background: profiles, events, following, notifications (parallel)
+
+   localStorage keys used:
+     dl_posts_cache      — cached posts array (JSON)
+     dl_cache_ts         — timestamp of last posts cache write
+     dl_users_cache      — cached users/profiles array (JSON)
+     dl_profile_cache_ts — timestamp of last profile cache write
+     dl_user_cache       — cached logged-in user object (JSON)
+     dl_user             — legacy alias for dl_user_cache
+     dl_avatar_url       — own avatar URL (set after upload)
+     dl_avatar_cache     — JSON map of username → avatar URL
+     dl_following_*      — following list per username
+     dl_prefs            — theme, accent color, font size
+     dl_nudge_dismissed  — whether signup nudge was closed
+     dl_featured_users   — array of featured usernames (admin-set)
    ============================================================ */
 'use strict';
 
 // ─── CONSTANTS ────────────────────────────────────────────────
+// MIN_ACCOUNT_AGE_DAYS: how old an account must be before it can like/comment/post.
+// Currently 0 (off) — set to e.g. 3 to require 3 days before interacting.
 const MIN_ACCOUNT_AGE_DAYS = 0;
-const BOTW_WINDOW_MS       = 7 * 24 * 60 * 60 * 1000;
-const FEED_PAGE_SIZE       = 12;
+
+// BOTW_WINDOW_MS: window for Build Of The Week. Posts within this window
+// get priority in the BOTW slider. Currently 7 days.
+const BOTW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+// FEED_PAGE_SIZE: how many cards to show per page before "load more"
+const FEED_PAGE_SIZE = 12;
 
 // ─── STATE ────────────────────────────────────────────────────
+// S is the single source of truth for the entire app.
+// All pages read from S — never store page-local state elsewhere.
+// When Supabase returns new data, write it here, then call renderX().
 const S = {
-  user: null, posts: [], users: [], events: [],
-  page: 'home', filter: 'All', sort: 'newest',
-  visibleCount: FEED_PAGE_SIZE, evtFilter: 'All', memberSort: 'likes',
-  openPost: null, galleryIdx: 0, lbImages: [], lbIdx: 0,
-  following: [], notifs: [],
+  user: null,          // logged-in user object (null = guest)
+  posts: [],           // all loaded posts (from cache + Supabase)
+  users: [],           // all loaded profiles (from cache + Supabase)
+  events: [],          // community events
+  page: 'home',        // current active page name (matches data-page)
+  filter: 'All',       // active category filter on feed
+  sort: 'newest',      // feed sort: 'newest' | 'liked' | 'comments'
+  visibleCount: FEED_PAGE_SIZE, // how many feed cards are showing
+  evtFilter: 'All',    // event type filter
+  memberSort: 'likes', // members page sort
+  openPost: null,      // post open in the OLD car modal (legacy — use openCarPost)
+  galleryIdx: 0,       // current gallery image index in car modal
+  lbImages: [], lbIdx: 0, // lightbox images + current index
+  following: [],       // array of usernames the logged-in user follows
+  notifs: [],          // notification objects for current user
   filters: { categories:[], make:"", yearMin:1940, yearMax:2026, hp:0, likes:0, media:"", build:"" },
-  dms: {},           // { otherUsername: [{from,text,ts},...] }
-  openDm: null,      // username of active conversation
-  openCarPost: null, // post shown on car page
-  compareA: null, compareB: null,
-  infiniteScrollObserver: null,
-  _editingPostId: null,
+  dms: {},             // { otherUsername: [{from,text,ts},...] }
+  openDm: null,        // username of active DM conversation
+  openCarPost: null,   // post currently shown on the full car detail page
+  compareA: null, compareB: null, // posts being compared
+  infiniteScrollObserver: null,   // IntersectionObserver for infinite scroll
+  _editingPostId: null, // set when editing an existing post (not creating new)
 };
 
 // ─── PREFETCH — start Supabase fetch immediately on script load ──
@@ -29,14 +85,33 @@ const S = {
 // with HTML/CSS parsing. Result is stored and consumed in loadStorage.
 let _prefetchPostsPromise = null;
 let _prefetchSessionPromise = null;
-// ─── AVATAR CACHE — declared at top so loadFromCache() can use it ─
+// ─── AVATAR CACHE ────────────────────────────────────────────
+// IMPORTANT: _avCache MUST be declared here at the top of the file.
+// loadFromCache() (line ~123) calls _avCache.set() immediately on boot,
+// before most of the file has been parsed. JavaScript const declarations
+// are NOT hoisted, so if _avCache was declared anywhere below loadFromCache,
+// it would be undefined when loadFromCache runs, causing a silent crash
+// that broke all avatar loading. Do not move this block down the file.
+//
+// _avCache is a Map<username, avatarUrl> that lives in memory for the
+// duration of the page session. It is seeded from localStorage at boot
+// (via _initAvCache) and updated whenever a new URL is discovered.
+// Using a Map here instead of reading localStorage on every lookup gives
+// O(1) access and avoids repeated JSON.parse calls during feed renders.
 const _avCache = new Map();
+
+// Seed _avCache from localStorage dl_avatar_cache on startup.
+// Called once at the top of loadFromCache().
 function _initAvCache() {
   try {
     const stored = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
     Object.entries(stored).forEach(([u, url]) => { if (url?.startsWith('http')) _avCache.set(u, url); });
   } catch(_) {}
 }
+
+// Get the best available avatar URL for a username.
+// Priority: in-memory cache → S.users array → own user object → dl_avatar_url key.
+// Returns null if no URL found (caller should show default grey SVG).
 function getAvatarUrl(username) {
   if (!username) return null;
   if (_avCache.has(username)) return _avCache.get(username);
@@ -62,8 +137,22 @@ function cacheAvatarUrl(username, url) {
 }
 
 
+// startPrefetch() fires immediately when the script loads — BEFORE
+// DOMContentLoaded. This means the Supabase network requests for the
+// session and posts start while the browser is still parsing the HTML
+// and CSS. By the time DOMContentLoaded fires and loadStorage() runs,
+// the requests may already have responses ready, making the initial
+// render appear nearly instant.
+//
+// The promises are stored in _prefetchPostsPromise and
+// _prefetchSessionPromise. loadStorage() awaits these instead of
+// making new requests, consuming whatever arrived during parsing.
+//
+// If Supabase isn't ready yet (_sbOk() is false), startPrefetch()
+// returns early. loadStorage() will retry and make its own requests.
 function startPrefetch() {
-  // Check cache freshness — if recent cache exists skip posts prefetch
+  // Skip posts prefetch if we have a cache less than 5 minutes old —
+  // the cached data is fresh enough to show immediately
   const cacheAge = Date.now() - (parseInt(localStorage.getItem('dl_cache_ts')||'0'));
   const hasFreshCache = cacheAge < 300000 && !!localStorage.getItem('dl_posts_cache'); // 5 min
 
@@ -88,12 +177,30 @@ function startPrefetch() {
 // Fire immediately when script executes
 try { _initSb(); startPrefetch(); } catch(_) {}
 
-// ─── BOOT ─────────────────────────────────────────────────────
+// ─── BOOT SEQUENCE ────────────────────────────────────────────
+// The site renders in two phases:
+//
+// Phase 1 (synchronous, instant):
+//   - Apply theme so there's no flash of wrong colors
+//   - Init all UI modules (wire event listeners)
+//   - loadFromCache() — read posts/users/user from localStorage into S
+//   - renderAll() — paint the entire UI from cached data
+//   The site is now fully visible and interactive.
+//
+// Phase 2 (async, background):
+//   - loadStorage() awaits the prefetch promises (or starts fresh requests)
+//   - Posts arrive → renderFeed() re-paints cards with fresh data
+//   - Session confirmed → updateAuthUI() shows correct login state
+//   - Profiles/events/notifs arrive → update in place
+//
+// This means a returning user sees their feed in <100ms from cached data,
+// and fresh data updates it within ~1-2s as Supabase responds.
 document.addEventListener('DOMContentLoaded', () => {
-  // Apply theme immediately — prevents flash of wrong theme
+  // Apply theme first — prevents flash of wrong colors before CSS loads
   applyPrefs();
 
-  // Init all UI modules
+  // Wire all UI modules. Each init() attaches event listeners.
+  // Wrapped in try/catch so one broken module doesn't prevent others.
   const inits = [initHeader, initMobileNav, initSearch, initAuth,
     initPostModal, initCarModal, initLightbox, initGarage, initEvents,
     initMembers, initNavLinks, initFilterSidebar, initMessages, initCarPage,
@@ -120,8 +227,18 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(handleURLRouting, 100);
 });
 
+// loadFromCache() — Phase 1 data hydration.
+// Reads everything from localStorage into S so the UI can render
+// immediately without waiting for Supabase. Called synchronously
+// before renderAll() in the boot sequence.
+//
+// After this runs, S.posts, S.users, S.user, S.following, and
+// _avCache are all populated from the last known good state.
+// The subsequent loadStorage() call will overwrite these with
+// fresh Supabase data once it arrives.
 function loadFromCache() {
-  // Initialize in-memory avatar cache from localStorage first
+  // Seed the in-memory avatar URL Map first so getAvatarUrl()
+  // works correctly for any render that happens in this phase
   _initAvCache();
   try {
     const cp = localStorage.getItem('dl_posts_cache');
@@ -169,6 +286,11 @@ function loadFromCache() {
   } catch(_) {}
 }
 
+// renderAll() — paint the entire site from current S state.
+// Called after loadFromCache() for the initial render, and can be
+// called again after major data changes. Most re-renders use targeted
+// functions (renderFeed, updateAuthUI, etc.) rather than renderAll
+// to avoid unnecessary work. renderAll is the nuclear option.
 function renderAll() {
   renderFeed(); renderSidebar(); renderBOTW(); renderTicker();
   renderCategories(); renderLeaderboard(); renderEventsGrid();
@@ -408,7 +530,14 @@ async function loadStorage() {
 } // end loadStorage
 
 
-// save() is kept for legacy calls but most writes go direct via DB.*
+// save() — debounced local cache write + Supabase profile sync.
+// LEGACY: most Supabase writes now happen via specific DB.* calls
+// (DB.toggleLike, DB.addComment, DB.updateProfile, etc.) at the
+// point of the action. save() is kept for places that still need
+// to persist the full S.posts/S.users cache to localStorage.
+// The 300ms debounce prevents rapid successive calls from hammering
+// localStorage during things like rapid like-button clicking.
+let _saveTimer;
 function save() { clearTimeout(_saveTimer); _saveTimer = setTimeout(_doSave, 300); }
 function _doSave() {
   // Write changed posts/users back to Supabase if user is logged in
@@ -458,11 +587,24 @@ function setAccent(c) {
 
 // ─── REALTIME SUBSCRIPTIONS ────────────────────────────────────
 let _realtimeSubs = [];
+// setupRealtimeSubscriptions() — wire Supabase Realtime for live updates.
+// Called after session is confirmed in loadStorage(), and again after login.
+// Subscribes to two channels:
+//   1. messages: new DMs arrive in real-time without page refresh
+//   2. notifications: likes, follows, comments appear instantly
+//
+// IMPORTANT: Supabase Realtime must be enabled for these tables in the
+// Supabase Dashboard → Database → Replication → tables enabled for realtime.
+// If messages or notifications don't arrive live, check that setting first.
+//
+// We clean up old subscriptions before creating new ones to avoid
+// duplicate listeners if the user logs out and back in during a session.
 function setupRealtimeSubscriptions() {
-  // Clean up existing
+  // Remove any existing subscriptions before re-subscribing
+  // (prevents duplicate handlers if called multiple times)
   _realtimeSubs.forEach(sub => { try { sub.unsubscribe?.(); } catch(_) {} });
   _realtimeSubs = [];
-  if (!S.user) return;
+  if (!S.user) return; // only subscribe when logged in
   // New messages — update conv list and open thread
   const msgSub = DB.subscribeToMessages(S.user.id, payload => {
     if (!payload.new) return;
@@ -558,6 +700,19 @@ function initNavLinks() {
   );
 }
 
+// goTo(page) — the main navigation function.
+// All page navigation goes through here. Page IDs in HTML match
+// the page name: id="page-home", id="page-profile", etc.
+// Each page section has class="page" and is display:none by default.
+// Adding class="active" makes it display:block (see main.css .page.active).
+//
+// Some pages need special handling when activated:
+//   - messages: needs display:flex (not block) — set explicitly below
+//   - profile: re-renders with current user data
+//   - leaderboard: sorts on every visit (rankings change)
+//   - social (Car Spotting): resets feed pagination
+//
+// URL hash is updated so mobile back button and bookmarks work.
 function goTo(page) {
   S.page = page;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -609,7 +764,19 @@ function goTo(page) {
 }
 
 // ─── SHAREABLE URL ROUTING ────────────────────────────────────
-// Supports: ?user=Username (profile), ?post=postId (build), #pagename
+// Enables deep-linking into the app via URL parameters.
+// Called 100ms after DOMContentLoaded so S.posts has a chance to
+// populate from cache before we try to find a post by ID.
+//
+// Supported URL formats:
+//   ?user=nolanburkdoll  → opens that user's public profile
+//   ?post=abc123         → opens that build page
+//   #leaderboard         → navigates to the leaderboard page
+//   #home (default)      → no action needed
+//
+// If a ?post= ID is not found in S.posts (cache miss), we fetch
+// it directly from Supabase so shared links always work even if
+// the post wasn't in the initial 60-post feed load.
 function handleURLRouting() {
   const params = new URLSearchParams(window.location.search);
   const hashPage = window.location.hash.slice(1);
@@ -731,12 +898,28 @@ function _defaultAvSVG() {
   </svg>`;
 }
 
-// Set an avatar DOM element — shows photo or default grey SVG
+// setAvEl(domEl, username) — set a DOM avatar element to show the
+// correct photo (or default grey SVG if no photo is available).
+//
+// This is the primary way to render avatars throughout the app.
+// It checks _avCache first for an instant result, then falls back
+// to S.users, S.user, and localStorage — all without network calls.
+//
+// The "skip if same URL" check prevents unnecessary DOM mutations
+// during re-renders (e.g. when renderFeed() runs after a like update).
+//
+// fetchPriority="high" is set on the logged-in user's own avatar
+// so the browser downloads it first — it appears in the header on
+// every page so it should load as fast as possible.
+//
+// onerror falls back to the default grey SVG if the image URL 404s
+// (e.g. if a user deleted their avatar from Supabase Storage).
 function setAvEl(domEl, username) {
   if (!domEl || !username) return;
-  domEl.dataset.user = username;
+  domEl.dataset.user = username; // store for the global data-user click handler
   const url = getAvatarUrl(username);
-  // If the element already shows this exact URL, skip the DOM write
+  // Skip DOM write if the element already shows this exact image URL
+  // — avoids flicker and unnecessary repaints during feed re-renders
   const existing = domEl.querySelector('img');
   if (url && existing && existing.src === url) return;
   if (url) {
@@ -907,10 +1090,20 @@ function countUp(id,target,dur) {
   requestAnimationFrame(tick);
 }
 
-// ─── BUILD OF THE WEEK ────────────────────────────────────────
-// Ranks the top 5 posts by whether they were posted within the last 7 days (priority),
-// then by total likes — so new posts with rising engagement surface first,
-// while community classics anchor the carousel when fresh content is scarce.
+// ─── BUILD OF THE WEEK (BOTW) ─────────────────────────────────
+// The BOTW carousel on the home page shows the top 5 posts.
+// Ranking priority:
+//   1. Posts within the last 7 days (BOTW_WINDOW_MS) come first
+//      — rewards fresh content and encourages regular posting
+//   2. Within each group, sorted by total likes descending
+//      — most-loved builds rise to the top
+//
+// This means a brand-new post with 2 likes appears above a 6-month-old
+// post with 200 likes. Once the new post is >7 days old, the classic
+// reclaims its position. This keeps the carousel fresh.
+//
+// NOTE: This is different from the Hot Right Now slider (renderHotPanel),
+// which ranks purely by likes with no recency weighting.
 function getBotwPosts() {
   const cutoff = Date.now() - BOTW_WINDOW_MS;
   return [...S.posts].sort((a,b)=>{
@@ -1023,12 +1216,22 @@ function renderHero2Recent() {
   );
 }
 
-// ─── HOT RIGHT NOW MOSAIC ─────────────────────────────────────
-function renderTicker() { renderHotPanel(); } // alias for boot call
+// ─── HOT RIGHT NOW SLIDER ─────────────────────────────────────
+// Shows the top 10 most-liked posts in a full-width cinematic slider.
+// Unlike BOTW, this ranks purely by total likes — no recency weighting.
+// Slides auto-advance every HOT_SLIDE_DURATION ms with a progress bar.
+// On mobile: arrow buttons are hidden, swipe left/right to navigate.
+//
+// The "Hot Right Now" label that used to appear above the slider was
+// removed from HTML — the rank badge on each slide ("#1 Hottest Build")
+// makes the section self-explanatory without a redundant heading.
+//
+// renderTicker() is a legacy alias kept because boot calls renderTicker().
+function renderTicker() { renderHotPanel(); } // alias — called during renderAll()
 // ─── HOT RIGHT NOW — Cinematic Slider ─────────────────────────
-let _hotSliderIdx  = 0;
-let _hotSliderAuto = null;
-const HOT_SLIDE_DURATION = 8000; // ms per slide
+let _hotSliderIdx  = 0;          // currently visible slide index
+let _hotSliderAuto = null;       // setInterval handle for auto-advance
+const HOT_SLIDE_DURATION = 8000; // ms between automatic slide advances
 
 function renderHotPanel() {
   const slider = el('hotSlider'); if (!slider) return;
@@ -1146,6 +1349,21 @@ function startHotProgress(dur) {
 }
 
 // ─── SEARCH ───────────────────────────────────────────────────
+// Two search modes:
+//
+// 1. INLINE search (desktop, ≥769px):
+//    Clicking the magnifying glass expands a bar to the left.
+//    Results appear in a dropdown below the bar as you type.
+//    "Expand" button or pressing Enter opens the fullscreen overlay.
+//
+// 2. FULLSCREEN overlay (mobile, ≤768px):
+//    Clicking the icon opens a full-page search overlay immediately.
+//    The keyboard pops up on mobile right away (double focus trick
+//    for iOS Safari which ignores the first .focus() in a click handler).
+//
+// Both modes search the local S.posts and S.users arrays first (instant),
+// then fire Supabase FTS (full-text search) queries in the background
+// and merge any new results that weren't in the local cache.
 let _searchTimer;
 function initSearch() {
   const trigger  = el('searchBtn');
@@ -1414,6 +1632,11 @@ function initAuth() {
     hideSignupNudge();
     el('authModal')?.classList.add('open');
     setTimeout(() => document.querySelector('.auth-tab[data-tab="register"]')?.click(), 50);
+  });
+  el('signupNudgeSignIn')?.addEventListener('click', () => {
+    hideSignupNudge();
+    el('authModal')?.classList.add('open');
+    setTimeout(() => document.querySelector('.auth-tab[data-tab="login"]')?.click(), 50);
   });
   el('signupNudgeClose')?.addEventListener('click', () => {
     hideSignupNudge();
@@ -4092,7 +4315,23 @@ function accountAge(user) {
   return { years, months, short, full };
 }
 
-// ─── CAR DETAIL PAGE ──────────────────────────────────────────
+// ─── CAR DETAIL PAGE (Build Page) ────────────────────────────
+// The full build detail page is at id="page-car" in index.html.
+// It is NOT a modal — it's a full page rendered via goTo('car').
+// This is different from the OLD car modal (initCarModal / openCarModal)
+// which is a legacy overlay that may still be used in some places.
+//
+// The build page has tabs for: Comments | Build Timeline | Build Costs
+// Tab switching is handled by switchCpTab(tab).
+//
+// Gallery: the main image is in #cpGallMain, thumbnails in #cpGallStrip.
+// On mobile, left/right arrow buttons are hidden and the user swipes.
+// Swipe is detected on #cpGallMain with touchstart/touchend handlers.
+// IMPORTANT: The swipe calls el('cpGalNext').click() — note ONE 'l' in
+// 'Gal', not 'Gall'. These buttons are rendered by cpRenderGallery().
+//
+// openCarPage(post) is the correct way to navigate to a build.
+// It sets S.openCarPost, calls goTo('car'), then renderCarPage(post).
 function initCarPage() {
   el('carPageBack')?.addEventListener('click', () => {
     goTo(S._prevPage || 'home');
@@ -4843,6 +5082,22 @@ function cpRenderTimeline(post) {
 }
 
 // ─── DIRECT MESSAGES ──────────────────────────────────────────
+// DMs are stored in two places:
+//   1. localStorage (dl_dm_*): immediate, works offline, persists
+//      across sessions on the same device
+//   2. Supabase messages table: cross-device sync, realtime delivery
+//
+// The localStorage key for a conversation is always sorted so that
+// the same key is used regardless of who sent the first message:
+//   dl_dm_alice_bob (not dl_dm_bob_alice)
+//
+// When a realtime message arrives via setupRealtimeSubscriptions(),
+// it's written to localStorage AND rendered in the open conversation
+// if the user is currently looking at that thread.
+//
+// On mobile: the conversation list and chat panel are separate
+// "screens". msg-list-col.msg-hide-list hides the list to show
+// the chat, and #msgBackBtn returns to the list.
 function dmKey(user1, user2) {
   // Canonical key: alphabetically sorted so both users share same thread
   return [user1, user2].sort().join('::');
@@ -6285,7 +6540,31 @@ function initSocialPage() {
   });
 }
 
-// ─── BLUR EDITOR ENGINE ────────────────────────────────────────
+// ─── BLUR EDITOR ENGINE ───────────────────────────────────────
+// Client-side canvas-based blur tool for Car Spotting posts.
+// No server, no API, no ML — entirely in the browser.
+//
+// How it works:
+//   - The selected image is drawn onto an HTML <canvas> (#csCanvas)
+//   - A transparent overlay canvas (#csOverlay) sits on top and captures
+//     mouse/touch drag events to draw the selection rectangle
+//   - When the user releases, the selected region is pixelated using
+//     applyBlurBox(), which:
+//       1. Gets the pixel data for that region
+//       2. Draws it onto a tiny canvas (1/pixelSize the original size)
+//       3. Draws that tiny canvas back at full size with imageSmoothingEnabled=false
+//       4. The result is a "pixelated" / mosaic blur effect
+//   - Boxes are stored in _blurBoxes[imageIndex] so Undo/Clear work
+//   - applyAllBlurs() processes every image, converts to JPEG, stores in
+//     _blurredDataURLs — only these blurred versions are ever uploaded
+//
+// Pixel size is adaptive: Math.max(8, box_min_dimension / 10)
+// So a tiny box gets a finer mosaic, a big box gets coarser pixels.
+//
+// Multiple images: _blurImages[] holds loaded Image objects,
+// _blurBoxes[] is a parallel array of box arrays, one per image.
+// _blurImgIdx tracks which image the editor is currently showing.
+
 let _socialPendingFiles  = [];
 let _blurredDataURLs     = [];   // final blurred images to upload
 let _blurBoxes           = [];   // array of arrays, one per image
