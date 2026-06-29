@@ -6825,20 +6825,34 @@ async function submitSocialPost() {
   const btn     = el('socialSubmitBtn');
   const progBar = el('socialUploadProgress');
   if (btn) { btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Posting…'; }
-  if (progBar) { progBar.style.display='block'; progBar.value=0; }
+  if (progBar) { progBar.style.display='block'; progBar.value=10; }
 
-  // Use blurred images (or original if no images)
-  const mediaItems = _blurredDataURLs.map(url => ({ type:'image', url }));
-  if (progBar) progBar.value = 90;
+  // Upload blurred images to Supabase Storage
+  const mediaItems = [];
+  for (let i = 0; i < _blurredDataURLs.length; i++) {
+    const result = await DB.uploadSpottingImage(S.user.id, _blurredDataURLs[i], i);
+    mediaItems.push({ type:'image', url: result.url || _blurredDataURLs[i] });
+    if (progBar) progBar.value = 10 + Math.round(((i+1)/_blurredDataURLs.length)*70);
+  }
+  if (progBar) progBar.value = 85;
 
-  const post = {
-    id:'sp'+Date.now(), user:S.user.username, caption, tag,
-    media:mediaItems, likes:0, likedBy:[], comments:[],
-    reactions:{}, ts:Date.now(), date:new Date().toISOString().slice(0,10),
+  const postId = 'sp' + Date.now();
+  const postData = {
+    id: postId, caption, tag,
+    media: mediaItems,
+    liked_by: [], likes: 0,
+    comments: [], reactions: {},
   };
-  const stored = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-  stored.unshift(post);
-  localStorage.setItem('dl_social_posts', JSON.stringify(stored));
+
+  // Save to Supabase
+  const { error } = await DB.createSocialPost(S.user.id, S.user.username, postData);
+  if (error) {
+    console.warn('Social post save failed, storing locally:', error);
+    // Fallback: store locally if Supabase fails
+    const stored = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+    stored.unshift({ ...postData, user: S.user.username, ts: Date.now(), date: new Date().toISOString().slice(0,10) });
+    localStorage.setItem('dl_social_posts', JSON.stringify(stored));
+  }
 
   if (progBar) { progBar.value=100; setTimeout(()=>{ progBar.style.display='none'; progBar.value=0; },400); }
   el('socialUploadModal').classList.remove('open');
@@ -6848,118 +6862,87 @@ async function submitSocialPost() {
   socialPage=0; renderSocialFeed(true);
 }
 
+
+// Convert Supabase social_posts row to app format
+// Handles both Supabase rows (snake_case) and legacy localStorage posts (camelCase)
+function dbSocialToApp(row) {
+  if (!row) return null;
+  return {
+    id:       row.id,
+    user:     row.username || row.user || '',
+    user_id:  row.user_id  || null,
+    caption:  row.caption  || '',
+    tag:      row.tag      || '',
+    media:    row.media    || [],
+    likes:    row.likes    || 0,
+    likedBy:  row.liked_by || row.likedBy || [],
+    comments: row.comments || [],
+    reactions:row.reactions|| {},
+    ts:       row.ts || (row.created_at ? new Date(row.created_at).getTime() : Date.now()),
+    date:     row.date || (row.created_at||'').slice(0,10),
+  };
+}
+
+// getSocialPosts — merge Supabase posts with any local-only fallbacks
+// S._socialPosts is populated by renderSocialFeed after Supabase fetch
 function getSocialPosts() {
+  // Use in-memory cache if available (populated from Supabase)
+  if (S._socialPosts?.length) {
+    if (socialTab === 'following' && S.user)
+      return S._socialPosts.filter(p => S.following.includes(p.user) || p.user === S.user.username);
+    return S._socialPosts;
+  }
+  // Fallback to localStorage (posts created before Supabase migration)
   const stored = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-  if (socialTab==='following' && S.user)
-    return stored.filter(p => S.following.includes(p.user) || p.user===S.user.username);
+  if (socialTab === 'following' && S.user)
+    return stored.filter(p => S.following.includes(p.user) || p.user === S.user.username);
   return stored;
 }
 
 function renderSocialFeed(reset) {
   if (reset) socialPage=0;
   const wrap = el('socialPostsWrap'); if (!wrap) return;
-  // If search is active, delegate to doSocialSearch
   if (S._socialSearchQ) { doSocialSearch(); return; }
-  const all   = getSocialPosts();
-  const slice = all.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
+
+  // Show cached/local posts immediately while Supabase loads
+  const localPosts = getSocialPosts();
+  const localSlice = localPosts.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
   if (reset) wrap.innerHTML='';
 
-  if (!all.length) {
-    wrap.innerHTML=`<div class="social-empty"><i class="fas fa-camera-retro social-empty-icon"></i><h3>Nothing here yet</h3><p>Be the first to share a moment from your build.</p>${S.user?'<button class="btn-primary" onclick="el(\'socialUploadBtn\').click()"><i class="fas fa-plus"></i> Share Something</button>':''}</div>`;
-    return;
+  if (localPosts.length) {
+    wrap.innerHTML = localSlice.map(p => renderSocialCard(dbSocialToApp(p))).join('');
+    bindSocialCardEvents(wrap);
+  } else {
+    wrap.innerHTML = `<div class="soc-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>`;
   }
 
-  const from = reset ? 0 : socialPage*SOCIAL_PAGE_SIZE;
-  const newPosts = all.slice(from, (socialPage+1)*SOCIAL_PAGE_SIZE);
+  // Fetch fresh from Supabase in background
+  DB.getSocialPosts({ limit: SOCIAL_PAGE_SIZE * (socialPage+1) }).then(rows => {
+    if (!rows?.length && !localPosts.length) {
+      wrap.innerHTML=`<div class="social-empty"><i class="fas fa-camera-retro social-empty-icon"></i><h3>Nothing here yet</h3><p>Be the first to share a car spot.</p>${S.user?'<button class="btn-primary" onclick="el(\'socialUploadBtn\').click()"><i class="fas fa-camera"></i> Post a Spot</button>':''}</div>`;
+      return;
+    }
+    if (!rows?.length) return; // keep showing local posts
 
-  newPosts.forEach(post => {
-    const card = document.createElement('div');
-    card.className='social-post-card'; card.dataset.id=post.id;
-    const liked = post.likedBy.includes(S.user ? S.user.username : getDeviceId());
-    const mainMedia = post.media[0];
-    card.innerHTML=`
-      <div class="social-post-head">
-        ${(()=>{const _su=getAvatarUrl(post.user);return _su?`<div class="social-post-av av-circle clickable-user has-photo" data-user="${post.user}"><img src="${_su}" alt="" class="av-photo"/></div>`:`<div class="social-post-av av-circle clickable-user" data-user="${post.user}" style="background:${avColor(post.user)}">${post.user[0].toUpperCase()}</div>`;})()} 
-        <div class="social-post-user-info">
-          <span class="social-post-username clickable-user" data-user="${post.user}">${esc(post.user)}</span>
-          <span class="social-post-time">${timeAgo(post.ts)}</span>
-        </div>
-        ${post.tag?`<span class="cat-badge ${catCfg(post.tag).badge}" style="position:static;margin-left:auto">${post.tag}</span>`:''}
-        <button class="social-report-btn" data-id="${post.id}" title="Report"><i class="fas fa-flag"></i></button>
-      </div>
-      ${mainMedia?(mainMedia.type==='video'
-        ?`<video class="social-post-media" controls preload="metadata" playsinline><source src="${mainMedia.url}"/></video>`
-        :`<img class="social-post-media" src="${mainMedia.url}" alt="${esc(post.caption)}" loading="lazy"/>`
-      ):''}
-      ${post.media.length>1?`<div class="social-post-strip">${post.media.slice(1,5).map(m=>m.type==='video'?`<div class="social-strip-item video-thumb-wrap"><i class="fas fa-play"></i></div>`:`<img class="social-strip-item" src="${m.url}" alt="" loading="lazy"/>`).join('')}${post.media.length>5?`<div class="social-strip-more">+${post.media.length-5}</div>`:''}</div>`:''}
-      ${post.caption?`<div class="social-post-caption"><b class="clickable-user" data-user="${post.user}">${esc(post.user)}</b> ${esc(post.caption)}</div>`:''}
-      <div class="social-post-actions">
-        <button class="social-action-btn social-like-btn${liked?' liked':''}" data-id="${post.id}"><i class="fas fa-heart"></i> <span>${post.likes||0}</span></button>
-        <button class="social-action-btn social-comment-toggle" data-id="${post.id}"><i class="fas fa-comment"></i> <span>${(post.comments||[]).length}</span></button>
-        ${S.user&&post.user===S.user.username?`<button class="social-action-btn social-delete-btn" data-id="${post.id}"><i class="fas fa-trash-alt"></i></button>`:''}
-      </div>
-      <div class="social-post-comments" id="spc-${post.id}" style="display:none">
-        <div class="social-comments-list" id="scl-${post.id}"></div>
-        <div class="social-comment-input">
-          <input class="social-comment-text finput" type="text" placeholder="Add a comment…" data-id="${post.id}" style="margin-bottom:0"/>
-          <button class="social-comment-submit btn-primary small" data-id="${post.id}">Post</button>
-        </div>
-      </div>`;
-    wrap.appendChild(card);
+    // Map Supabase rows to app format and cache in S._socialPosts
+    S._socialPosts = rows.map(dbSocialToApp).filter(Boolean);
+
+    // Also merge any local-only posts (created before migration or offline)
+    const localOnly = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+    localOnly.forEach(lp => {
+      if (!S._socialPosts.find(sp => sp.id === lp.id)) {
+        S._socialPosts.unshift(dbSocialToApp(lp));
+      }
+    });
+    S._socialPosts.sort((a,b) => b.ts - a.ts);
+
+    const all   = getSocialPosts();
+    const slice = all.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
+    wrap.innerHTML = slice.map(p => renderSocialCard(p)).join('');
+    bindSocialCardEvents(wrap);
+  }).catch(() => {
+    // Supabase failed — already showing local posts, nothing to do
   });
-
-  // Events
-  wrap.querySelectorAll('.social-like-btn').forEach(btn => btn.addEventListener('click', () => {
-    const all2=JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-    const p=all2.find(x=>x.id===btn.dataset.id); if(!p) return;
-    const vid=voterId(), idx=p.likedBy.indexOf(vid);
-    if(idx>=0){p.likes=Math.max(0,p.likes-1);p.likedBy.splice(idx,1);}
-    else{p.likes++;p.likedBy.push(vid);}
-    localStorage.setItem('dl_social_posts',JSON.stringify(all2));
-    btn.className='social-action-btn social-like-btn'+(idx<0?' liked':'');
-    btn.querySelector('span').textContent=p.likes;
-  }));
-  wrap.querySelectorAll('.social-comment-toggle').forEach(btn => btn.addEventListener('click', () => {
-    const pnl=el('spc-'+btn.dataset.id); if(!pnl) return;
-    const open=pnl.style.display!=='none';
-    pnl.style.display=open?'none':'block';
-    if(!open) renderSocialComments(btn.dataset.id);
-  }));
-  wrap.querySelectorAll('.social-comment-submit').forEach(btn => btn.addEventListener('click', () => {
-    if(!S.user){toast('Sign in to comment','err');return;}
-    const inp=wrap.querySelector(`.social-comment-text[data-id="${btn.dataset.id}"]`);
-    const txt=inp?.value.trim(); if(!txt) return;
-    const all2=JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-    const p=all2.find(x=>x.id===btn.dataset.id); if(!p) return;
-    p.comments=p.comments||[];
-    p.comments.push({id:'sc'+Date.now(),user:S.user.username,text:txt,ts:Date.now()});
-    localStorage.setItem('dl_social_posts',JSON.stringify(all2));
-    if(inp) inp.value='';
-    renderSocialComments(btn.dataset.id);
-  }));
-  wrap.querySelectorAll('.social-delete-btn').forEach(btn => btn.addEventListener('click', () => {
-    if(!confirm('Delete this post?')) return;
-    const all2=JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-    localStorage.setItem('dl_social_posts',JSON.stringify(all2.filter(p=>p.id!==btn.dataset.id)));
-    renderSocialFeed(true);
-  }));
-  wrap.querySelectorAll('.social-report-btn').forEach(btn => btn.addEventListener('click', e => {
-    e.stopPropagation();
-    const all2=JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-    const p=all2.find(x=>x.id===btn.dataset.id);
-    openReport('social',btn.dataset.id,p?.caption||'');
-  }));
-
-  // Infinite scroll
-  if (socialSentinelObs) socialSentinelObs.disconnect();
-  const sentinel=el('socialSentinel');
-  if (sentinel && slice.length<all.length) {
-    socialSentinelObs=new IntersectionObserver(entries=>{
-      if(entries[0].isIntersecting){socialPage++;renderSocialFeed(false);}
-    },{rootMargin:'300px'});
-    socialSentinelObs.observe(sentinel);
-  }
-  renderSocialSidebar();
 }
 
 function renderSocialEventsPreview() {
@@ -7273,14 +7256,29 @@ function bindSocialCardEvents(wrap) {
   wrap.querySelectorAll('.soc-like-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       if (!S.user) { toast('Sign in to like','err'); return; }
-      const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-      const post = all.find(p=>p.id===btn.dataset.id); if(!post) return;
-      const liked = (post.likedBy||[]).includes(S.user.username);
-      if (liked) post.likedBy = (post.likedBy||[]).filter(u=>u!==S.user.username);
-      else { post.likedBy = [...(post.likedBy||[]), S.user.username]; }
-      localStorage.setItem('dl_social_posts', JSON.stringify(all));
+      // Optimistic UI update
+      const liked = btn.classList.contains('active');
       btn.classList.toggle('active', !liked);
-      btn.querySelector('span').textContent = post.likedBy.length;
+      const countEl = btn.querySelector('span');
+      if (countEl) countEl.textContent = Math.max(0, parseInt(countEl.textContent||'0') + (liked ? -1 : 1));
+      // Sync to Supabase + localStorage
+      DB.toggleSocialLike(btn.dataset.id, S.user.username).catch(()=>{});
+      const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+      const post = all.find(p=>p.id===btn.dataset.id);
+      if (post) {
+        if (liked) post.likedBy = (post.likedBy||[]).filter(u=>u!==S.user.username);
+        else post.likedBy = [...(post.likedBy||[]), S.user.username];
+        post.likes = (post.likedBy||[]).length;
+        localStorage.setItem('dl_social_posts', JSON.stringify(all));
+      }
+      if (S._socialPosts) {
+        const sp = S._socialPosts.find(p=>p.id===btn.dataset.id);
+        if (sp) {
+          if (liked) sp.likedBy = (sp.likedBy||[]).filter(u=>u!==S.user.username);
+          else sp.likedBy = [...(sp.likedBy||[]), S.user.username];
+          sp.likes = (sp.likedBy||[]).length;
+        }
+      }
     });
   });
 }
