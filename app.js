@@ -6904,44 +6904,52 @@ function renderSocialFeed(reset) {
   const wrap = el('socialPostsWrap'); if (!wrap) return;
   if (S._socialSearchQ) { doSocialSearch(); return; }
 
-  // Show cached/local posts immediately while Supabase loads
+  // Show local posts immediately while Supabase loads
   const localPosts = getSocialPosts();
-  const localSlice = localPosts.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
-  if (reset) wrap.innerHTML='';
+  if (reset) wrap.innerHTML = '';
 
   if (localPosts.length) {
+    const localSlice = localPosts.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
     wrap.innerHTML = localSlice.map(p => renderSocialCard(dbSocialToApp(p))).join('');
     bindSocialCardEvents(wrap);
-  } else {
-    wrap.innerHTML = `<div class="soc-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</div>`;
   }
 
-  // Fetch fresh from Supabase in background
+  // Fetch from Supabase — handle missing table gracefully
   DB.getSocialPosts({ limit: SOCIAL_PAGE_SIZE * (socialPage+1) }).then(rows => {
-    if (!rows?.length && !localPosts.length) {
-      wrap.innerHTML=`<div class="social-empty"><i class="fas fa-camera-retro social-empty-icon"></i><h3>Nothing here yet</h3><p>Be the first to share a car spot.</p>${S.user?'<button class="btn-primary" onclick="el(\'socialUploadBtn\').click()"><i class="fas fa-camera"></i> Post a Spot</button>':''}</div>`;
+    // Merge Supabase rows with local posts
+    const sbPosts = (rows||[]).map(dbSocialToApp).filter(Boolean);
+    const localOnly = JSON.parse(localStorage.getItem('dl_social_posts')||'[]').map(dbSocialToApp).filter(Boolean);
+    // Merge: Supabase first, then local-only posts not in Supabase
+    const merged = [...sbPosts];
+    localOnly.forEach(lp => { if (!merged.find(sp => sp.id === lp.id)) merged.push(lp); });
+    merged.sort((a,b) => b.ts - a.ts);
+    S._socialPosts = merged;
+
+    if (!merged.length) {
+      wrap.innerHTML = `<div class="social-empty">
+        <i class="fas fa-camera-retro social-empty-icon"></i>
+        <h3>No spots yet</h3>
+        <p>Be the first to share a car you spotted.</p>
+        ${S.user ? '<button class="btn-primary" onclick="el(\'socialUploadBtn\').click()"><i class="fas fa-camera"></i> Post a Spot</button>' : ''}
+      </div>`;
       return;
     }
-    if (!rows?.length) return; // keep showing local posts
-
-    // Map Supabase rows to app format and cache in S._socialPosts
-    S._socialPosts = rows.map(dbSocialToApp).filter(Boolean);
-
-    // Also merge any local-only posts (created before migration or offline)
-    const localOnly = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-    localOnly.forEach(lp => {
-      if (!S._socialPosts.find(sp => sp.id === lp.id)) {
-        S._socialPosts.unshift(dbSocialToApp(lp));
-      }
-    });
-    S._socialPosts.sort((a,b) => b.ts - a.ts);
 
     const all   = getSocialPosts();
     const slice = all.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
     wrap.innerHTML = slice.map(p => renderSocialCard(p)).join('');
     bindSocialCardEvents(wrap);
-  }).catch(() => {
-    // Supabase failed — already showing local posts, nothing to do
+  }).catch(err => {
+    console.warn('Social posts fetch failed (table may not exist yet):', err?.message || err);
+    // Table doesn't exist yet — show local posts or empty state
+    if (!localPosts.length) {
+      wrap.innerHTML = `<div class="social-empty">
+        <i class="fas fa-camera-retro social-empty-icon"></i>
+        <h3>Car Spotting</h3>
+        <p>Run <b>social_posts_migration.sql</b> in Supabase to enable cross-device posts.</p>
+        ${S.user ? '<button class="btn-primary" onclick="el(\'socialUploadBtn\').click()"><i class="fas fa-camera"></i> Post Locally</button>' : ''}
+      </div>`;
+    }
   });
 }
 
