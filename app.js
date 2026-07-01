@@ -1397,14 +1397,23 @@ function initSearch() {
   window._closeInlineSearch = closeInlineSearch;
 
   trigger?.addEventListener('click', () => {
-    // On mobile, always open the fullscreen search overlay directly
     if (window.innerWidth <= 768) {
       openSearch();
-      // Force keyboard open immediately
       setTimeout(() => el('searchInput')?.focus(), 50);
     } else {
       openInlineSearch();
     }
+  });
+
+  // Mobile persistent search bar — tap opens fullscreen search
+  el('mobSearchBar')?.addEventListener('click', () => {
+    openSearch();
+    setTimeout(() => el('searchInput')?.focus(), 50);
+  });
+  el('mobSearchInput')?.addEventListener('focus', (e) => {
+    e.target.blur(); // prevent native keyboard on the readonly input
+    openSearch();
+    setTimeout(() => el('searchInput')?.focus(), 80);
   });
   closeBtn?.addEventListener('click', closeInlineSearch);
   document.addEventListener('keydown', e => {

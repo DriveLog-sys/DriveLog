@@ -207,8 +207,13 @@
       <a class="nav-link" data-page="explore">More</a>
     </nav>
     <div class="header-right">
-      <!-- Inline expanding search -->
-      <div class="header-search-wrap" id="headerSearchWrap">
+      <!-- Persistent search bar — always visible on mobile between logo and avatar -->
+      <div class="mob-search-bar" id="mobSearchBar">
+        <i class="fas fa-search mob-search-icon"></i>
+        <input type="text" class="mob-search-input" id="mobSearchInput" placeholder="Search..." autocomplete="off" spellcheck="false" readonly/>
+      </div>
+      <!-- Desktop: expanding inline search -->
+      <div class="header-search-wrap desk-only" id="headerSearchWrap">
         <button class="icon-btn header-search-trigger" id="searchBtn" title="Search"><i class="fas fa-search"></i></button>
         <div class="header-search-bar" id="headerSearchBar">
           <i class="fas fa-search header-search-icon"></i>
@@ -218,16 +223,16 @@
         </div>
         <div class="header-search-results" id="headerSearchResults"></div>
       </div>
-      <button class="icon-btn" id="themeToggleBtn" title="Toggle dark/light mode" aria-label="Toggle theme"><i class="fas fa-moon"></i></button>
-      <!-- Notification bell -->
-      <div class="notif-wrap">
+      <button class="icon-btn desk-only" id="themeToggleBtn" title="Toggle dark/light mode" aria-label="Toggle theme"><i class="fas fa-moon"></i></button>
+      <!-- Notification bell — desktop only (mobile uses bottom nav) -->
+      <div class="notif-wrap desk-only">
         <button class="icon-btn" id="notifBtn"><i class="fas fa-bell"></i><span class="notif-badge" id="notifBadge"></span></button>
         <div class="notif-drop" id="notifDrop">
           <div class="notif-drop-head"><span>Notifications</span><span class="notif-clear" id="notifClear">Mark all read</span></div>
           <div id="notifList"><div class="notif-empty">No notifications yet</div></div>
         </div>
       </div>
-      <button class="btn-post" id="openPostBtn">+ Post Build</button>
+      <button class="btn-post desk-only" id="openPostBtn">+ Post Build</button>
       <button class="btn-auth" id="openAuthBtn">Sign In</button>
       <!-- Avatar + dropdown -->
       <div class="av-wrap" id="avWrap" style="display:none">
