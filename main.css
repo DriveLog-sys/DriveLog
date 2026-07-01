@@ -9895,7 +9895,7 @@ body { overflow-x: hidden; max-width: 100vw; }
     line-height: 1 !important;
   }
 
-  /* Logo — vertically centered, no extra line-height pushing it up */
+  /* Logo — vertically centered with hamburger */
   .logo, .site-logo, #logoBtn {
     font-size: 1.4rem !important;
     line-height: 1 !important;
@@ -9903,7 +9903,7 @@ body { overflow-x: hidden; max-width: 100vw; }
     align-items: center !important;
     flex-shrink: 0 !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 3px 0 0 0 !important; /* nudge down to align with hamburger */
     letter-spacing: 2px !important;
   }
 
@@ -9921,14 +9921,14 @@ body { overflow-x: hidden; max-width: 100vw; }
   .mob-search-bar {
     flex: 1 !important;
     min-width: 0 !important;
-    max-width: 200px !important;
-    height: 34px !important;
-    margin: 0 8px 0 0 !important;
-    padding: 0 12px !important;
-    border-radius: 17px !important;
+    max-width: 140px !important;
+    height: 32px !important;
+    margin: 0 6px 0 0 !important;
+    padding: 0 10px !important;
+    border-radius: 16px !important;
     display: flex !important;
     align-items: center !important;
-    gap: 6px !important;
+    gap: 5px !important;
     background: var(--raised) !important;
     border: 1.5px solid var(--border) !important;
     cursor: pointer !important;
@@ -10090,66 +10090,24 @@ body { overflow-x: hidden; max-width: 100vw; }
   }
 }
 
-/* ╔═══════════════════════════════════════════════════════════════╗
-   ║  MOBILE POLISH v10 — single underline rule, search, logo     ║
-   ╚═══════════════════════════════════════════════════════════════╝ */
 
+
+/* ─── BOTTOM NAV UNDERLINE — single clean rule (all tabs) ──── */
 @media (max-width: 768px) {
-
-  /* ─── LOGO — nudge down slightly via padding adjustment ──────── */
-  .header-inner {
-    padding-top: 2px !important; /* shifts all contents down 2px */
-  }
-
-  /* ─── SEARCH BAR — narrower, iOS zoom prevented ─────────────── */
-  .mob-search-bar {
-    max-width: 160px !important;
-    height: 32px !important;
-    padding: 0 10px !important;
-    margin: 0 6px 0 0 !important;
-    border-radius: 16px !important;
-  }
-  /* CRITICAL: font-size must be ≥ 16px to prevent iOS zoom on focus */
-  .mob-search-input {
-    font-size: 16px !important; /* iOS won't zoom if ≥ 16px */
-    transform: scale(0.75) !important; /* visually smaller while staying 16px */
-    transform-origin: left center !important;
-    width: 135% !important; /* compensate for scale */
-    color: var(--muted) !important;
-    pointer-events: none !important;
-  }
-
-  /* ─── BOTTOM NAV UNDERLINE — single definitive rule ─────────── */
-  /* All previous ::after rules removed above. This is the only one. */
-  .mob-bottom-tab {
-    position: relative !important;
-    overflow: visible !important;
-  }
   .mob-bottom-tab.active::after {
-    content: '' !important;
-    position: absolute !important;
-    bottom: 2px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    width: 24px !important;
-    height: 2.5px !important;
-    border-radius: 2px !important;
-    background: linear-gradient(90deg, #3b82f6, #60a5fa) !important;
-    box-shadow: 0 0 6px rgba(59,130,246,.55) !important;
-    display: block !important;
-    pointer-events: none !important;
+    content: '';
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 2.5px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    box-shadow: 0 0 6px rgba(59,130,246,.5);
+    display: block;
+    pointer-events: none;
   }
-  /* Post button never gets the underline */
   #mobBottomPost::after,
-  #mobBottomPost.active::after {
-    display: none !important;
-  }
-
-  /* Spotting tab — ensure it gets active state just like other tabs */
-  .mob-bottom-tab[data-page="social"].active::after {
-    display: block !important;
-  }
-  .mob-bottom-tab[data-page="social"].active {
-    color: var(--accent) !important;
-  }
+  #mobBottomPost.active::after { display: none; }
 }
