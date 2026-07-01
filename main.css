@@ -9461,3 +9461,104 @@ body { overflow-x: hidden; max-width: 100vw; }
     opacity: .5 !important;
   }
 }
+
+/* ╔═══════════════════════════════════════════════════════════════╗
+   ║  GLOW GRADIENT — sidebar borders, filter btn, mobile tabs    ║
+   ╚═══════════════════════════════════════════════════════════════╝ */
+
+/* ─── SIDEBAR WIDGET LEFT BORDER — gradient glow ────────────── */
+/* Replace the flat blue 3px bar with a glowing gradient version  */
+.widget-featured::before {
+  width: 3px !important;
+  background: linear-gradient(to bottom, #60a5fa, #2563eb) !important;
+  box-shadow: 0 0 10px rgba(59,130,246,.45), 0 0 4px rgba(59,130,246,.3) !important;
+  border-radius: var(--r-lg) 0 0 var(--r-lg) !important;
+}
+.red-widget::before {
+  width: 3px !important;
+  background: linear-gradient(to bottom, #60a5fa, #2563eb) !important;
+  box-shadow: 0 0 10px rgba(59,130,246,.45), 0 0 4px rgba(59,130,246,.3) !important;
+  border-radius: var(--r-lg) 0 0 var(--r-lg) !important;
+}
+.gold-widget::before {
+  width: 3px !important;
+  background: linear-gradient(to bottom, #60a5fa, #2563eb) !important;
+  box-shadow: 0 0 10px rgba(59,130,246,.45), 0 0 4px rgba(59,130,246,.3) !important;
+  border-radius: var(--r-lg) 0 0 var(--r-lg) !important;
+}
+
+/* ─── FILTERS BUTTON — gradient + glow ──────────────────────── */
+.filter-trigger-btn {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  box-shadow: 0 3px 14px rgba(37,99,235,.38) !important;
+  border: none !important;
+  transition: all .12s ease !important;
+}
+.filter-trigger-btn:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  box-shadow: 0 6px 20px rgba(37,99,235,.5) !important;
+  transform: translateY(-1px) !important;
+}
+.filter-trigger-btn:active {
+  transform: translateY(0) !important;
+  box-shadow: 0 2px 8px rgba(37,99,235,.35) !important;
+}
+
+/* ─── MOBILE — Post button center bottom glow ───────────────── */
+@media (max-width: 768px) {
+
+  /* The center Post button in the bottom tab bar */
+  #mobBottomPost {
+    position: relative !important;
+  }
+  #mobBottomPost i {
+    font-size: 1.5rem !important;
+    background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+    -webkit-background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+    background-clip: text !important;
+    filter: drop-shadow(0 0 6px rgba(59,130,246,.6)) !important;
+  }
+  /* Subtle glow ring behind the post button */
+  #mobBottomPost::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 4px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 50% !important;
+    background: radial-gradient(circle, rgba(59,130,246,.18) 0%, transparent 70%) !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
+  }
+  #mobBottomPost > * { position: relative; z-index: 1; }
+
+  /* ─── MOBILE TAB BAR — active tab glow ──────────────────── */
+  /* Active tab: text glow + gradient underline indicator */
+  .mob-bottom-tab.active {
+    color: var(--accent) !important;
+    position: relative !important;
+  }
+  .mob-bottom-tab.active i {
+    filter: drop-shadow(0 0 4px rgba(59,130,246,.55)) !important;
+    color: var(--accent) !important;
+  }
+  /* Glowing underline indicator on active tab */
+  .mob-bottom-tab.active::after {
+    content: '' !important;
+    position: absolute !important;
+    bottom: 4px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 20px !important;
+    height: 2px !important;
+    border-radius: 2px !important;
+    background: linear-gradient(90deg, #3b82f6, #60a5fa) !important;
+    box-shadow: 0 0 6px rgba(59,130,246,.6) !important;
+  }
+  /* Don't add underline to post button */
+  #mobBottomPost.active::after { display: none !important; }
+  #mobBottomPost::after { display: none !important; }
+}
