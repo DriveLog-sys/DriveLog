@@ -9546,18 +9546,7 @@ body { overflow-x: hidden; max-width: 100vw; }
     color: var(--accent) !important;
   }
   /* Glowing underline indicator on active tab */
-  .mob-bottom-tab.active::after {
-    content: '' !important;
-    position: absolute !important;
-    bottom: 4px !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    width: 20px !important;
-    height: 2px !important;
-    border-radius: 2px !important;
-    background: linear-gradient(90deg, #3b82f6, #60a5fa) !important;
-    box-shadow: 0 0 6px rgba(59,130,246,.6) !important;
-  }
+  /* mob-bottom-tab.active::after — consolidated below */
   /* Don't add underline to post button */
   #mobBottomPost.active::after { display: none !important; }
   #mobBottomPost::after { display: none !important; }
@@ -9853,19 +9842,7 @@ body { overflow-x: hidden; max-width: 100vw; }
   }
 
   /* Underline bar — sits below the label text, not overlapping */
-  .mob-bottom-tab.active::after {
-    content: '' !important;
-    position: absolute !important;
-    bottom: 0px !important; /* flush with bottom edge of tab */
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    width: 24px !important;
-    height: 2.5px !important;
-    border-radius: 2px !important;
-    background: linear-gradient(90deg, #3b82f6, #60a5fa) !important;
-    box-shadow: 0 0 6px rgba(59,130,246,.55) !important;
-    display: block !important;
-  }
+  /* mob-bottom-tab.active::after — consolidated below */
   /* No underline on post button */
   #mobBottomPost::after,
   #mobBottomPost.active::after {
@@ -10106,21 +10083,73 @@ body { overflow-x: hidden; max-width: 100vw; }
     overflow: visible !important;
   }
   /* The underline — sits at absolute bottom, never overlaps text */
+  /* mob-bottom-tab.active::after — consolidated below */
+  #mobBottomPost::after,
+  #mobBottomPost.active::after {
+    display: none !important;
+  }
+}
+
+/* ╔═══════════════════════════════════════════════════════════════╗
+   ║  MOBILE POLISH v10 — single underline rule, search, logo     ║
+   ╚═══════════════════════════════════════════════════════════════╝ */
+
+@media (max-width: 768px) {
+
+  /* ─── LOGO — nudge down slightly via padding adjustment ──────── */
+  .header-inner {
+    padding-top: 2px !important; /* shifts all contents down 2px */
+  }
+
+  /* ─── SEARCH BAR — narrower, iOS zoom prevented ─────────────── */
+  .mob-search-bar {
+    max-width: 160px !important;
+    height: 32px !important;
+    padding: 0 10px !important;
+    margin: 0 6px 0 0 !important;
+    border-radius: 16px !important;
+  }
+  /* CRITICAL: font-size must be ≥ 16px to prevent iOS zoom on focus */
+  .mob-search-input {
+    font-size: 16px !important; /* iOS won't zoom if ≥ 16px */
+    transform: scale(0.75) !important; /* visually smaller while staying 16px */
+    transform-origin: left center !important;
+    width: 135% !important; /* compensate for scale */
+    color: var(--muted) !important;
+    pointer-events: none !important;
+  }
+
+  /* ─── BOTTOM NAV UNDERLINE — single definitive rule ─────────── */
+  /* All previous ::after rules removed above. This is the only one. */
+  .mob-bottom-tab {
+    position: relative !important;
+    overflow: visible !important;
+  }
   .mob-bottom-tab.active::after {
     content: '' !important;
     position: absolute !important;
-    bottom: -1px !important;
+    bottom: 2px !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     width: 24px !important;
     height: 2.5px !important;
-    border-radius: 2px 2px 0 0 !important;
+    border-radius: 2px !important;
     background: linear-gradient(90deg, #3b82f6, #60a5fa) !important;
-    box-shadow: 0 -1px 6px rgba(59,130,246,.5) !important;
+    box-shadow: 0 0 6px rgba(59,130,246,.55) !important;
     display: block !important;
+    pointer-events: none !important;
   }
+  /* Post button never gets the underline */
   #mobBottomPost::after,
   #mobBottomPost.active::after {
     display: none !important;
+  }
+
+  /* Spotting tab — ensure it gets active state just like other tabs */
+  .mob-bottom-tab[data-page="social"].active::after {
+    display: block !important;
+  }
+  .mob-bottom-tab[data-page="social"].active {
+    color: var(--accent) !important;
   }
 }
