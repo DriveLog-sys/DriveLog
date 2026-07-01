@@ -736,6 +736,7 @@ function goTo(page) {
   if (page==='events')      renderEventsGrid();
   if (page==='members')     renderMembers();
   if (page==='social')      renderSocialFeed(true);
+  if (page==='notifications') renderNotifPage();
   if (page==='messages') {
     // Messages page needs display:flex, not the default block from .page.active
     const mp = el('page-messages');
@@ -1038,13 +1039,6 @@ function initMobileNav() {
     tab.addEventListener('click', () => goTo(tab.dataset.page));
   });
   el('mobBottomPost')?.addEventListener('click', openPostModal);
-  // Notifications tab — opens the notification dropdown
-  el('mobBottomNotif')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    el('notifDrop')?.classList.toggle('open');
-    el('avDrop')?.classList.remove('open');
-    renderNotifList();
-  });
 }
 
 function closeMobNav() {
@@ -2768,6 +2762,64 @@ function updateNotifBadge() {
     else mobBadge.style.display = 'none';
   }
 }
+// renderNotifPage — full-page notification list for mobile Alerts tab
+// This is a dedicated page (page-notifications) rather than a dropdown,
+// giving mobile users more space to read and interact with notifications.
+function renderNotifPage() {
+  const list = el('notifPageList');
+  const clearBtn = el('notifPageClear');
+  if (!list) return;
+
+  // Wire clear button
+  if (clearBtn) {
+    clearBtn.onclick = () => {
+      S.notifs.forEach(n => n.read = true);
+      updateNotifBadge();
+      renderNotifPage();
+    };
+  }
+
+  if (!S.notifs.length) {
+    list.innerHTML = '<div class="notif-empty" style="padding:40px 20px;text-align:center"><i class="fas fa-bell" style="font-size:2rem;opacity:.3;display:block;margin-bottom:12px"></i>No notifications yet</div>';
+    return;
+  }
+
+  const icons  = { like:'fas fa-heart', comment:'fas fa-comment', follow:'fas fa-user-plus', event:'fas fa-calendar', welcome:'fas fa-star', reaction:'fas fa-fire', award:'fas fa-medal', dm:'fas fa-envelope', default:'fas fa-bell' };
+  const colors = { like:'#ef4444', comment:'#3b82f6', follow:'#22c55e', event:'#a855f7', welcome:'#f0a030', reaction:'#f0a030', award:'#c9a84c', dm:'#14b8a6', default:'#555' };
+
+  list.innerHTML = S.notifs.slice(0, 50).map(n => {
+    const icon  = icons[n.type]  || icons.default;
+    const color = colors[n.type] || colors.default;
+    return `<div class="notif-item${n.read?'':' unread'}" data-link="${n.link||''}">
+      <div class="notif-icon-wrap" style="background:${color}22;border-color:${color}44">
+        <i class="${icon}" style="color:${color}"></i>
+      </div>
+      <div class="notif-item-body">
+        <div class="notif-item-msg">${n.msg||''}</div>
+        <div class="notif-item-time">${timeAgo(n.time)}</div>
+      </div>
+      ${!n.read ? '<div class="notif-unread-dot"></div>' : ''}
+    </div>`;
+  }).join('');
+
+  // Mark as read + navigate on tap
+  list.querySelectorAll('.notif-item').forEach((item, i) => {
+    item.addEventListener('click', () => {
+      if (S.notifs[i]) S.notifs[i].read = true;
+      updateNotifBadge();
+      item.classList.remove('unread');
+      item.querySelector('.notif-unread-dot')?.remove();
+      const link = item.dataset.link;
+      if (link?.startsWith('post:')) {
+        const post = S.posts.find(p => p.id === link.replace('post:',''));
+        if (post) openCarPage(post);
+      } else if (link?.startsWith('user:')) {
+        viewPublicProfile(link.replace('user:',''));
+      }
+    });
+  });
+}
+
 function renderNotifList() {
   const icons  = {like:'fas fa-heart',comment:'fas fa-comment',follow:'fas fa-user-plus',event:'fas fa-calendar',welcome:'fas fa-star',reaction:'fas fa-fire',award:'fas fa-medal',badge:'fas fa-medal',dm:'fas fa-envelope',default:'fas fa-bell'};
   const colors = {like:'#e84242',comment:'#3b82f6',follow:'#22c55e',event:'#a855f7',welcome:'#f0a030',reaction:'#f0a030',award:'#c9a84c',badge:'#c9a84c',dm:'#14b8a6',default:'#555'};

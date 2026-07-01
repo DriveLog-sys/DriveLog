@@ -9886,3 +9886,241 @@ body { overflow-x: hidden; max-width: 100vw; }
     line-height: 1 !important;
   }
 }
+
+/* ╔═══════════════════════════════════════════════════════════════╗
+   ║  MOBILE POLISH v9 — header alignment, search bar, notif page ║
+   ╚═══════════════════════════════════════════════════════════════╝ */
+
+@media (max-width: 768px) {
+
+  /* ─── HEADER ALIGNMENT FIXES ─────────────────────────────────
+     Everything in the header must be vertically centered on the
+     same baseline. The logo sits slightly high — pull it down
+     by removing any default line-height offset.                   */
+  .header-inner {
+    height: 64px !important;
+    padding: 0 14px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0 !important;
+  }
+
+  /* Hamburger — left edge, vertically centered */
+  .hamburger {
+    display: flex !important;
+    width: 40px !important;
+    height: 40px !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 1.15rem !important;
+    flex-shrink: 0 !important;
+    margin-right: 6px !important;
+    line-height: 1 !important;
+  }
+
+  /* Logo — vertically centered, no extra line-height pushing it up */
+  .logo, .site-logo, #logoBtn {
+    font-size: 1.4rem !important;
+    line-height: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    letter-spacing: 2px !important;
+  }
+
+  /* Header right — search bar + avatar, fills remaining space */
+  .header-right {
+    flex: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0 !important;
+    margin-left: 8px !important;
+    min-width: 0 !important;
+  }
+
+  /* ─── SEARCH BAR — shorter, not too wide, vertically centered ─ */
+  .mob-search-bar {
+    flex: 1 !important;
+    min-width: 0 !important;
+    max-width: 200px !important;
+    height: 34px !important;
+    margin: 0 8px 0 0 !important;
+    padding: 0 12px !important;
+    border-radius: 17px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    background: var(--raised) !important;
+    border: 1.5px solid var(--border) !important;
+    cursor: pointer !important;
+  }
+  .mob-search-icon {
+    font-size: .76rem !important;
+    color: var(--muted) !important;
+    flex-shrink: 0 !important;
+    line-height: 1 !important;
+  }
+  .mob-search-input {
+    flex: 1 !important;
+    font-size: .8rem !important;
+    color: var(--muted) !important;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+  }
+
+  /* ─── AVATAR — right edge, same distance as hamburger left edge */
+  .av-wrap {
+    flex-shrink: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+  .av-chip {
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0 !important;
+  }
+  #avCircle {
+    width: 38px !important;
+    height: 38px !important;
+    font-size: .86rem !important;
+    flex-shrink: 0 !important;
+    border-radius: 50% !important;
+    overflow: hidden !important;
+    position: relative !important;
+    line-height: 1 !important;
+  }
+  #avName, .av-chip .fa-chevron-down { display: none !important; }
+
+  /* Auth button when not signed in */
+  #openAuthBtn {
+    flex-shrink: 0 !important;
+    padding: 6px 12px !important;
+    font-size: .72rem !important;
+    margin-right: 0 !important;
+  }
+
+  /* ─── NOTIFICATIONS PAGE ─────────────────────────────────────── */
+  #page-notifications {
+    padding: 0 !important;
+    min-height: calc(100dvh - 64px) !important;
+  }
+  .notif-page-wrap {
+    padding: 0 0 80px !important;
+  }
+  .notif-page-head {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 16px 16px 10px !important;
+    border-bottom: 1px solid var(--border) !important;
+    position: sticky !important;
+    top: 64px !important;
+    background: var(--bg) !important;
+    z-index: 10 !important;
+  }
+  .notif-page-title {
+    font-family: var(--cond) !important;
+    font-size: 1.1rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 1px !important;
+    text-transform: uppercase !important;
+    margin: 0 !important;
+  }
+  .notif-page-clear {
+    font-family: var(--cond) !important;
+    font-size: .72rem !important;
+    font-weight: 700 !important;
+    letter-spacing: .5px !important;
+    color: var(--accent) !important;
+    background: none !important;
+    border: none !important;
+    cursor: pointer !important;
+    padding: 4px 0 !important;
+  }
+
+  /* Notification items on full page */
+  #page-notifications .notif-item {
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+    padding: 14px 16px !important;
+    border-bottom: 1px solid var(--subtle) !important;
+    cursor: pointer !important;
+    position: relative !important;
+    transition: background .1s !important;
+  }
+  #page-notifications .notif-item:active {
+    background: var(--raised) !important;
+  }
+  #page-notifications .notif-item.unread {
+    background: var(--accent-soft) !important;
+  }
+  #page-notifications .notif-icon-wrap {
+    width: 38px !important; height: 38px !important;
+    border-radius: 50% !important; border: 1px solid !important;
+    display: flex !important; align-items: center !important;
+    justify-content: center !important; flex-shrink: 0 !important;
+    font-size: .88rem !important;
+  }
+  #page-notifications .notif-item-body {
+    flex: 1 !important; min-width: 0 !important;
+  }
+  #page-notifications .notif-item-msg {
+    font-size: .86rem !important;
+    line-height: 1.4 !important;
+    color: var(--text) !important;
+    word-break: break-word !important;
+  }
+  #page-notifications .notif-item-time {
+    font-size: .72rem !important;
+    color: var(--muted) !important;
+    margin-top: 3px !important;
+  }
+  #page-notifications .notif-unread-dot {
+    width: 8px !important; height: 8px !important;
+    border-radius: 50% !important;
+    background: var(--accent) !important;
+    flex-shrink: 0 !important;
+    margin-top: 6px !important;
+  }
+
+  /* ─── BOTTOM NAV ACTIVE UNDERLINE — below text, no overlap ──── */
+  .mob-bottom-nav {
+    padding-bottom: 0 !important;
+  }
+  .mob-bottom-tab {
+    padding: 8px 0 6px !important;
+    position: relative !important;
+    overflow: visible !important;
+  }
+  /* The underline — sits at absolute bottom, never overlaps text */
+  .mob-bottom-tab.active::after {
+    content: '' !important;
+    position: absolute !important;
+    bottom: -1px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 24px !important;
+    height: 2.5px !important;
+    border-radius: 2px 2px 0 0 !important;
+    background: linear-gradient(90deg, #3b82f6, #60a5fa) !important;
+    box-shadow: 0 -1px 6px rgba(59,130,246,.5) !important;
+    display: block !important;
+  }
+  #mobBottomPost::after,
+  #mobBottomPost.active::after {
+    display: none !important;
+  }
+}

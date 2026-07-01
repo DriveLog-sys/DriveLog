@@ -281,7 +281,7 @@
     <span>Messages</span>
     <span class="mob-tab-badge" id="mobTabDmBadge" style="display:none"></span>
   </button>
-  <button class="mob-bottom-tab" id="mobBottomNotif" aria-label="Notifications">
+  <button class="mob-bottom-tab" data-page="notifications" id="mobBottomNotif" aria-label="Notifications">
     <i class="fas fa-bell"></i>
     <span>Alerts</span>
     <span class="mob-tab-badge" id="mobTabNotifBadge" style="display:none"></span>
@@ -1344,6 +1344,19 @@
         <div class="admin-panel" id="apanel-activity">
           <div id="adminActivity"></div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NOTIFICATIONS PAGE — mobile only (accessed from bottom tab bar) -->
+  <section class="page" id="page-notifications">
+    <div class="notif-page-wrap">
+      <div class="notif-page-head">
+        <h2 class="notif-page-title">Notifications</h2>
+        <button class="notif-page-clear" id="notifPageClear">Mark all read</button>
+      </div>
+      <div id="notifPageList">
+        <div class="notif-empty">No notifications yet</div>
       </div>
     </div>
   </section>
