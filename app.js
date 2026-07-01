@@ -1038,7 +1038,13 @@ function initMobileNav() {
     tab.addEventListener('click', () => goTo(tab.dataset.page));
   });
   el('mobBottomPost')?.addEventListener('click', openPostModal);
-  el('mobBottomMenu')?.addEventListener('click', openMobNav);
+  // Notifications tab — opens the notification dropdown
+  el('mobBottomNotif')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    el('notifDrop')?.classList.toggle('open');
+    el('avDrop')?.classList.remove('open');
+    renderNotifList();
+  });
 }
 
 function closeMobNav() {
@@ -2741,8 +2747,17 @@ function pushNotif(type,from,msg,link,targetUserId){
   save();
 }
 function updateNotifBadge() {
-  const unread=S.notifs.filter(n=>!n.read).length, badge=el('notifBadge');
-  if(unread>0){badge.textContent=unread>9?'9+':unread; badge.style.display='flex';} else badge.style.display='none';
+  const unread = S.notifs.filter(n=>!n.read).length;
+  const badge = el('notifBadge');
+  const mobBadge = el('mobTabNotifBadge');
+  if (badge) {
+    if (unread > 0) { badge.textContent = unread > 9 ? '9+' : unread; badge.style.display = 'flex'; }
+    else badge.style.display = 'none';
+  }
+  if (mobBadge) {
+    if (unread > 0) { mobBadge.textContent = unread > 9 ? '9+' : unread; mobBadge.style.display = 'inline-flex'; }
+    else mobBadge.style.display = 'none';
+  }
 }
 function renderNotifList() {
   const icons  = {like:'fas fa-heart',comment:'fas fa-comment',follow:'fas fa-user-plus',event:'fas fa-calendar',welcome:'fas fa-star',reaction:'fas fa-fire',award:'fas fa-medal',badge:'fas fa-medal',dm:'fas fa-envelope',default:'fas fa-bell'};

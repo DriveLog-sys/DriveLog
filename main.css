@@ -9562,3 +9562,180 @@ body { overflow-x: hidden; max-width: 100vw; }
   #mobBottomPost.active::after { display: none !important; }
   #mobBottomPost::after { display: none !important; }
 }
+
+/* ╔═══════════════════════════════════════════════════════════════╗
+   ║  MOBILE POLISH v7 — header, bottom nav, hot panel, notif tab ║
+   ╚═══════════════════════════════════════════════════════════════╝ */
+
+@media (max-width: 768px) {
+
+  /* ─── HEADER: logo + hamburger centered, bigger ─────────────── */
+  .header-inner {
+    height: 64px !important;
+    padding: 0 12px !important;
+    gap: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  /* Hamburger — bigger, perfectly centered */
+  .hamburger {
+    display: flex !important;
+    width: 44px !important;
+    height: 44px !important;
+    font-size: 1.2rem !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    border-radius: 8px !important;
+    margin-right: 8px !important;
+    color: var(--text) !important;
+  }
+
+  /* Logo — bigger, vertically centered with hamburger */
+  .logo, #logoBtn, .site-logo {
+    font-size: 1.45rem !important;
+    letter-spacing: 2px !important;
+    line-height: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Spacer pushes header-right to far right */
+  .main-nav, .site-nav {
+    display: none !important;
+    flex: 0 !important;
+    width: 0 !important;
+    overflow: hidden !important;
+  }
+  .header-right {
+    margin-left: auto !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* All icon buttons in header — same size */
+  .header-right .icon-btn,
+  #notifBtn,
+  #searchBtn {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: .95rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    border-radius: 50% !important;
+  }
+
+  /* Avatar chip — same size as icon buttons */
+  .av-chip {
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+  #avCircle {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: .88rem !important;
+    border-radius: 50% !important;
+    overflow: hidden !important;
+    position: relative !important;
+    flex-shrink: 0 !important;
+  }
+  #avName, .av-chip .fa-chevron-down {
+    display: none !important;
+  }
+  #themeToggleBtn, #openPostBtn {
+    display: none !important;
+  }
+
+  /* ─── HOT RIGHT NOW — hidden on mobile ──────────────────────── */
+  .hot-panel, #hotPanel {
+    display: none !important;
+  }
+
+  /* ─── BOTTOM NAV — transparent frosted glass ─────────────────
+     Inspired by Instagram's floating pill nav bar.
+     Uses backdrop-filter blur on a semi-transparent background.   */
+  .mob-bottom-nav {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 12px !important;
+    left: 12px !important;
+    right: 12px !important;
+    height: 58px !important;
+    border-radius: 20px !important;
+    /* Frosted glass — dark mode */
+    background: rgba(20, 20, 20, 0.72) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.09) !important;
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.35),
+      0 2px 8px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.07) !important;
+    padding: 0 4px !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    z-index: 300 !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+    /* Floating pill should not extend full width */
+    max-width: 420px !important;
+    margin: 0 auto !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: calc(100% - 24px) !important;
+  }
+
+  /* Light mode frosted glass */
+  body:not(.dark) .mob-bottom-nav {
+    background: rgba(255, 255, 255, 0.78) !important;
+    border-color: rgba(0, 0, 0, 0.08) !important;
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.12),
+      0 2px 8px rgba(0, 0, 0, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+  }
+  body:not(.dark) .mob-bottom-tab {
+    color: #6b7280 !important;
+  }
+  body:not(.dark) .mob-bottom-tab.active,
+  body:not(.dark) .mob-bottom-tab.active i {
+    color: var(--accent) !important;
+  }
+
+  /* Push page content up so it doesn't hide behind floating nav */
+  .page.active {
+    padding-bottom: 84px !important;
+  }
+  #page-messages.active {
+    padding-bottom: 0 !important;
+  }
+
+  /* Toast above floating nav */
+  .toast {
+    bottom: 80px !important;
+  }
+  .signup-nudge {
+    bottom: 78px !important;
+  }
+}
+
+/* iOS safe area support for floating nav */
+@supports (padding: max(0px)) {
+  @media (max-width: 768px) {
+    .mob-bottom-nav {
+      bottom: max(12px, env(safe-area-inset-bottom, 12px)) !important;
+      padding-bottom: 0 !important;
+    }
+  }
+}
