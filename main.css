@@ -7028,6 +7028,12 @@ body:not(.dark) .save-btn {
    This is the ONLY place mobile overrides live.
    ═══════════════════════════════════════════════════════════════ */
 
+/* ── Base: hide mobile-only elements on desktop ─────────────── */
+/* These are invisible by default and only shown inside @media   */
+.mob-bottom-nav  { display: none; }
+.mob-search-bar  { display: none; }
+#mobBottomPost   { display: none; }
+
 /* ── Global ─────────────────────────────────────────────────── */
 html, body { overflow-x: hidden; }
 
