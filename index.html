@@ -14,7 +14,7 @@
 
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-  <link rel="stylesheet" href="main.min.css?v=202607021"/>
+  <link rel="stylesheet" href="main.min.css?v=202607022"/>
   <!-- Open Graph / Share meta tags -->
   <meta property="og:type"        content="website"/>
   <meta property="og:title"       content="DriveLog — The Car Community"/>
@@ -556,6 +556,96 @@
     </div>
   </section>
 
+  <!-- SPOT POST PAGE — full-page Car Spotting composer -->
+  <section class="page" id="page-spotpost">
+    <div class="spotpost-wrap">
+      <div class="post-page-back">
+        <button class="btn-ghost small" id="spotPostBack"><i class="fas fa-arrow-left"></i> Back to Car Spotting</button>
+      </div>
+      <div class="spotpost-head">
+        <h1 class="spotpost-title"><i class="fas fa-camera"></i> Post a Spot</h1>
+        <p class="spotpost-sub">Share a car you spotted in the wild with the community.</p>
+      </div>
+
+      <!-- Step indicator -->
+      <div class="spotpost-steps">
+        <div class="spot-step active" id="spotStep1"><span class="spot-step-num">1</span> Photos</div>
+        <div class="spot-step-line"></div>
+        <div class="spot-step" id="spotStep2"><span class="spot-step-num">2</span> Blur</div>
+        <div class="spot-step-line"></div>
+        <div class="spot-step" id="spotStep3"><span class="spot-step-num">3</span> Details</div>
+      </div>
+
+      <div class="spotpost-body">
+        <!-- PRIVACY WARNING — shown before user uploads -->
+        <div class="cs-privacy-warn" id="csPrivacyWarn">
+          <div class="cs-warn-icon"><i class="fas fa-shield-alt"></i></div>
+          <div class="cs-warn-body">
+            <div class="cs-warn-title">Privacy Notice — Required</div>
+            <p class="cs-warn-text">Before posting, you <strong>must blur out all license plates and faces</strong> in your photos. Posts containing visible plates or unblurred faces may be removed without notice to protect the privacy of others.</p>
+            <p class="cs-warn-text" style="margin-top:6px">Our blur tool will open automatically after you select a photo.</p>
+            <label class="cs-warn-accept">
+              <input type="checkbox" id="csPrivacyAccept"/>
+              <span>I understand — I will blur any license plates and faces before posting</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Upload zone — only enabled after accepting warning -->
+        <div class="upload-zone cs-upload-zone" id="socialUploadZone">
+          <i class="fas fa-camera"></i>
+          <p>Drop photos here or <span>browse</span></p>
+          <small>Images · Up to 6 photos · Max 20MB each</small>
+          <input type="file" id="socialFileInput" accept="image/*" multiple hidden/>
+        </div>
+
+        <!-- Blur editor — shown after image selected -->
+        <div class="cs-blur-editor" id="csBlurEditor" style="display:none">
+          <div class="cs-blur-toolbar">
+            <span class="cs-blur-label"><i class="fas fa-mouse-pointer"></i> Drag to blur faces &amp; plates</span>
+            <div class="cs-blur-tools">
+              <button class="cs-tool-btn active" id="csToolBlur" title="Draw blur box"><i class="fas fa-eraser"></i> Blur</button>
+              <button class="cs-tool-btn" id="csToolUndo" title="Undo last box"><i class="fas fa-undo"></i> Undo</button>
+              <button class="cs-tool-btn" id="csToolClear" title="Clear all boxes"><i class="fas fa-trash"></i> Clear</button>
+            </div>
+          </div>
+          <div class="cs-canvas-wrap" id="csCanvasWrap">
+            <canvas id="csCanvas"></canvas>
+            <canvas id="csOverlay"></canvas>
+          </div>
+          <div class="cs-blur-nav" id="csBlurNav" style="display:none">
+            <button class="btn-ghost small" id="csPrevImg"><i class="fas fa-chevron-left"></i></button>
+            <span id="csImgCount">1 / 1</span>
+            <button class="btn-ghost small" id="csNextImg"><i class="fas fa-chevron-right"></i></button>
+          </div>
+          <button class="btn-primary full cs-apply-btn" id="csApplyBlur">
+            <i class="fas fa-check"></i> Apply Blur &amp; Continue
+          </button>
+        </div>
+
+        <!-- Post form — shown after blur is applied -->
+        <div class="cs-post-form" id="csPostForm" style="display:none">
+          <div id="socialUploadPreview" class="cs-preview-strip"></div>
+          <button class="btn-ghost small spot-add-more" id="spotAddMoreBtn" style="margin-top:8px"><i class="fas fa-plus"></i> Change photos</button>
+          <textarea class="finput" id="socialCaption" rows="3" maxlength="500"
+            placeholder="Add a caption… describe what you spotted. Use #hashtags to help others find it." style="margin-top:12px;resize:none"></textarea>
+          <div class="spot-location-row">
+            <i class="fas fa-map-marker-alt"></i>
+            <input type="text" class="finput" id="spotLocation" maxlength="80" placeholder="Where did you spot it? (optional — e.g. Cars &amp; Coffee, Denver CO)" style="margin-bottom:0"/>
+          </div>
+          <div class="social-upload-tags" id="socialUploadTags">
+            <div class="post-cat-label" style="margin-bottom:7px;margin-top:12px">Tag a category <span class="post-cat-hint">Optional</span></div>
+            <div class="social-tag-pills" id="socialTagPills"></div>
+          </div>
+          <progress id="socialUploadProgress" value="0" max="100" style="display:none;width:100%;height:5px;margin-top:8px;border-radius:3px;overflow:hidden"></progress>
+          <button class="btn-primary full" id="socialSubmitBtn" style="margin-top:14px;background:#16a34a;border-color:#16a34a">
+            <i class="fas fa-paper-plane"></i> Post to Car Spotting
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- MEMBERS PAGE (kept for internal use, search from DMs etc) -->
   <section class="page" id="page-members" style="display:none">
     <div class="page-head"><h1>Members</h1><p>Browse the DriveLog community.</p></div>
@@ -573,84 +663,24 @@
     <div class="members-grid" id="membersGrid"></div>
   </section>
 
-  <!-- SOCIAL UPLOAD MODAL -->
-  <div class="modal-overlay" id="socialUploadModal">
-    <div class="modal-box social-upload-box" style="max-width:560px">
-      <button class="modal-close" id="socialUploadClose"><i class="fas fa-times"></i></button>
-      <h2 style="margin-bottom:4px">Car Spotting</h2>
-
-      <!-- PRIVACY WARNING — shown before user uploads -->
-      <div class="cs-privacy-warn" id="csPrivacyWarn">
-        <div class="cs-warn-icon"><i class="fas fa-shield-alt"></i></div>
-        <div class="cs-warn-body">
-          <div class="cs-warn-title">Privacy Notice — Required</div>
-          <p class="cs-warn-text">Before posting, you <strong>must blur out all license plates and faces</strong> in your photos. Posts containing visible plates or unblurred faces may be removed without notice to protect the privacy of others.</p>
-          <p class="cs-warn-text" style="margin-top:6px">Our blur tool will open automatically after you select a photo.</p>
-          <label class="cs-warn-accept">
-            <input type="checkbox" id="csPrivacyAccept"/>
-            <span>I understand — I will blur any license plates and faces before posting</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- Upload zone — only enabled after accepting warning -->
-      <div class="upload-zone upload-zone-sm cs-upload-zone" id="socialUploadZone">
-        <i class="fas fa-camera"></i>
-        <p>Drop photos here or <span>browse</span></p>
-        <small>Images · Max 20MB each</small>
-        <input type="file" id="socialFileInput" accept="image/*" multiple hidden/>
-      </div>
-
-      <!-- Blur editor — shown after image selected -->
-      <div class="cs-blur-editor" id="csBlurEditor" style="display:none">
-        <div class="cs-blur-toolbar">
-          <span class="cs-blur-label"><i class="fas fa-mouse-pointer"></i> Drag to blur faces & plates</span>
-          <div class="cs-blur-tools">
-            <button class="cs-tool-btn active" id="csToolBlur" title="Draw blur box"><i class="fas fa-eraser"></i> Blur</button>
-            <button class="cs-tool-btn" id="csToolUndo" title="Undo last box"><i class="fas fa-undo"></i> Undo</button>
-            <button class="cs-tool-btn" id="csToolClear" title="Clear all boxes"><i class="fas fa-trash"></i> Clear</button>
-          </div>
-        </div>
-        <div class="cs-canvas-wrap" id="csCanvasWrap">
-          <canvas id="csCanvas"></canvas>
-          <canvas id="csOverlay"></canvas>
-        </div>
-        <div class="cs-blur-nav" id="csBlurNav" style="display:none">
-          <button class="btn-ghost small" id="csPrevImg"><i class="fas fa-chevron-left"></i></button>
-          <span id="csImgCount">1 / 1</span>
-          <button class="btn-ghost small" id="csNextImg"><i class="fas fa-chevron-right"></i></button>
-        </div>
-        <button class="btn-primary full cs-apply-btn" id="csApplyBlur">
-          <i class="fas fa-check"></i> Apply Blur & Continue
-        </button>
-      </div>
-
-      <!-- Post form — shown after blur is applied -->
-      <div class="cs-post-form" id="csPostForm" style="display:none">
-        <div id="socialUploadPreview" class="cs-preview-strip"></div>
-        <textarea class="finput" id="socialCaption" rows="3"
-          placeholder="Add a caption… describe what you spotted, where, when." style="margin-top:10px;resize:none"></textarea>
-        <div class="social-upload-tags" id="socialUploadTags">
-          <div class="post-cat-label" style="margin-bottom:7px;margin-top:8px">Tag a category <span class="post-cat-hint">Optional</span></div>
-          <div class="social-tag-pills" id="socialTagPills"></div>
-        </div>
-        <progress id="socialUploadProgress" value="0" max="100" style="display:none;width:100%;height:5px;margin-top:8px;border-radius:3px;overflow:hidden"></progress>
-        <button class="btn-primary full" id="socialSubmitBtn" style="margin-top:10px;background:#16a34a;border-color:#16a34a">
-          <i class="fas fa-paper-plane"></i> Post to Car Spotting
-        </button>
-      </div>
-    </div>
-  </div>
-
   <!-- GARAGE -->
   <section class="page" id="page-garage">
+    <div class="page-head garage-head">
+      <h1>My Garage</h1><p>Everything you've liked, saved, and shared — all in one place.</p>
+    </div>
     <div class="garage-wrap">
-      <div class="garage-tabs">
-        <button class="gtab active" data-gtab="liked"><i class="fas fa-heart"></i> Liked</button>
-        <button class="gtab" data-gtab="saved"><i class="fas fa-bookmark"></i> Saved</button>
-        <button class="gtab" data-gtab="shared"><i class="fas fa-share-alt"></i> Shared</button>
-        <button class="gtab" data-gtab="parts"><i class="fas fa-wrench"></i> Saved Parts</button>
-        <button class="gtab" data-gtab="socials"><i class="fab fa-instagram"></i> Saved Socials</button>
+      <div class="garage-signin" id="garageSignin" style="display:none">
+        <i class="fas fa-warehouse"></i>
+        <h3>Your garage is waiting</h3>
+        <p>Sign in to see your liked builds, saved builds, parts and socials.</p>
+        <button class="btn-primary" onclick="el('authModal').classList.add('open')">Sign In / Register</button>
+      </div>
+      <div class="garage-tabs" id="garageTabs">
+        <button class="gtab active" data-gtab="liked"><i class="fas fa-heart"></i> Liked <span class="gtab-count" id="gcount-liked"></span></button>
+        <button class="gtab" data-gtab="saved"><i class="fas fa-bookmark"></i> Saved <span class="gtab-count" id="gcount-saved"></span></button>
+        <button class="gtab" data-gtab="shared"><i class="fas fa-share-alt"></i> Shared <span class="gtab-count" id="gcount-shared"></span></button>
+        <button class="gtab" data-gtab="parts"><i class="fas fa-wrench"></i> Saved Parts <span class="gtab-count" id="gcount-parts"></span></button>
+        <button class="gtab" data-gtab="socials"><i class="fab fa-instagram"></i> Saved Socials <span class="gtab-count" id="gcount-socials"></span></button>
       </div>
       <div class="gpanel active" id="gpanel-liked">
         <div class="card-grid" id="likedGrid"></div>
@@ -1555,9 +1585,9 @@
      Moved from <head> to end of <body> so it no longer blocks first paint;
      load order is unchanged: supabase → data → db → app -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="data.min.js?v=202607021"></script>
-<script src="db.min.js?v=202607021"></script>
-<script src="app.min.js?v=202607021"></script>
+<script src="data.min.js?v=202607022"></script>
+<script src="db.min.js?v=202607022"></script>
+<script src="app.min.js?v=202607022"></script>
 <!-- Sign up nudge banner — shown to signed-out users -->
 <div class="signup-nudge" id="signupNudge" style="display:none">
   <div class="signup-nudge-inner">

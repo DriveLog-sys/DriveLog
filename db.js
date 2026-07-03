@@ -716,6 +716,18 @@ const DB = {
     return _sb.from('social_posts').delete().eq('id', postId).eq('user_id', userId);
   },
 
+  // Append a comment to a spot post. Comments live in the `comments`
+  // jsonb column on the social_posts row (same pattern as liked_by),
+  // so no extra table or migration is needed.
+  // comment shape: { user, text, ts }
+  async addSocialComment(postId, comment) {
+    if (!_sbOk()) return;
+    const { data: post } = await _sb.from('social_posts').select('comments').eq('id', postId).single();
+    if (!post) return;
+    const comments = [...(post.comments || []), comment];
+    return _sb.from('social_posts').update({ comments }).eq('id', postId);
+  },
+
   // Upload a Car Spotting image to post-images bucket
   // On failure returns { error } — NEVER falls back to raw base64
   // (base64 in the social_posts table would bloat every feed load).

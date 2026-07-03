@@ -735,7 +735,11 @@ function goTo(page) {
   if (page==='garage')      renderGarage();
   if (page==='events')      renderEventsGrid();
   if (page==='members')     renderMembers();
-  if (page==='social')      renderSocialFeed(true);
+  if (page==='social')      { renderSocialFeed(true); renderTrendingTags(); }
+  if (page==='spotpost') {
+    if (!S.user) { toast('Sign in to post','err'); el('authModal').classList.add('open'); goTo('social'); return; }
+    resetSpotComposer();
+  }
   if (page==='notifications') renderNotifPage();
   if (page==='messages') {
     // Messages page needs display:flex, not the default block from .page.active
@@ -3268,11 +3272,11 @@ function renderCardReactionOverlay(post) {
 
 function cardHTML(post,animIdx) {
   const cfg=catCfg(post.category), imgs=post.images||[];
-  const liked=S.user&&post.likedBy.includes(S.user.username);
+  const liked=S.user&&(post.likedBy||[]).includes(S.user.username);
   const multi=imgs.length>1?`<div class="card-multi"><i class="fas fa-images"></i> ${imgs.length}</div>`:'';
   const imgHTML=imgs.length
     ?`<img class="card-img" src="${imgs[0]}" alt="${esc(post.title)}" loading="lazy"/>`
-    :`<div class="card-img card-img-ph" style="background:${phBg(post.id)}"><span>${post.make.toUpperCase()}</span></div>`;
+    :`<div class="card-img card-img-ph" style="background:${phBg(post.id)}"><span>${esc((post.make||'?').toUpperCase())}</span></div>`;
   return `<div class="card" data-id="${post.id}" style="animation-delay:${animIdx*.04}s">
     <div class="card-img-wrap">${imgHTML}<span class="cat-badge ${cfg.badge}">${post.category}</span>${multi}</div>
     <div class="card-body">
@@ -4073,32 +4077,43 @@ function buildSocialLinks(u) {
 
 // ─── GARAGE ───────────────────────────────────────────────────
 function initGarage() {
-  document.querySelectorAll('.gtab').forEach(t=>t.addEventListener('click',()=>{
-    document.querySelectorAll('.gtab,.gpanel').forEach(x=>x.classList.remove('active'));
-    t.classList.add('active'); el('gpanel-'+t.dataset.gtab).classList.add('active');
-  }));
+  // Tab wiring lives in renderGarage() (single source of truth) so
+  // counts and panels stay in sync. Nothing to do at init.
 }
 function renderGarage() {
+  const signin = el('garageSignin');
+  const tabs   = el('garageTabs');
+  const panels = document.querySelectorAll('.gpanel');
+
+  // ── Signed out: one clear sign-in state, everything else hidden ──
   if (!S.user) {
-    el('savedEmpty').style.display='block';
-    el('likedEmpty').style.display='block';
+    if (signin) signin.style.display = 'block';
+    if (tabs)   tabs.style.display   = 'none';
+    panels.forEach(p => p.style.display = 'none');
+    // Clear any stale content from a previous session
+    ['likedGrid','savedGrid','sharedGrid'].forEach(id => { const g=el(id); if(g) g.innerHTML=''; });
     return;
   }
-  const uname = S.user.username;
-  const uid   = S.user.id || '';
-  const saved  = S.posts.filter(p=>p.savedBy.includes(uname)||p.savedBy.includes(uid));
-  const liked  = S.posts.filter(p=>p.likedBy.includes(uname)||p.likedBy.includes(uid));
-  const shared = S.posts.filter(p=>p.user===uname);
+  if (signin) signin.style.display = 'none';
+  if (tabs)   tabs.style.display   = '';
+  panels.forEach(p => p.style.display = '');
 
-  // Saved
-  el('savedGrid').innerHTML = saved.map((p,i)=>cardHTML(p,i)).join('');
-  el('savedEmpty').style.display = saved.length ? 'none' : 'block';
-  attachCardEvents(el('savedGrid'));
+  const uname  = S.user.username;
+  const uid    = S.user.id || '';
+  const byDate = (a,b) => new Date(b.createdAt||b.date||0) - new Date(a.createdAt||a.date||0);
+  const liked  = S.posts.filter(p=>(p.likedBy||[]).includes(uname)||(p.likedBy||[]).includes(uid)).sort(byDate);
+  const saved  = S.posts.filter(p=>(p.savedBy||[]).includes(uname)||(p.savedBy||[]).includes(uid)).sort(byDate);
+  const shared = S.posts.filter(p=>p.user===uname).sort(byDate);
 
   // Liked
   el('likedGrid').innerHTML = liked.map((p,i)=>cardHTML(p,i)).join('');
   el('likedEmpty').style.display = liked.length ? 'none' : 'block';
   attachCardEvents(el('likedGrid'));
+
+  // Saved
+  el('savedGrid').innerHTML = saved.map((p,i)=>cardHTML(p,i)).join('');
+  el('savedEmpty').style.display = saved.length ? 'none' : 'block';
+  attachCardEvents(el('savedGrid'));
 
   // Shared (your builds)
   if (el('sharedGrid')) {
@@ -4107,13 +4122,21 @@ function renderGarage() {
     attachCardEvents(el('sharedGrid'));
   }
 
-  // Saved Parts
-  if (el('partsPanel')) renderParts();
-
-  // Saved Socials
+  // Saved Parts + Saved Socials
+  if (el('partsPanel'))   renderParts();
   if (el('socialsPanel')) renderSavedSocials();
 
-  // Wire tabs
+  // Tab counts
+  const parts   = JSON.parse(localStorage.getItem('dl_parts_'+uname)||'[]');
+  const socials = getSavedSocials();
+  const setCount = (id, n) => { const e = el(id); if (e) e.textContent = n > 0 ? n : ''; };
+  setCount('gcount-liked',  liked.length);
+  setCount('gcount-saved',  saved.length);
+  setCount('gcount-shared', shared.length);
+  setCount('gcount-parts',  parts.length);
+  setCount('gcount-socials',socials.length);
+
+  // Wire tabs — single wiring point (onclick replaces, never stacks)
   document.querySelectorAll('.gtab').forEach(t => {
     t.onclick = () => {
       document.querySelectorAll('.gtab').forEach(x=>x.classList.remove('active'));
@@ -6566,43 +6589,29 @@ let socialSentinelObs = null;
 
 function initSocialPage() {
   const uploadBtn = el('socialUploadBtn');
-  const modal     = el('socialUploadModal');
-  const closeBtn  = el('socialUploadClose');
   const zone      = el('socialUploadZone');
   const fileInput = el('socialFileInput');
   const submitBtn = el('socialSubmitBtn');
 
-  function resetModal() {
-    el('socialCaption').value = '';
-    el('socialUploadPreview').innerHTML = '';
-    _socialPendingFiles = [];
-    _blurredDataURLs = [];
-    // Reset steps
-    el('csPrivacyWarn').style.display   = 'block';
-    el('socialUploadZone').style.display = 'block';
-    el('csBlurEditor').style.display    = 'none';
-    el('csPostForm').style.display      = 'none';
-    el('csPrivacyAccept').checked       = false;
-    el('socialUploadZone').classList.remove('cs-enabled');
-    el('socialTagPills').innerHTML = CATS.slice(0,12).map(c =>
-      `<button type="button" class="post-cat-pill" data-cat="${c.name}" style="font-size:.7rem;padding:4px 11px">
-        <i class="${c.fa} pill-icon"></i>${c.name}
-      </button>`
-    ).join('');
-    el('socialTagPills').querySelectorAll('.post-cat-pill').forEach(p => p.addEventListener('click', () => {
-      el('socialTagPills').querySelectorAll('.post-cat-pill').forEach(x=>x.classList.remove('active'));
-      p.classList.toggle('active');
-    }));
-  }
-
+  // "Post" button on the Car Spotting feed → full composer page
   if (uploadBtn) uploadBtn.addEventListener('click', () => {
     if (!S.user) { toast('Sign in to post','err'); el('authModal').classList.add('open'); return; }
-    modal.classList.add('open');
-    resetModal();
+    goTo('spotpost');
   });
-  if (closeBtn) closeBtn.addEventListener('click', () => { modal.classList.remove('open'); resetModal(); });
-  if (modal) modal.addEventListener('click', e => {
-    if (e.target === modal) { modal.classList.remove('open'); resetModal(); }
+
+  // Back button on the composer page
+  el('spotPostBack')?.addEventListener('click', () => goTo('social'));
+
+  // "Change photos" on the details step — restart at the upload step
+  // but keep the privacy checkbox accepted (they already agreed).
+  el('spotAddMoreBtn')?.addEventListener('click', () => {
+    _socialPendingFiles = []; _blurredDataURLs = [];
+    _blurImages = []; _blurBoxes = []; _blurImgIdx = 0;
+    el('socialUploadZone').style.display = 'block';
+    el('csBlurEditor').style.display     = 'none';
+    el('csPostForm').style.display       = 'none';
+    if (fileInput) fileInput.value = '';
+    setSpotStep(1);
   });
 
   // Privacy acceptance enables the upload zone
@@ -6637,6 +6646,9 @@ function initSocialPage() {
   // Render sidebar widgets
   renderSocialEventsPreview();
   renderSuggestedFollows('socialWhoToFollow');
+  renderTrendingTags();
+
+  // Feed tabs
   document.querySelectorAll('.soc-tab').forEach(t => t.addEventListener('click', () => {
     document.querySelectorAll('.soc-tab').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
@@ -6644,8 +6656,10 @@ function initSocialPage() {
     if (socialTab === 'builds') {
       const wrap = el('socialPostsWrap');
       if (wrap) {
-        const recBuilds = [...S.posts].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,12);
-        wrap.innerHTML = `<div class="card-grid social-builds-grid">${recBuilds.map((p,i)=>cardHTML(p,i)).join('')}</div>`;
+        const recBuilds = [...S.posts].sort((a,b)=>new Date(b.createdAt||b.date)-new Date(a.createdAt||a.date)).slice(0,12);
+        wrap.innerHTML = recBuilds.length
+          ? `<div class="card-grid social-builds-grid">${recBuilds.map((p,i)=>cardHTML(p,i)).join('')}</div>`
+          : '<div class="social-empty"><i class="fas fa-car social-empty-icon"></i><h3>No builds yet</h3><p>Builds from the main feed appear here.</p></div>';
         attachCardEvents(wrap); return;
       }
     }
@@ -6655,6 +6669,8 @@ function initSocialPage() {
     el('socialSearchClear').style.display = 'none';
     renderSocialFeed(true);
   }));
+
+  // Search
   el('socialSearchInput')?.addEventListener('input', () => {
     const q = el('socialSearchInput').value.trim();
     el('socialSearchClear').style.display = q ? 'block' : 'none';
@@ -6666,6 +6682,59 @@ function initSocialPage() {
     S._socialSearchQ = ''; socialPage = 0;
     renderSocialFeed(true);
   });
+
+  // Infinite scroll — sentinel at the bottom of the spotting feed.
+  // When it enters the viewport and more posts exist, load the next page.
+  const sentinel = el('socialSentinel');
+  if (sentinel && 'IntersectionObserver' in window) {
+    socialSentinelObs = new IntersectionObserver(entries => {
+      if (!entries[0].isIntersecting) return;
+      if (S.page !== 'social' || S._socialSearchQ || socialTab === 'builds') return;
+      const total = getSocialPosts().length;
+      if (total > (socialPage+1)*SOCIAL_PAGE_SIZE) {
+        socialPage++;
+        renderSocialFeed(false);
+      }
+    }, { rootMargin: '400px' });
+    socialSentinelObs.observe(sentinel);
+  }
+}
+
+// ─── SPOT COMPOSER PAGE STATE ─────────────────────────────────
+// Steps: 1 = photos (privacy + upload), 2 = blur, 3 = details
+function setSpotStep(n) {
+  [1,2,3].forEach(i => {
+    const s = el('spotStep'+i);
+    if (s) { s.classList.toggle('active', i===n); s.classList.toggle('done', i<n); }
+  });
+}
+
+// Reset the composer to step 1 — called every time the page opens
+function resetSpotComposer() {
+  const cap = el('socialCaption'); if (cap) cap.value = '';
+  const loc = el('spotLocation'); if (loc) loc.value = '';
+  const prev = el('socialUploadPreview'); if (prev) prev.innerHTML = '';
+  _socialPendingFiles = []; _blurredDataURLs = [];
+  _blurImages = []; _blurBoxes = []; _blurImgIdx = 0;
+  const fi = el('socialFileInput'); if (fi) fi.value = '';
+  el('csPrivacyWarn').style.display    = 'block';
+  el('socialUploadZone').style.display = 'block';
+  el('csBlurEditor').style.display     = 'none';
+  el('csPostForm').style.display       = 'none';
+  el('csPrivacyAccept').checked        = false;
+  el('socialUploadZone').classList.remove('cs-enabled');
+  setSpotStep(1);
+  // Category pills — click to select, click again to deselect
+  el('socialTagPills').innerHTML = CATS.slice(0,12).map(c =>
+    `<button type="button" class="post-cat-pill" data-cat="${c.name}" style="font-size:.7rem;padding:4px 11px">
+      <i class="${c.fa} pill-icon"></i>${c.name}
+    </button>`
+  ).join('');
+  el('socialTagPills').querySelectorAll('.post-cat-pill').forEach(p => p.addEventListener('click', () => {
+    const wasActive = p.classList.contains('active');
+    el('socialTagPills').querySelectorAll('.post-cat-pill').forEach(x=>x.classList.remove('active'));
+    if (!wasActive) p.classList.add('active');
+  }));
 }
 
 // ─── BLUR EDITOR ENGINE ───────────────────────────────────────
@@ -6714,6 +6783,7 @@ function handleSocialFiles(files) {
   el('csPrivacyWarn').style.display    = 'none';
   el('csBlurEditor').style.display     = 'block';
   el('csPostForm').style.display       = 'none';
+  setSpotStep(2);
 
   // Load all images first, then show editor for first one
   let loaded = 0;
@@ -6744,7 +6814,7 @@ function initBlurEditor(idx) {
   if (!canvas || !overlay || !wrap) return;
 
   // Size canvas to fit modal width, maintain aspect ratio
-  const maxW = Math.min(520, window.innerWidth - 48);
+  const maxW = Math.min(720, window.innerWidth - 48); // full-page composer allows a wider canvas
   const scale = maxW / img.naturalWidth;
   const displayW = Math.round(img.naturalWidth  * scale);
   const displayH = Math.round(img.naturalHeight * scale);
@@ -6940,14 +7010,19 @@ async function applyAllBlurs() {
   // Show post form
   el('csBlurEditor').style.display = 'none';
   el('csPostForm').style.display   = 'block';
+  setSpotStep(3);
 
   if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Apply Blur & Continue'; }
 }
 
 async function submitSocialPost() {
   if (!S.user) { toast('Sign in to post','err'); return; }
-  const caption = el('socialCaption')?.value.trim() || '';
+  let caption   = el('socialCaption')?.value.trim() || '';
   const tag     = el('socialTagPills')?.querySelector('.post-cat-pill.active')?.dataset.cat || '';
+  // Location is stored as a 📍 line appended to the caption — schema-safe
+  // (no new column needed) and renders naturally on the card.
+  const spotLoc = el('spotLocation')?.value.trim() || '';
+  if (spotLoc) caption = caption ? caption + '\n📍 ' + spotLoc : '📍 ' + spotLoc;
   const hasContent = caption.length > 0 || _blurredDataURLs.length > 0;
   if (!hasContent) { toast('Add a caption or photo to share','err'); return; }
   const btn     = el('socialSubmitBtn');
@@ -6966,6 +7041,13 @@ async function submitSocialPost() {
     if (progBar) progBar.value = 10 + Math.round(((i+1)/_blurredDataURLs.length)*70);
   }
   if (failedSpots) toast(`${failedSpots} photo(s) failed to upload and were skipped`, 'err');
+  // If every photo failed AND there's no caption, don't create an empty post
+  if (!mediaItems.length && !caption) {
+    if (btn) { btn.disabled=false; btn.innerHTML='<i class="fas fa-paper-plane"></i> Post to Car Spotting'; }
+    if (progBar) { progBar.style.display='none'; progBar.value=0; }
+    toast('Post failed — no photos uploaded. Please try again.','err');
+    return;
+  }
   if (progBar) progBar.value = 85;
 
   const postId = 'sp' + Date.now();
@@ -6985,13 +7067,19 @@ async function submitSocialPost() {
     stored.unshift({ ...postData, user: S.user.username, ts: Date.now(), date: new Date().toISOString().slice(0,10) });
     localStorage.setItem('dl_social_posts', JSON.stringify(stored));
   }
+  // Show the new post at the top of the feed immediately —
+  // the background refetch in renderSocialFeed will confirm it.
+  S._socialPosts = [
+    dbSocialToApp({ ...postData, username: S.user.username, user_id: S.user.id, ts: Date.now() }),
+    ...(S._socialPosts||[]),
+  ].filter(Boolean);
 
   if (progBar) { progBar.value=100; setTimeout(()=>{ progBar.style.display='none'; progBar.value=0; },400); }
-  el('socialUploadModal').classList.remove('open');
   _socialPendingFiles = []; _blurredDataURLs = [];
   if (btn) { btn.disabled=false; btn.innerHTML='<i class="fas fa-paper-plane"></i> Post to Car Spotting'; }
   toast('Posted to Car Spotting ✓','ok');
-  socialPage=0; renderSocialFeed(true);
+  socialPage=0;
+  goTo('social');
 }
 
 
@@ -7036,23 +7124,21 @@ function renderSocialFeed(reset) {
   const wrap = el('socialPostsWrap'); if (!wrap) return;
   if (S._socialSearchQ) { doSocialSearch(); return; }
 
-  // Show local posts immediately while Supabase loads
-  const localPosts = getSocialPosts();
-  if (reset) wrap.innerHTML = '';
-
-  if (localPosts.length) {
-    const localSlice = localPosts.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
-    wrap.innerHTML = localSlice.map(p => renderSocialCard(dbSocialToApp(p))).join('');
+  // Paint whatever we already have in memory instantly
+  const cached = getSocialPosts();
+  if (cached.length) {
+    const slice = cached.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
+    wrap.innerHTML = slice.map(p => renderSocialCard(p)).join('');
     bindSocialCardEvents(wrap);
+  } else if (reset) {
+    wrap.innerHTML = '';
   }
 
-  // Fetch from Supabase — handle missing table gracefully
-  DB.getSocialPosts({ limit: SOCIAL_PAGE_SIZE * (socialPage+1) }).then(rows => {
-    // Merge Supabase rows with local posts
-    const sbPosts = (rows||[]).map(dbSocialToApp).filter(Boolean);
+  // Fetch fresh from Supabase — handle missing table gracefully
+  DB.getSocialPosts({ limit: SOCIAL_PAGE_SIZE * (socialPage+1) + 1 }).then(rows => {
+    const sbPosts   = (rows||[]).map(dbSocialToApp).filter(Boolean);
     const localOnly = JSON.parse(localStorage.getItem('dl_social_posts')||'[]').map(dbSocialToApp).filter(Boolean);
-    // Merge: Supabase first, then local-only posts not in Supabase
-    const merged = [...sbPosts];
+    const merged    = [...sbPosts];
     localOnly.forEach(lp => { if (!merged.find(sp => sp.id === lp.id)) merged.push(lp); });
     merged.sort((a,b) => b.ts - a.ts);
     S._socialPosts = merged;
@@ -7062,24 +7148,23 @@ function renderSocialFeed(reset) {
         <i class="fas fa-camera-retro social-empty-icon"></i>
         <h3>No spots yet</h3>
         <p>Be the first to share a car you spotted.</p>
-        ${S.user ? '<button class="btn-primary" onclick="el(\'socialUploadBtn\').click()"><i class="fas fa-camera"></i> Post a Spot</button>' : ''}
+        ${S.user ? '<button class="btn-primary" onclick="goTo(\'spotpost\')"><i class="fas fa-camera"></i> Post a Spot</button>' : ''}
       </div>`;
       return;
     }
 
-    const all   = getSocialPosts();
-    const slice = all.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
-    wrap.innerHTML = slice.map(p => renderSocialCard(p)).join('');
+    const visible = getSocialPosts().slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
+    wrap.innerHTML = visible.map(p => renderSocialCard(p)).join('');
     bindSocialCardEvents(wrap);
+    renderTrendingTags();
   }).catch(err => {
     console.warn('Social posts fetch failed (table may not exist yet):', err?.message || err);
-    // Table doesn't exist yet — show local posts or empty state
-    if (!localPosts.length) {
+    if (!cached.length) {
       wrap.innerHTML = `<div class="social-empty">
         <i class="fas fa-camera-retro social-empty-icon"></i>
         <h3>Car Spotting</h3>
         <p>Run <b>social_posts_migration.sql</b> in Supabase to enable cross-device posts.</p>
-        ${S.user ? '<button class="btn-primary" onclick="el(\'socialUploadBtn\').click()"><i class="fas fa-camera"></i> Post Locally</button>' : ''}
+        ${S.user ? '<button class="btn-primary" onclick="goTo(\'spotpost\')"><i class="fas fa-camera"></i> Post Locally</button>' : ''}
       </div>`;
     }
   });
@@ -7134,63 +7219,35 @@ function renderSuggestedFollows(containerId) {
 }
 
 
-function renderSocialComments(postId) {
-  const list=el('scl-'+postId); if(!list) return;
-  const all=JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-  const post=all.find(p=>p.id===postId);
-  if(!post||!post.comments?.length){list.innerHTML='<p class="social-no-comments">No comments yet</p>';return;}
-  list.innerHTML=post.comments.map(c=>`
-    <div class="social-comment-item">
-      <span class="social-comment-av clickable-user" data-user="${c.user}" style="background:${avColor(c.user)}">${c.user[0].toUpperCase()}</span>
-      <div class="social-comment-body"><b class="clickable-user" data-user="${c.user}">${esc(c.user)}</b> ${esc(c.text)}</div>
-      <span class="social-comment-time">${timeAgo(c.ts)}</span>
-    </div>`).join('');
-}
-
-function renderSocialSidebar() {
-  // Who to follow
-  const wrap=el('socialWhoToFollow'); if(!wrap) return;
-  const suggestions=S.users.filter(u=>!S.following.includes(u.username)&&(!S.user||u.username!==S.user.username)).slice(0,4);
-  if(!suggestions.length){wrap.innerHTML='<p class="social-no-comments">You follow everyone!</p>';}
-  else {
-    wrap.innerHTML=suggestions.map(u=>`
-      <div class="social-suggest-row">
-        <div class="social-suggest-av clickable-user" data-user="${u.username}" style="background:#6b7280">${u.username[0].toUpperCase()}</div>
-        <div class="social-suggest-info">
-          <div class="social-suggest-name clickable-user" data-user="${u.username}">${esc(u.username)}</div>
-          <div class="social-suggest-meta">${S.posts.filter(p=>p.user===u.username).length} builds</div>
-        </div>
-        <button class="btn-ghost small social-follow-btn" data-user="${u.username}">${S.following.includes(u.username)?'Following':'Follow'}</button>
-      </div>`).join('');
-    wrap.querySelectorAll('.social-follow-btn').forEach(btn=>btn.addEventListener('click',()=>{
-      if(!S.user){toast('Sign in to follow','err');return;}
-      toggleFollow(btn.dataset.user);
-      btn.textContent=S.following.includes(btn.dataset.user)?'Following':'Follow';
-    }));
+// Trending Tags widget — computed from ALL spot posts (Supabase +
+// legacy local), counts both #hashtags in captions and category tags.
+// Renders into #socialTags (the widget in the right sidebar).
+// Tags are clickable → runs a search for that tag.
+function renderTrendingTags() {
+  const box = el('socialTags'); if (!box) return;
+  const allPosts = (S._socialPosts?.length)
+    ? S._socialPosts
+    : JSON.parse(localStorage.getItem('dl_social_posts')||'[]').map(dbSocialToApp).filter(Boolean);
+  const counts = {};
+  allPosts.forEach(p => {
+    ((p.caption||'').match(/#[\w]+/g)||[]).forEach(t => { const k=t.toLowerCase(); counts[k]=(counts[k]||0)+1; });
+    if (p.tag && p.tag !== 'All') { const k='#'+p.tag.toLowerCase().replace(/\s+/g,''); counts[k]=(counts[k]||0)+1; }
+  });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  if (!sorted.length) {
+    box.innerHTML = '<p class="social-sidebar-empty">No tags yet. Use #hashtags in your captions!</p>';
+    return;
   }
-
-  // Trending hashtags — extracted from captions
-  const hashEl = el('socialHashtags');
-  if (hashEl) {
-    const allPosts = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-    const tagCounts = {};
-    allPosts.forEach(p => {
-      if (!p.caption) return;
-      const tags = p.caption.match(/#[\w]+/g) || [];
-      tags.forEach(t => { tagCounts[t] = (tagCounts[t]||0)+1; });
-    });
-    const sorted = Object.entries(tagCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
-    if (!sorted.length) {
-      hashEl.innerHTML = '<p class="social-no-comments">No hashtags yet. Use #tags in your captions!</p>';
-    } else {
-      hashEl.innerHTML = sorted.map(([tag,count]) =>
-        `<div class="social-hashtag-row">
-          <span class="social-hashtag-tag">${esc(tag)}</span>
-          <span class="social-hashtag-count">${count} post${count!==1?'s':''}</span>
-        </div>`
-      ).join('');
-    }
-  }
+  box.innerHTML = sorted.map(([tag,count]) =>
+    `<button class="social-trend-tag" data-tag="${esc(tag)}">
+      <span class="social-trend-name">${esc(tag)}</span>
+      <span class="social-trend-count">${count}</span>
+    </button>`).join('');
+  box.querySelectorAll('.social-trend-tag').forEach(b => b.addEventListener('click', () => {
+    if (S.page !== 'social') goTo('social');
+    const si = el('socialSearchInput');
+    if (si) { si.value = b.dataset.tag.replace('#',''); el('socialSearchClear').style.display='block'; doSocialSearch(); }
+  }));
 }
 
 // ─── BIO WORD LIMIT ────────────────────────────────────────────
@@ -7318,7 +7375,6 @@ function renderProfileMedia(username) {
 // ─── SOCIAL SEARCH ────────────────────────────────────────────
 function doSocialSearch() {
   const q = el('socialSearchInput')?.value.trim().toLowerCase() || '';
-  const allPosts = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
   if (!q) {
     S._socialSearchQ = '';
     socialPage = 0;
@@ -7326,14 +7382,16 @@ function doSocialSearch() {
     return;
   }
   S._socialSearchQ = q;
+  // Search everything we know about: Supabase posts + legacy local posts
+  const allPosts = (S._socialPosts?.length)
+    ? S._socialPosts
+    : JSON.parse(localStorage.getItem('dl_social_posts')||'[]').map(dbSocialToApp).filter(Boolean);
   const results = allPosts.filter(p => {
     const caption = (p.caption||'').toLowerCase();
     const tags    = (p.tag||'').toLowerCase();
     const user    = (p.user||'').toLowerCase();
-    const hashtags= (caption.match(/#[\w]+/g)||[]).join(' ').toLowerCase();
-    return caption.includes(q) || tags.includes(q) || user.includes(q) || hashtags.includes(q);
+    return caption.includes(q) || tags.includes(q) || user.includes(q);
   });
-  // Render results directly
   const wrap = el('socialPostsWrap'); if (!wrap) return;
   if (!results.length) {
     wrap.innerHTML = `<div class="social-no-results"><i class="fas fa-search"></i><p>No posts found for "<b>${esc(q)}</b>"</p></div>`;
@@ -7357,16 +7415,55 @@ window.addEventListener('popstate', e => {
 });
 
 // ─── SOCIAL CARD HELPERS (used by search) ─────────────────────
+// Render a spot caption: escape, linkify #hashtags, style 📍 location lines
+function socialCaptionHTML(caption) {
+  if (!caption) return '';
+  const lines = caption.split('\n').map(line => {
+    const escd = esc(line);
+    const linked = escd.replace(/#([\w]+)/g, '<span class="soc-hashtag" data-tag="#$1">#$1</span>');
+    if (line.trim().startsWith('📍')) {
+      return `<span class="soc-post-location"><i class="fas fa-map-marker-alt"></i> ${linked.replace('📍','').trim()}</span>`;
+    }
+    return linked;
+  });
+  return lines.join('<br/>');
+}
+
 function renderSocialCard(p) {
   if (!p) return '';
   const media   = (p.media||[]).filter(Boolean);
-  const isVideo = media[0]?.type === 'video';
-  const user    = S.users.find(u=>u.username===p.user)||{};
   const avUrl   = getAvatarUrl(p.user);
   const avHTML  = avUrl
-    ? `<div class="soc-av has-photo"><img src="${avUrl}" alt="" class="av-photo"/></div>`
-    : `<div class="soc-av" style="background:${avColor(p.user)}">${(p.user||'?')[0].toUpperCase()}</div>`;
+    ? `<div class="soc-av has-photo clickable-user" data-user="${p.user}"><img src="${avUrl}" alt="" class="av-photo"/></div>`
+    : `<div class="soc-av clickable-user" data-user="${p.user}" style="background:${avColor(p.user)}">${(p.user||'?')[0].toUpperCase()}</div>`;
   const cats = (p.tag && p.tag !== 'All') ? `<span class="cat-badge ${catCfg(p.tag).badge}" style="position:static">${p.tag}</span>` : '';
+  const isOwn = S.user && (p.user === S.user.username || (p.user_id && p.user_id === S.user.id));
+  const canDelete = isOwn || S.user?.isAdmin;
+  const menu = canDelete
+    ? `<button class="soc-post-del" data-id="${p.id}" title="Delete post"><i class="fas fa-trash-alt"></i></button>` : '';
+
+  // Media grid: 1 image = full width, 2-4 = grid, >4 shows +N overlay
+  const shown = media.slice(0,4);
+  const extra = media.length - shown.length;
+  const mediaHTML = media.length ? `<div class="soc-post-media-wrap soc-media-${shown.length}">${shown.map((m,i) =>
+    m.type==='video'
+      ? `<div class="soc-media-cell"><video src="${m.url}" class="social-post-media" muted playsinline preload="metadata" controls></video></div>`
+      : `<div class="soc-media-cell" data-idx="${i}">${(extra>0 && i===3) ? `<span class="soc-media-more">+${extra}</span>` : ''}<img src="${m.url}" alt="" class="social-post-media" loading="lazy"/></div>`
+  ).join('')}</div>` : '';
+
+  const comments = p.comments || [];
+  const commentsHTML = `
+    <div class="soc-comments" id="soc-comments-${p.id}" style="display:none">
+      <div class="soc-comments-list" id="scl-${p.id}">${comments.length
+        ? comments.map(c => socialCommentHTML(c)).join('')
+        : '<p class="social-no-comments">No comments yet — be the first.</p>'}</div>
+      ${S.user ? `<div class="soc-comment-input-row">
+        ${renderAv(S.user.username, 28, 'soc-comment-my-av')}
+        <input type="text" class="soc-comment-input" data-id="${p.id}" maxlength="300" placeholder="Add a comment…"/>
+        <button class="soc-comment-send" data-id="${p.id}" title="Post comment"><i class="fas fa-paper-plane"></i></button>
+      </div>` : '<p class="soc-comment-signin">Sign in to comment</p>'}
+    </div>`;
+
   return `<article class="social-post-card" data-id="${p.id}">
     <div class="soc-post-head">
       ${avHTML}
@@ -7375,33 +7472,49 @@ function renderSocialCard(p) {
         <span class="soc-post-time">${timeAgo(p.ts)}</span>
       </div>
       ${cats}
+      ${menu}
     </div>
-    ${media.length ? `<div class="soc-post-media-wrap">${media.slice(0,4).map(m =>
-      m.type==='video'
-        ? `<video src="${m.url}" class="social-post-media" muted playsinline preload="metadata" controls></video>`
-        : `<img src="${m.url}" alt="" class="social-post-media" loading="lazy"/>`
-    ).join('')}</div>` : ''}
-    ${p.caption ? `<p class="soc-post-caption">${esc(p.caption)}</p>` : ''}
+    ${mediaHTML}
+    ${p.caption ? `<p class="soc-post-caption">${socialCaptionHTML(p.caption)}</p>` : ''}
     <div class="soc-post-actions">
       <button class="soc-like-btn${(p.likedBy||[]).includes(S.user?.username)?' active':''}" data-id="${p.id}">
         <i class="fas fa-heart"></i> <span>${(p.likedBy||[]).length}</span>
       </button>
-      <button class="soc-comment-btn" data-id="${p.id}"><i class="fas fa-comment"></i> <span>${(p.comments||[]).length}</span></button>
+      <button class="soc-comment-btn" data-id="${p.id}"><i class="fas fa-comment"></i> <span>${comments.length}</span></button>
     </div>
+    ${commentsHTML}
   </article>`;
+}
+
+function socialCommentHTML(c) {
+  const avUrl = getAvatarUrl(c.user);
+  const av = avUrl
+    ? `<span class="social-comment-av has-photo clickable-user" data-user="${c.user}"><img src="${avUrl}" alt="" class="av-photo"/></span>`
+    : `<span class="social-comment-av clickable-user" data-user="${c.user}" style="background:${avColor(c.user)}">${(c.user||'?')[0].toUpperCase()}</span>`;
+  return `<div class="social-comment-item">
+    ${av}
+    <div class="social-comment-body"><b class="clickable-user" data-user="${c.user}">${esc(c.user)}</b> ${esc(c.text)}</div>
+    <span class="social-comment-time">${timeAgo(c.ts)}</span>
+  </div>`;
+}
+
+// Find a spot post in every place we keep them
+function findSocialPost(id) {
+  return (S._socialPosts||[]).find(p=>p.id===id)
+    || JSON.parse(localStorage.getItem('dl_social_posts')||'[]').map(dbSocialToApp).find(p=>p&&p.id===id);
 }
 
 function bindSocialCardEvents(wrap) {
   if (!wrap) return;
+
+  // ── Likes (optimistic) ──
   wrap.querySelectorAll('.soc-like-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      if (!S.user) { toast('Sign in to like','err'); return; }
-      // Optimistic UI update
+      if (!S.user) { toast('Sign in to like','err'); el('authModal').classList.add('open'); return; }
       const liked = btn.classList.contains('active');
       btn.classList.toggle('active', !liked);
       const countEl = btn.querySelector('span');
       if (countEl) countEl.textContent = Math.max(0, parseInt(countEl.textContent||'0') + (liked ? -1 : 1));
-      // Sync to Supabase + localStorage
       DB.toggleSocialLike(btn.dataset.id, S.user.username).catch(()=>{});
       const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
       const post = all.find(p=>p.id===btn.dataset.id);
@@ -7421,4 +7534,79 @@ function bindSocialCardEvents(wrap) {
       }
     });
   });
+
+  // ── Comments: toggle panel ──
+  wrap.querySelectorAll('.soc-comment-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const panel = el('soc-comments-'+btn.dataset.id);
+      if (!panel) return;
+      const open = panel.style.display !== 'none';
+      panel.style.display = open ? 'none' : 'block';
+      if (!open) panel.querySelector('.soc-comment-input')?.focus();
+    });
+  });
+
+  // ── Comments: submit ──
+  function sendComment(id, inputEl) {
+    const text = inputEl.value.trim();
+    if (!text) return;
+    if (!S.user) { toast('Sign in to comment','err'); return; }
+    const comment = { user: S.user.username, text, ts: Date.now() };
+    inputEl.value = '';
+    // Optimistic: append to the list + bump the count
+    const list = el('scl-'+id);
+    if (list) {
+      if (list.querySelector('.social-no-comments')) list.innerHTML = '';
+      list.insertAdjacentHTML('beforeend', socialCommentHTML(comment));
+      list.scrollTop = list.scrollHeight;
+    }
+    const countSpan = wrap.querySelector(`.soc-comment-btn[data-id="${id}"] span`);
+    if (countSpan) countSpan.textContent = parseInt(countSpan.textContent||'0') + 1;
+    // Update every store
+    const sp = (S._socialPosts||[]).find(p=>p.id===id);
+    if (sp) sp.comments = [...(sp.comments||[]), comment];
+    const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+    const lp = all.find(p=>p.id===id);
+    if (lp) { lp.comments = [...(lp.comments||[]), comment]; localStorage.setItem('dl_social_posts', JSON.stringify(all)); }
+    DB.addSocialComment(id, comment).catch(()=>{});
+  }
+  wrap.querySelectorAll('.soc-comment-send').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const input = wrap.querySelector(`.soc-comment-input[data-id="${btn.dataset.id}"]`);
+      if (input) sendComment(btn.dataset.id, input);
+    });
+  });
+  wrap.querySelectorAll('.soc-comment-input').forEach(input => {
+    input.addEventListener('keydown', e => { if (e.key==='Enter') sendComment(input.dataset.id, input); });
+  });
+
+  // ── Delete own post ──
+  wrap.querySelectorAll('.soc-post-del').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.id;
+      if (!confirm('Delete this spot? This cannot be undone.')) return;
+      const card = wrap.querySelector(`.social-post-card[data-id="${id}"]`);
+      if (card) { card.style.opacity='.4'; card.style.pointerEvents='none'; }
+      DB.deleteSocialPost(id, S.user.id).then(() => {
+        S._socialPosts = (S._socialPosts||[]).filter(p=>p.id!==id);
+        const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]').filter(p=>p.id!==id);
+        localStorage.setItem('dl_social_posts', JSON.stringify(all));
+        card?.remove();
+        toast('Spot deleted','ok');
+        renderTrendingTags();
+      }).catch(() => {
+        if (card) { card.style.opacity=''; card.style.pointerEvents=''; }
+        toast('Delete failed — try again','err');
+      });
+    });
+  });
+
+  // ── Hashtag click → search ──
+  wrap.querySelectorAll('.soc-hashtag').forEach(tag => {
+    tag.addEventListener('click', () => {
+      const si = el('socialSearchInput');
+      if (si) { si.value = tag.dataset.tag.replace('#',''); el('socialSearchClear').style.display='block'; doSocialSearch(); window.scrollTo({top:0,behavior:'smooth'}); }
+    });
+  });
 }
+
