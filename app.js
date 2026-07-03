@@ -2871,6 +2871,8 @@ function renderNotifPage() {
         if (post) openCarPage(post);
       } else if (link?.startsWith('user:')) {
         viewPublicProfile(link.replace('user:',''));
+      } else if (link?.startsWith('page:')) {
+        goTo(link.replace('page:',''));
       }
     });
   });
@@ -6648,6 +6650,18 @@ function initSocialPage() {
   renderSuggestedFollows('socialWhoToFollow');
   renderTrendingTags();
 
+  // Sidebar usernames/avatars → profile (delegated once; buttons excluded)
+  const socialPage_ = el('page-social');
+  if (socialPage_ && !socialPage_._userNavWired) {
+    socialPage_._userNavWired = true;
+    socialPage_.addEventListener('click', e => {
+      if (e.target.closest('#socialPostsWrap')) return; // cards handle their own
+      if (e.target.closest('button')) return;
+      const cu = e.target.closest('.clickable-user');
+      if (cu?.dataset.user) viewMemberProfile(cu.dataset.user);
+    });
+  }
+
   // Feed tabs
   document.querySelectorAll('.soc-tab').forEach(t => t.addEventListener('click', () => {
     document.querySelectorAll('.soc-tab').forEach(x=>x.classList.remove('active'));
@@ -7516,6 +7530,13 @@ function bindSocialCardEvents(wrap) {
       const countEl = btn.querySelector('span');
       if (countEl) countEl.textContent = Math.max(0, parseInt(countEl.textContent||'0') + (liked ? -1 : 1));
       DB.toggleSocialLike(btn.dataset.id, S.user.username).catch(()=>{});
+      // Notify the post owner (only on like, not unlike, never self)
+      if (!liked) {
+        const sp0 = findSocialPost(btn.dataset.id);
+        if (sp0?.user_id && sp0.user !== S.user.username) {
+          DB.pushNotification(sp0.user_id, 'like', S.user.username, 'liked your spot', 'page:social').catch(()=>{});
+        }
+      }
       const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
       const post = all.find(p=>p.id===btn.dataset.id);
       if (post) {
@@ -7569,6 +7590,12 @@ function bindSocialCardEvents(wrap) {
     const lp = all.find(p=>p.id===id);
     if (lp) { lp.comments = [...(lp.comments||[]), comment]; localStorage.setItem('dl_social_posts', JSON.stringify(all)); }
     DB.addSocialComment(id, comment).catch(()=>{});
+    // Notify the post owner (never self)
+    const owner = findSocialPost(id);
+    if (owner?.user_id && owner.user !== S.user.username) {
+      const preview = text.length > 40 ? text.slice(0,40)+'…' : text;
+      DB.pushNotification(owner.user_id, 'comment', S.user.username, 'commented on your spot: "'+preview+'"', 'page:social').catch(()=>{});
+    }
   }
   wrap.querySelectorAll('.soc-comment-send').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -7600,6 +7627,65 @@ function bindSocialCardEvents(wrap) {
       });
     });
   });
+
+  // ── Media: single click = lightbox, double click/tap = like (IG style) ──
+  wrap.querySelectorAll('.social-post-card').forEach(card => {
+    const id = card.dataset.id;
+    const post = findSocialPost(id);
+    const imgUrls = (post?.media||[]).filter(m=>m && m.type!=='video').map(m=>m.url);
+    let clickTimer = null, lastTap = 0;
+
+    function likeViaDouble() {
+      // Heart burst overlay (always shown, IG-style)
+      const mediaWrap = card.querySelector('.soc-post-media-wrap');
+      if (mediaWrap) {
+        const h = document.createElement('div');
+        h.className = 'soc-heart-burst';
+        h.innerHTML = '<i class="fas fa-heart"></i>';
+        mediaWrap.appendChild(h);
+        setTimeout(() => h.remove(), 900);
+      }
+      if (!S.user) { toast('Sign in to like','err'); el('authModal').classList.add('open'); return; }
+      // Double-tap only ever LIKES (never unlikes) — IG behavior
+      const likeBtn = card.querySelector('.soc-like-btn');
+      if (likeBtn && !likeBtn.classList.contains('active')) likeBtn.click();
+    }
+
+    card.querySelectorAll('.soc-media-cell img').forEach((img, idx) => {
+      img.style.cursor = 'pointer';
+      img.addEventListener('dblclick', e => {
+        e.preventDefault();
+        if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+        likeViaDouble();
+      });
+      img.addEventListener('click', e => {
+        // Touch double-tap detection
+        const now = Date.now();
+        if (now - lastTap < 300) {
+          lastTap = 0;
+          if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+          likeViaDouble();
+          return;
+        }
+        lastTap = now;
+        // Delay single-click action so a double-click can cancel it
+        if (clickTimer) clearTimeout(clickTimer);
+        clickTimer = setTimeout(() => {
+          clickTimer = null;
+          if (imgUrls.length) openLightbox(imgUrls, Math.min(idx, imgUrls.length-1));
+        }, 280);
+      });
+    });
+  });
+
+  // ── Usernames + avatars → profile (delegated, once per wrap) ──
+  if (!wrap._userNavWired) {
+    wrap._userNavWired = true;
+    wrap.addEventListener('click', e => {
+      const cu = e.target.closest('.clickable-user');
+      if (cu?.dataset.user) viewMemberProfile(cu.dataset.user);
+    });
+  }
 
   // ── Hashtag click → search ──
   wrap.querySelectorAll('.soc-hashtag').forEach(tag => {
