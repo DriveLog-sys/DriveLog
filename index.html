@@ -5,9 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>DriveLog — The Car Community</title>
 
+  <!-- Preconnects: open TCP+TLS to every third-party origin in parallel, before any request needs them -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin/>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net"/>
+  <link rel="preconnect" href="https://lsnpxneywkrirfkfszbo.supabase.co"/>
+
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-  <link rel="stylesheet" href="main.css"/>
+  <link rel="stylesheet" href="main.min.css?v=20260702"/>
   <!-- Open Graph / Share meta tags -->
   <meta property="og:type"        content="website"/>
   <meta property="og:title"       content="DriveLog — The Car Community"/>
@@ -18,7 +25,6 @@
   <meta name="theme-color"        content="#3b82f6"/>
   <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -1545,9 +1551,13 @@
   </div>
 </aside>
 
-<script src="data.js"></script>
-<script src="db.js"></script>
-<script src="app.js"></script>
+<!-- Supabase MUST load synchronously here, before db.js — never add defer/async.
+     Moved from <head> to end of <body> so it no longer blocks first paint;
+     load order is unchanged: supabase → data → db → app -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="data.min.js?v=20260702"></script>
+<script src="db.min.js?v=20260702"></script>
+<script src="app.min.js?v=20260702"></script>
 <!-- Sign up nudge banner — shown to signed-out users -->
 <div class="signup-nudge" id="signupNudge" style="display:none">
   <div class="signup-nudge-inner">

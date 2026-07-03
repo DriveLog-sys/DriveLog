@@ -14,6 +14,11 @@
       if (p.accent) document.documentElement.style.setProperty('--accent', p.accent);
     } catch(e) {}
   </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin/>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net"/>
+  <link rel="preconnect" href="https://lsnpxneywkrirfkfszbo.supabase.co"/>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
   <style>
@@ -197,7 +202,6 @@
     .not-signed-in i{font-size:3rem;margin-bottom:14px;display:block}
     .not-signed-in h2{font-family:var(--disp);font-size:1.8rem;color:var(--sec);margin-bottom:8px}
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -474,6 +478,8 @@
   </div><!-- /s-content -->
 </div><!-- /s-wrap -->
 
+<!-- Supabase loads synchronously here (no defer/async) — must run before the inline app script below -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function() {
   /* ── Prefs & User ── */
