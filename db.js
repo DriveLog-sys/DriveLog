@@ -353,7 +353,10 @@ const DB = {
       const path = `${userId}/avatar.jpg`;
       const res  = await DB._uploadFile('avatars', path, file);
       if (res?.url) {
-        // Also save URL to profile
+        // Cache-bust: the storage path is stable, so without a version
+        // param the CDN serves the OLD photo to everyone for up to an
+        // hour. A fresh ?v= makes the new picture show instantly.
+        res.url = res.url.split('?')[0] + '?v=' + Date.now();
         await DB.updateProfile(userId, { avatar_url: res.url });
       }
       return res;
@@ -372,7 +375,10 @@ const DB = {
       const file = new File([bytes], 'banner.jpg', { type: mime });
       const path = `${userId}/banner.jpg`;
       const res  = await DB._uploadFile('avatars', path, file);
-      if (res?.url) await DB.updateProfile(userId, { banner_url: res.url });
+      if (res?.url) {
+        res.url = res.url.split('?')[0] + '?v=' + Date.now(); // cache-bust (see uploadAvatar)
+        await DB.updateProfile(userId, { banner_url: res.url });
+      }
       return res;
     } catch(e) { return { error: e }; }
   },
@@ -714,6 +720,13 @@ const DB = {
   async deleteSocialPost(postId, userId) {
     if (!_sbOk()) return;
     return _sb.from('social_posts').delete().eq('id', postId).eq('user_id', userId);
+  },
+
+  // Admin-only delete — no user filter; Supabase RLS must allow it
+  // (falls through harmlessly if the policy blocks non-owners).
+  async adminDeleteSocialPost(postId) {
+    if (!_sbOk()) return;
+    return _sb.from('social_posts').delete().eq('id', postId);
   },
 
   // Append a comment to a spot post. Comments live in the `comments`

@@ -1845,6 +1845,14 @@ function loginUser(username) {
   } else {
     S.user = { username, posts:0, totalLikes:0, joined:new Date().toISOString().slice(0,7), joinedFull:new Date().toISOString(), bio:'', awards:[] };
   }
+  // Persist immediately — settings.html is a separate page and reads
+  // the session from localStorage. Without this, opening Settings
+  // right after signing in says "not signed in" until a reload.
+  try {
+    localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
+    localStorage.setItem('dl_user', JSON.stringify(S.user));
+    localStorage.setItem('dl_last_user', username);
+  } catch(_) {}
   // Always force-close auth modal
   el('authModal') && el('authModal').classList.remove('open');
   updateAuthUI(); updateProfilePage(); updateDmBadge();
@@ -3299,10 +3307,52 @@ function attachCardEvents(container) {
   container.querySelectorAll('.card-av.av-circle[data-user]').forEach(av => {
     setAvEl(av, av.dataset.user);
   });
-  container.querySelectorAll('.card').forEach(card=>card.addEventListener('click',e=>{
-    if(e.target.closest('.card-likes'))return;
-    const p=S.posts.find(x=>x.id===card.dataset.id); if(p)openCarPage(p);
-  }));
+  container.querySelectorAll('.card').forEach(card=>{
+    let clickTimer=null, lastTap=0;
+    const imgWrap = card.querySelector('.card-img-wrap');
+
+    function likePostViaDouble() {
+      // Heart burst on the image (IG-style)
+      if (imgWrap) {
+        const h=document.createElement('div');
+        h.className='soc-heart-burst';
+        h.innerHTML='<i class="fas fa-heart"></i>';
+        imgWrap.appendChild(h);
+        setTimeout(()=>h.remove(),900);
+      }
+      if(!S.user){ toast('Sign in to like','err'); el('authModal').classList.add('open'); return; }
+      // Double-tap only ever LIKES, never unlikes
+      const likeBtn=card.querySelector('.card-likes');
+      if(likeBtn && !likeBtn.classList.contains('liked')) likeBtn.click();
+    }
+
+    card.addEventListener('dblclick',e=>{
+      if(!e.target.closest('.card-img-wrap'))return;
+      e.preventDefault();
+      if(clickTimer){clearTimeout(clickTimer);clickTimer=null;}
+      likePostViaDouble();
+    });
+    card.addEventListener('click',e=>{
+      if(e.target.closest('.card-likes'))return;
+      const p=S.posts.find(x=>x.id===card.dataset.id); if(!p)return;
+      // Clicks on the image get a short delay so a double-tap can like
+      // instead of navigating. Clicks anywhere else open instantly.
+      if(e.target.closest('.card-img-wrap')){
+        const now=Date.now();
+        if(now-lastTap<300){
+          lastTap=0;
+          if(clickTimer){clearTimeout(clickTimer);clickTimer=null;}
+          likePostViaDouble();
+          return;
+        }
+        lastTap=now;
+        if(clickTimer)clearTimeout(clickTimer);
+        clickTimer=setTimeout(()=>{clickTimer=null;openCarPage(p);},260);
+      } else {
+        openCarPage(p);
+      }
+    });
+  });
   container.querySelectorAll('.card-likes').forEach(btn=>btn.addEventListener('click',e=>{
     e.stopPropagation();
     if (!S.user) { toast('Sign in to like', 'err'); el('authModal').classList.add('open'); return; }
@@ -4875,7 +4925,37 @@ function cpRenderGallery(post) {
       mainEl.innerHTML = `
         <img src="${item.src}" alt="${esc(post.title)}" style="cursor:zoom-in" id="cpMainImg" loading="eager"/>
         ${navBtns}`;
-      el('cpMainImg')?.addEventListener('click', () => openLightbox(imgs, idx));
+      // Single click = lightbox (delayed), double click/tap = like the build
+      (function(){
+        const mainImg = el('cpMainImg'); if (!mainImg) return;
+        let t=null, lastTap=0;
+        function likeBuild(){
+          const wrapEl = mainImg.closest('.car-page-gallery-main') || mainImg.parentElement;
+          if (wrapEl) {
+            wrapEl.style.position = wrapEl.style.position || 'relative';
+            const h=document.createElement('div');
+            h.className='soc-heart-burst';
+            h.innerHTML='<i class="fas fa-heart"></i>';
+            wrapEl.appendChild(h);
+            setTimeout(()=>h.remove(),900);
+          }
+          if(!S.user){ toast('Sign in to like','err'); el('authModal').classList.add('open'); return; }
+          const post = S.openCarPost;
+          if (post && !(post.likedBy||[]).includes(S.user.username)) cpHandleLike();
+        }
+        mainImg.addEventListener('dblclick', e=>{
+          e.preventDefault();
+          if(t){clearTimeout(t);t=null;}
+          likeBuild();
+        });
+        mainImg.addEventListener('click', ()=>{
+          const now=Date.now();
+          if(now-lastTap<300){ lastTap=0; if(t){clearTimeout(t);t=null;} likeBuild(); return; }
+          lastTap=now;
+          if(t)clearTimeout(t);
+          t=setTimeout(()=>{t=null;openLightbox(imgs, idx);},260);
+        });
+      })();
     }
 
     if (media.length > 1) {
@@ -7001,13 +7081,22 @@ async function applyAllBlurs() {
   for (let i = 0; i < _blurImages.length; i++) {
     // Apply blur to each image
     const img = _blurImages[i];
-    const c   = document.createElement('canvas');
-    c.width = img.naturalWidth; c.height = img.naturalHeight;
-    const ctx = c.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-    (_blurBoxes[i] || []).forEach(box => applyBlurBox(ctx, box));
-    // Compress + convert to data URL
-    _blurredDataURLs.push(c.toDataURL('image/jpeg', 0.88));
+    // Blur at full resolution first so the boxes land exactly where drawn
+    const full = document.createElement('canvas');
+    full.width = img.naturalWidth; full.height = img.naturalHeight;
+    const fctx = full.getContext('2d');
+    fctx.drawImage(img, 0, 0);
+    (_blurBoxes[i] || []).forEach(box => applyBlurBox(fctx, box));
+    // Then downscale to max 1080px wide (Instagram standard) —
+    // keeps uploads small and every post consistent
+    let out = full;
+    if (full.width > 1080) {
+      const scale = 1080 / full.width;
+      out = document.createElement('canvas');
+      out.width = 1080; out.height = Math.round(full.height * scale);
+      out.getContext('2d').drawImage(full, 0, 0, out.width, out.height);
+    }
+    _blurredDataURLs.push(out.toDataURL('image/jpeg', 0.88));
   }
 
   // Update preview strip
@@ -7456,14 +7545,22 @@ function renderSocialCard(p) {
   const menu = canDelete
     ? `<button class="soc-post-del" data-id="${p.id}" title="Delete post"><i class="fas fa-trash-alt"></i></button>` : '';
 
-  // Media grid: 1 image = full width, 2-4 = grid, >4 shows +N overlay
-  const shown = media.slice(0,4);
-  const extra = media.length - shown.length;
-  const mediaHTML = media.length ? `<div class="soc-post-media-wrap soc-media-${shown.length}">${shown.map((m,i) =>
-    m.type==='video'
-      ? `<div class="soc-media-cell"><video src="${m.url}" class="social-post-media" muted playsinline preload="metadata" controls></video></div>`
-      : `<div class="soc-media-cell" data-idx="${i}">${(extra>0 && i===3) ? `<span class="soc-media-more">+${extra}</span>` : ''}<img src="${m.url}" alt="" class="social-post-media" loading="lazy"/></div>`
-  ).join('')}</div>` : '';
+  // Media: uniform 4:5 frame (1080x1350 — Instagram post format).
+  // Multiple photos become a swipeable carousel with arrows + dots.
+  const mediaHTML = media.length ? `<div class="soc-post-media-wrap">
+    <div class="soc-carousel" data-count="${media.length}">
+      <div class="soc-carousel-track">${media.map((m,i) =>
+        m.type==='video'
+          ? `<div class="soc-slide"><video src="${m.url}" class="soc-slide-media" muted playsinline preload="metadata" controls></video></div>`
+          : `<div class="soc-slide" data-idx="${i}"><img src="${m.url}" alt="" class="soc-slide-media" loading="lazy"/></div>`
+      ).join('')}</div>
+      ${media.length > 1 ? `
+        <button class="soc-car-arrow soc-car-prev" style="display:none"><i class="fas fa-chevron-left"></i></button>
+        <button class="soc-car-arrow soc-car-next"><i class="fas fa-chevron-right"></i></button>
+        <div class="soc-car-count">1/${media.length}</div>
+        <div class="soc-car-dots">${media.map((_,i)=>`<span class="soc-car-dot${i===0?' active':''}"></span>`).join('')}</div>` : ''}
+    </div>
+  </div>` : '';
 
   const comments = p.comments || [];
   const commentsHTML = `
@@ -7607,28 +7704,47 @@ function bindSocialCardEvents(wrap) {
     input.addEventListener('keydown', e => { if (e.key==='Enter') sendComment(input.dataset.id, input); });
   });
 
-  // ── Delete own post ──
+  // ── Delete own post (admins can delete any) ──
   wrap.querySelectorAll('.soc-post-del').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const id = btn.dataset.id;
+      if (!S.user) return;
       if (!confirm('Delete this spot? This cannot be undone.')) return;
       const card = wrap.querySelector(`.social-post-card[data-id="${id}"]`);
       if (card) { card.style.opacity='.4'; card.style.pointerEvents='none'; }
-      DB.deleteSocialPost(id, S.user.id).then(() => {
-        S._socialPosts = (S._socialPosts||[]).filter(p=>p.id!==id);
-        const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]').filter(p=>p.id!==id);
-        localStorage.setItem('dl_social_posts', JSON.stringify(all));
-        card?.remove();
-        toast('Spot deleted','ok');
-        renderTrendingTags();
-      }).catch(() => {
-        if (card) { card.style.opacity=''; card.style.pointerEvents=''; }
-        toast('Delete failed — try again','err');
-      });
+      const post = findSocialPost(id);
+      const isMine = post && (post.user === S.user.username || post.user_id === S.user.id);
+      try {
+        // Admins deleting someone else's post use the unfiltered call;
+        // owners use the user-scoped call. Promise.resolve guards the
+        // "Supabase not ready" path which returns undefined.
+        const res = await Promise.resolve(
+          (!isMine && S.user.isAdmin)
+            ? DB.adminDeleteSocialPost(id)
+            : DB.deleteSocialPost(id, S.user.id)
+        );
+        if (res?.error) throw res.error;
+      } catch(e) {
+        // If it only exists locally, deleting locally below still works;
+        // otherwise surface the failure.
+        const existsLocally = JSON.parse(localStorage.getItem('dl_social_posts')||'[]').some(p=>p.id===id);
+        if (!existsLocally) {
+          if (card) { card.style.opacity=''; card.style.pointerEvents=''; }
+          toast('Delete failed — try again','err');
+          return;
+        }
+      }
+      // Remove from every local store + the DOM
+      S._socialPosts = (S._socialPosts||[]).filter(p=>p.id!==id);
+      const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]').filter(p=>p.id!==id);
+      localStorage.setItem('dl_social_posts', JSON.stringify(all));
+      card?.remove();
+      toast('Spot deleted','ok');
+      renderTrendingTags();
     });
   });
 
-  // ── Media: single click = lightbox, double click/tap = like (IG style) ──
+  // ── Media: carousel nav + single click = lightbox, double = like ──
   wrap.querySelectorAll('.social-post-card').forEach(card => {
     const id = card.dataset.id;
     const post = findSocialPost(id);
@@ -7636,7 +7752,6 @@ function bindSocialCardEvents(wrap) {
     let clickTimer = null, lastTap = 0;
 
     function likeViaDouble() {
-      // Heart burst overlay (always shown, IG-style)
       const mediaWrap = card.querySelector('.soc-post-media-wrap');
       if (mediaWrap) {
         const h = document.createElement('div');
@@ -7646,36 +7761,68 @@ function bindSocialCardEvents(wrap) {
         setTimeout(() => h.remove(), 900);
       }
       if (!S.user) { toast('Sign in to like','err'); el('authModal').classList.add('open'); return; }
-      // Double-tap only ever LIKES (never unlikes) — IG behavior
       const likeBtn = card.querySelector('.soc-like-btn');
       if (likeBtn && !likeBtn.classList.contains('active')) likeBtn.click();
     }
 
-    card.querySelectorAll('.soc-media-cell img').forEach((img, idx) => {
-      img.style.cursor = 'pointer';
-      img.addEventListener('dblclick', e => {
-        e.preventDefault();
-        if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
-        likeViaDouble();
-      });
-      img.addEventListener('click', e => {
-        // Touch double-tap detection
-        const now = Date.now();
-        if (now - lastTap < 300) {
-          lastTap = 0;
+    // Carousel state
+    const carousel = card.querySelector('.soc-carousel');
+    if (carousel) {
+      const track = carousel.querySelector('.soc-carousel-track');
+      const slides = carousel.querySelectorAll('.soc-slide');
+      const dots  = carousel.querySelectorAll('.soc-car-dot');
+      const prev  = carousel.querySelector('.soc-car-prev');
+      const next  = carousel.querySelector('.soc-car-next');
+      const count = carousel.querySelector('.soc-car-count');
+      let cur = 0;
+
+      function goSlide(n) {
+        cur = Math.max(0, Math.min(slides.length-1, n));
+        track.style.transform = `translateX(-${cur*100}%)`;
+        dots.forEach((d,i)=>d.classList.toggle('active', i===cur));
+        if (prev) prev.style.display = cur===0 ? 'none' : '';
+        if (next) next.style.display = cur===slides.length-1 ? 'none' : '';
+        if (count) count.textContent = `${cur+1}/${slides.length}`;
+        // Pause any videos not on screen
+        carousel.querySelectorAll('video').forEach(v => { if (!slides[cur].contains(v)) v.pause(); });
+      }
+      prev?.addEventListener('click', e => { e.stopPropagation(); goSlide(cur-1); });
+      next?.addEventListener('click', e => { e.stopPropagation(); goSlide(cur+1); });
+
+      // Touch swipe
+      let touchX = null;
+      carousel.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, {passive:true});
+      carousel.addEventListener('touchend', e => {
+        if (touchX === null) return;
+        const dx = e.changedTouches[0].clientX - touchX;
+        touchX = null;
+        if (Math.abs(dx) > 40) goSlide(cur + (dx < 0 ? 1 : -1));
+      }, {passive:true});
+
+      // Image taps: single = lightbox, double = like
+      carousel.querySelectorAll('.soc-slide img').forEach((img, idx) => {
+        img.addEventListener('dblclick', e => {
+          e.preventDefault();
           if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
           likeViaDouble();
-          return;
-        }
-        lastTap = now;
-        // Delay single-click action so a double-click can cancel it
-        if (clickTimer) clearTimeout(clickTimer);
-        clickTimer = setTimeout(() => {
-          clickTimer = null;
-          if (imgUrls.length) openLightbox(imgUrls, Math.min(idx, imgUrls.length-1));
-        }, 280);
+        });
+        img.addEventListener('click', () => {
+          const now = Date.now();
+          if (now - lastTap < 300) {
+            lastTap = 0;
+            if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+            likeViaDouble();
+            return;
+          }
+          lastTap = now;
+          if (clickTimer) clearTimeout(clickTimer);
+          clickTimer = setTimeout(() => {
+            clickTimer = null;
+            if (imgUrls.length) openLightbox(imgUrls, Math.min(idx, imgUrls.length-1));
+          }, 280);
+        });
       });
-    });
+    }
   });
 
   // ── Usernames + avatars → profile (delegated, once per wrap) ──

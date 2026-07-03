@@ -982,7 +982,9 @@
           const { error: upErr } = await sb.storage.from('avatars').upload(path, file, { upsert: true, contentType: mime });
           if (upErr) { console.warn('Avatar storage upload failed:', upErr.message); return; }
           const { data: urlData } = sb.storage.from('avatars').getPublicUrl(path);
-          const publicUrl = urlData.publicUrl;
+          // Cache-bust: same path every upload means the CDN serves the
+          // old photo for up to an hour without a fresh ?v= param.
+          const publicUrl = urlData.publicUrl.split('?')[0] + '?v=' + Date.now();
           // Save the real URL (not base64) to profile + localStorage
           await sb.from('profiles').update({ avatar_url: publicUrl }).eq('id', u2.id);
           u2.avatarUrl = publicUrl;

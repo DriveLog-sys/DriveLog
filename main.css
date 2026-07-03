@@ -4412,9 +4412,13 @@ html, body {
    ═══════════════════════════════════════════════════════════════ */
 .signup-nudge{
   position:fixed;bottom:0;left:0;right:0;z-index:1500;
-  background:linear-gradient(135deg,#1a1f35 0%,#111827 100%);
-  border-top:1px solid rgba(59,130,246,.3);
-  box-shadow:0 -4px 32px rgba(0,0,0,.4);
+  /* Semi-transparent blue gradient + frosted glass — the feed stays
+     visible behind the bar as you scroll */
+  background:linear-gradient(135deg,rgba(37,66,138,.72) 0%,rgba(23,37,84,.68) 55%,rgba(17,24,39,.66) 100%);
+  -webkit-backdrop-filter:blur(14px) saturate(1.4);
+  backdrop-filter:blur(14px) saturate(1.4);
+  border-top:1px solid rgba(96,150,246,.35);
+  box-shadow:0 -4px 32px rgba(0,0,0,.35);
   padding:14px 24px;
   transform:translateY(100%);
   transition:transform .4s cubic-bezier(.34,1.56,.64,1);
@@ -4445,6 +4449,16 @@ html, body {
   transition:all var(--tr);
 }
 .signup-nudge-btn:hover{background:var(--accent-dim);transform:scale(1.03)}
+.signup-nudge-signin{
+  background:rgba(255,255,255,.94);color:#111827;
+  font-family:var(--cond);font-size:.82rem;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;
+  padding:9px 22px;border-radius:var(--r-sm);
+  border:1px solid rgba(255,255,255,.6);
+  cursor:pointer;white-space:nowrap;flex-shrink:0;
+  transition:all var(--tr);
+}
+.signup-nudge-signin:hover{background:#fff;transform:scale(1.03)}
 .signup-nudge-close{
   width:32px;height:32px;border-radius:50%;
   background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
@@ -7151,6 +7165,24 @@ body:not(.dark) .save-btn {
 .cs-preview-label{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);color:#fff;font-size:.66rem;font-weight:600;text-align:center;padding:3px 0}
 .social-tag-pills{display:flex;flex-wrap:wrap;gap:7px}
 
+/* ============================================================
+   SPOT CAROUSEL — uniform 4:5 (1080x1350) post format, IG-style
+   ============================================================ */
+.social-post-card{max-width:560px;margin-left:auto;margin-right:auto}
+.soc-carousel{position:relative;aspect-ratio:4/5;overflow:hidden;background:#000}
+.soc-carousel-track{display:flex;height:100%;transition:transform .32s cubic-bezier(.25,.8,.35,1)}
+.soc-slide{flex:0 0 100%;height:100%;position:relative}
+.soc-slide-media{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer}
+video.soc-slide-media{object-fit:contain;background:#000}
+.soc-car-arrow{position:absolute;top:50%;transform:translateY(-50%);width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.92);border:none;color:#111;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.75rem;z-index:4;box-shadow:0 2px 10px rgba(0,0,0,.3);transition:all var(--tr)}
+.soc-car-arrow:hover{background:#fff;transform:translateY(-50%) scale(1.08)}
+.soc-car-prev{left:12px}
+.soc-car-next{right:12px}
+.soc-car-count{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.6);color:#fff;font-size:.72rem;font-weight:700;padding:4px 10px;border-radius:12px;z-index:4;font-variant-numeric:tabular-nums}
+.soc-car-dots{position:absolute;bottom:12px;left:0;right:0;display:flex;justify-content:center;gap:5px;z-index:4}
+.soc-car-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.45);transition:all var(--tr)}
+.soc-car-dot.active{background:#fff;transform:scale(1.25)}
+
 /* ═══════════════════════════════════════════════════════════════
    MOBILE STYLES — single consolidated block
    Only for ≤768px. Desktop browser is completely unchanged.
@@ -7638,4 +7670,9 @@ html, body { overflow-x: hidden; }
   .cs-blur-toolbar { justify-content: center; }
   .cs-preview-item { width: 88px !important; }
   .cs-preview-item img { height: 66px !important; }
+
+  /* ── Spot carousel + nudge (mobile) ── */
+  .social-post-card { max-width: 100% !important; }
+  .soc-car-arrow { width: 28px !important; height: 28px !important; }
+  .signup-nudge-signin { padding: 9px 14px !important; }
 }
