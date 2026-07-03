@@ -2365,8 +2365,41 @@ async function submitPost() {
       existing.zeroSixty    = zeroSixty;
       existing.quarterMile  = quarterMile;
       existing.topSpeed     = topSpeed;
-      existing.images       = [...pendingImages];
-      existing.videos       = [...pendingVideos.map(v=>v.dataUrl)];
+      // Upload any NEWLY ADDED media before saving. When editing,
+      // pendingImages/pendingVideos contain a mix of existing Storage
+      // URLs (https://...) and freshly added base64 (data:...).
+      // The base64 ones must be uploaded — raw base64 stored in the
+      // posts table gets downloaded by every visitor on every load.
+      const editImageUrls = [];
+      let editFailed = 0;
+      for (let i = 0; i < pendingImages.length; i++) {
+        const img = pendingImages[i];
+        if (typeof img === 'string' && img.startsWith('data:')) {
+          try {
+            const res = await DB.uploadBase64(S.user.id, img, i);
+            if (res && res.url) editImageUrls.push(res.url);
+            else editFailed++;
+          } catch(_) { editFailed++; }
+        } else {
+          editImageUrls.push(img); // already a Storage URL
+        }
+      }
+      const editVideoUrls = [];
+      for (let i = 0; i < pendingVideos.length; i++) {
+        const v = pendingVideos[i].dataUrl;
+        if (typeof v === 'string' && v.startsWith('data:')) {
+          try {
+            const res = await DB.uploadVideo(S.user.id, v, i);
+            if (res && res.url) editVideoUrls.push(res.url);
+            else editFailed++;
+          } catch(_) { editFailed++; }
+        } else {
+          editVideoUrls.push(v); // already a Storage URL
+        }
+      }
+      if (editFailed) toast(`${editFailed} file(s) failed to upload and were skipped`, 'err');
+      existing.images       = editImageUrls;
+      existing.videos       = editVideoUrls;
       existing.showSocials  = el('postShowSocials')?.checked ?? true;
       existing.editedAt     = new Date().toISOString();
       // Save to Supabase
@@ -2384,20 +2417,39 @@ async function submitPost() {
     const submitBtn = el('submitPost');
     if (submitBtn) { submitBtn.disabled=true; submitBtn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Uploading…'; }
 
-    // Upload images to Supabase Storage
+    // Upload images to Supabase Storage.
+    // NEVER push the raw base64 on failure — a base64 image stored in
+    // the posts table gets downloaded by every visitor on every page
+    // load (this caused 30-second load times). Skip + warn instead.
     const imageUrls = [];
+    let failedImages = 0;
     for (let i=0; i<pendingImages.length; i++) {
       try {
         const res = await DB.uploadBase64(S.user.id, pendingImages[i], i);
-        imageUrls.push(res.url || pendingImages[i]);
-      } catch(_) { imageUrls.push(pendingImages[i]); }
+        if (res && res.url) imageUrls.push(res.url);
+        else failedImages++;
+      } catch(_) { failedImages++; }
     }
+    if (failedImages) toast(`${failedImages} photo(s) failed to upload and were skipped`, 'err');
+
+    // Upload videos to Supabase Storage — same rule: Storage URL or skip.
+    // Base64 video in a post row is ~9MB of text per video.
+    const videoUrls = [];
+    let failedVideos = 0;
+    for (let i=0; i<pendingVideos.length; i++) {
+      try {
+        const res = await DB.uploadVideo(S.user.id, pendingVideos[i].dataUrl, i);
+        if (res && res.url) videoUrls.push(res.url);
+        else failedVideos++;
+      } catch(_) { failedVideos++; }
+    }
+    if (failedVideos) toast(`${failedVideos} video(s) failed to upload and were skipped`, 'err');
 
     const postData = appPostToDb({
       title, make, model, year, category:cat, categories:selectedCats,
       hp, mods, modsDetail, desc, transmission, mileage, buildState, zeroSixty, quarterMile, topSpeed,
       images: imageUrls,
-      videos: pendingVideos.map(v=>v.dataUrl),
+      videos: videoUrls,
       liked_by:[], saved_by:[], reactions:{},
       showSocials: el('postShowSocials')?.checked ?? true,
       state: el('postState')?.value || '',
@@ -2411,7 +2463,7 @@ async function submitPost() {
       id:newPost?.id||'u'+Date.now(), title, make, model, year,
       category:cat, categories:selectedCats, hp, mods, modsDetail, desc, transmission, mileage,
       user:S.user.username, likes:0, comments:[], images:imageUrls,
-      videos:pendingVideos.map(v=>v.dataUrl), likedBy:[], savedBy:[], reactions:{},
+      videos:videoUrls, likedBy:[], savedBy:[], reactions:{},
       date:new Date().toISOString().slice(0,10),
     };
     S.posts.unshift(localPost);
@@ -6903,13 +6955,17 @@ async function submitSocialPost() {
   if (btn) { btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Posting…'; }
   if (progBar) { progBar.style.display='block'; progBar.value=10; }
 
-  // Upload blurred images to Supabase Storage
+  // Upload blurred images to Supabase Storage.
+  // Skip failures — never embed base64 in the social_posts table.
   const mediaItems = [];
+  let failedSpots = 0;
   for (let i = 0; i < _blurredDataURLs.length; i++) {
     const result = await DB.uploadSpottingImage(S.user.id, _blurredDataURLs[i], i);
-    mediaItems.push({ type:'image', url: result.url || _blurredDataURLs[i] });
+    if (result && result.url) mediaItems.push({ type:'image', url: result.url });
+    else failedSpots++;
     if (progBar) progBar.value = 10 + Math.round(((i+1)/_blurredDataURLs.length)*70);
   }
+  if (failedSpots) toast(`${failedSpots} photo(s) failed to upload and were skipped`, 'err');
   if (progBar) progBar.value = 85;
 
   const postId = 'sp' + Date.now();

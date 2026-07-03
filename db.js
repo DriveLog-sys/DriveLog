@@ -1,17 +1,57 @@
 /* ============================================================
-   DRIVELOG — DB.JS   (Supabase data layer)
-   All data operations go through this file.
-   app.js calls DB.* instead of reading/writing localStorage.
+   DRIVELOG — DB.JS  (Supabase data layer)
+   ─────────────────────────────────────────────────────────────
+   This file is the ONLY place that talks to Supabase directly.
+   app.js should never reference _sb or call supabase.* directly —
+   all database and storage operations go through DB.*.
+
+   Supabase project:
+     URL: https://lsnpxneywkrirfkfszbo.supabase.co
+     Key: sb_publishable_wF4jFiIEuucuJXJJo8sn0Q_b2PRnh6-
+     Dashboard: app.supabase.com → lsnpxneywkrirfkfszbo
+
+   Storage buckets:
+     post-images — uploaded build photos (public read)
+     avatars     — profile + banner photos (public read)
+                   stored as {userId}/avatar.jpg and {userId}/banner.jpg
+                   Always upsert same path so the URL never changes
+
+   Supabase tables:
+     profiles      — one row per user (id matches auth.users.id)
+     posts         — build posts
+     comments      — comments on posts (supports parent_id for replies)
+     follows       — follower/following relationships
+     notifications — in-app notifications
+     messages      — direct messages
+     events        — community events
+     reports       — user-submitted reports
+     build_costs   — line-item cost tracker per post
+     build_timeline— chronological build update entries per post
+     botm_votes    — Build Of The Month votes (one per user per month)
+
+   Row Level Security (RLS) MUST be configured correctly for the
+   site to work. If posts show "No Builds Yet" despite data existing,
+   the posts table is missing a public SELECT policy. Run fix_rls.sql.
+
+   Data flow:
+     Supabase row → dbPostToApp() → S.posts[] → renderFeed()
+     Supabase row → dbUserToApp() → S.users[] → renderMembers() etc.
+     S.posts (app format) → appPostToDb() → Supabase row (for updates)
    ============================================================ */
 
 const SUPABASE_URL  = 'https://lsnpxneywkrirfkfszbo.supabase.co';
 const SUPABASE_KEY  = 'sb_publishable_wF4jFiIEuucuJXJJo8sn0Q_b2PRnh6-';
 const STORAGE_BUCKET = 'post-images';
 
-// ─── CLIENT ───────────────────────────────────────────────────
+// ─── CLIENT INIT ──────────────────────────────────────────────
+// _sb is the Supabase client instance. It's null until _initSb() runs.
+// The Supabase CDN <script> must load before db.js for this to work.
+// In index.html: supabase CDN is in <head> (no defer), then db.js at
+// the bottom of <body> with defer — by the time db.js executes, the
+// CDN has already run and window.supabase is defined.
 let _sb = null;
 function _initSb() {
-  if (_sb) return _sb;
+  if (_sb) return _sb; // already initialized
   try {
     if (typeof supabase !== 'undefined') {
       _sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -19,10 +59,12 @@ function _initSb() {
   } catch(e) { console.warn('Supabase init failed:', e); }
   return _sb;
 }
-// Initialize immediately (works if CDN is in <head>)
+// Try to init immediately — will succeed if CDN is loaded
 _initSb();
 
-// Helper: returns true if Supabase is available
+// _sbOk() — guard function used before every DB call.
+// Retries _initSb() in case the client wasn't ready on first attempt.
+// Returns true if _sb is initialized and safe to use.
 function _sbOk() { _initSb(); return !!_sb; }
 
 // ─── AUTH ─────────────────────────────────────────────────────
@@ -69,15 +111,24 @@ const DB = {
   },
 
   // ── Get current session ────────────────────────────────────
+  // Returns the logged-in user from the Supabase auth token,
+  // or null if not logged in.
+  //
+  // IMPORTANT: This does NOT make a secondary getProfile() round-trip.
+  // The username is read from user_metadata (set at registration time).
+  // Full profile data (bio, avatar, awards, etc.) loads later via
+  // getAllProfiles() which runs in the background after boot.
+  //
+  // This design means getSession() is fast (~200ms) and the session
+  // is never blocked waiting for the profiles table.
   async getSession() {
     if (!_sbOk()) return null;
     const { data } = await _sb.auth.getSession();
     if (!data?.session) return null;
-    // Return immediately from session metadata — don't wait for profile fetch
-    // Profile enrichment happens via getAllProfiles in background
+    // Read username from metadata — avoids a second DB round-trip
     const meta = data.session.user.user_metadata || {};
     const base = { ...data.session.user, username: meta.username || data.session.user.email?.split('@')[0] || 'User' };
-    // Non-blocking profile enrich — fires but doesn't block session return
+    // Enrich with profile data in the background — doesn't block return
     DB.getProfile(data.session.user.id).then(profile => {
       if (profile) Object.assign(base, profile);
     }).catch(() => {});
@@ -104,10 +155,19 @@ const DB = {
     return data;
   },
 
+  // getAllProfiles() — fetches ALL user profiles for the members page,
+  // avatar display, and search. Called in background ~10 min after last fetch.
+  //
+  // We deliberately select MINIMAL columns here (not select('*')) because:
+  //   - bio, awards, socials, location etc. are heavy and not needed for avatars
+  //   - With many users, select('*') can return a huge payload and slow down load
+  //   - Full profile data loads on demand via getProfile() when someone opens
+  //     a specific user's profile page
+  //
+  // Cache TTL: 10 minutes (checked in loadStorage via dl_profile_cache_ts).
+  // This means profiles aren't re-fetched on every page load, only when stale.
   async getAllProfiles() {
     if (!_sbOk()) return [];
-    // Only fetch fields needed for display — skip heavy fields like bio/awards/socials
-    // Full profile loads on demand when someone opens a profile page
     const { data, error } = await _sb
       .from('profiles')
       .select('id,username,avatar_url,is_featured,is_admin,joined_at,posts_count')
@@ -150,6 +210,18 @@ const DB = {
   },
 
   // ─── POSTS ─────────────────────────────────────────────────
+  // getPosts() is the primary feed query. Called from:
+  //   - startPrefetch() at script load (if cache is stale)
+  //   - loadStorage() via _prefetchPostsPromise
+  //   - Infinite scroll when user reaches the bottom of the feed
+  //
+  // If this returns 0 rows and you know posts exist in Supabase,
+  // the issue is almost certainly RLS (Row Level Security).
+  // The posts table must have a SELECT policy with USING (true)
+  // to allow anonymous reads. Run fix_rls.sql to fix this.
+  //
+  // The console.log on success is intentional — useful for diagnosing
+  // "No Builds Yet" issues in the browser console.
   async getPosts({ limit = 50, offset = 0, category = null } = {}) {
     if (!_sbOk()) { console.warn('DriveLog: Supabase not ready'); return []; }
     let q = _sb
@@ -198,6 +270,15 @@ const DB = {
     return _sb.from('posts').delete().eq('id', postId).eq('user_id', userId);
   },
 
+  // toggleLike() — add or remove a like on a post.
+  // voterId is the username (string), not the UUID.
+  // liked_by is stored as an array of usernames in Supabase.
+  // likes count is always derived from liked_by.length (never manually incremented)
+  // so it can't get out of sync.
+  //
+  // NOTE: app.js also updates S.posts[].likedBy optimistically BEFORE
+  // calling this function, so the UI updates instantly without waiting
+  // for the Supabase round-trip.
   async toggleLike(postId, voterId) {
     const { data: post } = await _sb.from('posts').select('liked_by, likes').eq('id', postId).single();
     if (!post) return;
@@ -206,7 +287,7 @@ const DB = {
     const newLikedBy = already ? liked.filter(v => v !== voterId) : [...liked, voterId];
     return _sb.from('posts').update({
       liked_by: newLikedBy,
-      likes: newLikedBy.length,
+      likes: newLikedBy.length,  // derived from array length — never drifts
     }).eq('id', postId);
   },
 
@@ -251,7 +332,14 @@ const DB = {
     return DB._uploadFile(STORAGE_BUCKET, path, file);
   },
 
-  // Upload avatar — goes to avatars bucket, overwrites previous
+  // uploadAvatar() — convert a base64 data URL to a File and upload
+  // to Supabase Storage avatars bucket at {userId}/avatar.jpg.
+  // The path is always the same so the URL is stable — no need to
+  // update every post/comment that references the avatar URL.
+  // After upload, also saves the URL to profiles.avatar_url.
+  //
+  // Takes base64 because the blur editor and crop tool produce data URLs.
+  // For File objects (direct uploads), use uploadImage() instead.
   async uploadAvatar(userId, base64DataUrl) {
     if (!_sbOk()) return { url: null };
     try {
@@ -289,16 +377,42 @@ const DB = {
     } catch(e) { return { error: e }; }
   },
 
-  // Upload a base64 data URL for post images
+  // Upload a base64 data URL for post images.
+  // IMPORTANT: never falls back to returning the raw base64 —
+  // storing base64 in the posts table makes every feed load
+  // download megabytes of image data (this caused 30s page loads).
+  // On failure, returns { error } and the caller must skip the file.
   async uploadBase64(userId, base64DataUrl, index) {
-    if (!_sbOk()) return { url: base64DataUrl };
-    const arr   = base64DataUrl.split(',');
-    const mime  = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
-    const bstr  = atob(arr[1]);
-    const bytes = new Uint8Array(bstr.length);
-    for (let i = 0; i < bstr.length; i++) bytes[i] = bstr.charCodeAt(i);
-    const file = new File([bytes], `img_${index}.jpg`, { type: mime });
-    return DB.uploadImage(userId, file);
+    if (!_sbOk()) return { error: { message: 'Not connected — image not uploaded.' } };
+    try {
+      const arr   = base64DataUrl.split(',');
+      const mime  = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+      const bstr  = atob(arr[1]);
+      const bytes = new Uint8Array(bstr.length);
+      for (let i = 0; i < bstr.length; i++) bytes[i] = bstr.charCodeAt(i);
+      const file = new File([bytes], `img_${index}.jpg`, { type: mime });
+      return DB.uploadImage(userId, file);
+    } catch(e) { return { error: e }; }
+  },
+
+  // Upload a video (base64 data URL) to Supabase Storage.
+  // Videos MUST go to Storage — never into the posts table.
+  // A single base64 video in a post row is ~9MB of text that every
+  // visitor downloads on every page load.
+  // On failure, returns { error } and the caller must skip the file.
+  async uploadVideo(userId, base64DataUrl, index) {
+    if (!_sbOk()) return { error: { message: 'Not connected — video not uploaded.' } };
+    try {
+      const arr   = base64DataUrl.split(',');
+      const mime  = arr[0].match(/:(.*?);/)?.[1] || 'video/mp4';
+      const ext   = (mime.split('/')[1] || 'mp4').replace('quicktime', 'mov');
+      const bstr  = atob(arr[1]);
+      const bytes = new Uint8Array(bstr.length);
+      for (let i = 0; i < bstr.length; i++) bytes[i] = bstr.charCodeAt(i);
+      const file = new File([bytes], `vid_${index}.${ext}`, { type: mime });
+      const path = `${userId}/videos/${Date.now()}_${index}.${ext}`;
+      return DB._uploadFile(STORAGE_BUCKET, path, file);
+    } catch(e) { return { error: e }; }
   },
 
   // ─── COMMENTS ──────────────────────────────────────────────
@@ -318,8 +432,17 @@ const DB = {
     return { data, error };
   },
 
-  // Bulk-fetch comment counts for many posts in ONE query (used by the feed
-  // so card previews can show real comment counts without N+1 queries)
+  // getCommentCounts() — bulk fetch comment counts for all posts in
+  // a single query. Called 2 seconds after the feed renders so it
+  // doesn't compete with the initial paint.
+  //
+  // WHY: If we fetched comment counts per-post that would be 60 separate
+  // queries for a 60-post feed (N+1 problem). Instead we do ONE query
+  // with .in('post_id', allIds) and count in the result.
+  //
+  // Uses Supabase's count aggregation (id.count()) which returns one
+  // row per post_id with the count. Falls back to manual counting if
+  // the aggregation syntax isn't supported by the Supabase version.
   async getCommentCounts(postIds) {
     if (!_sbOk() || !postIds?.length) return {};
     // Use Supabase's count aggregation — returns one row per post_id, not all comment rows
@@ -515,6 +638,13 @@ const DB = {
       .subscribe();
   },
 
+  // subscribeToMessages() — subscribe to new incoming messages in real-time.
+  // Only listens for INSERT events where to_user_id = current user.
+  // This means you only receive messages sent TO you, not your own outgoing ones.
+  //
+  // REQUIRES: Supabase Realtime must be enabled for the messages table.
+  // Dashboard → Database → Replication → toggle messages table ON.
+  // Without this, messages only appear on refresh.
   subscribeToMessages(userId, callback) {
     return _sb.channel(`messages:${userId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `to_user_id=eq.${userId}` }, callback)
@@ -547,10 +677,78 @@ const DB = {
     return data || [];
   },
 
+  // ─── SOCIAL POSTS (Car Spotting) ──────────────────────────
+  // Stored in social_posts table — separate from main build posts.
+  // Media URLs point to Supabase Storage (never store raw base64).
+  async getSocialPosts({ limit = 30, offset = 0 } = {}) {
+    if (!_sbOk()) return [];
+    const { data, error } = await _sb
+      .from('social_posts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (error) console.error('getSocialPosts error:', error.message);
+    return data || [];
+  },
+
+  async createSocialPost(userId, username, postData) {
+    if (!_sbOk()) return { error: { message: 'Not connected.' } };
+    const { data, error } = await _sb
+      .from('social_posts')
+      .insert({ user_id: userId, username, ...postData })
+      .select()
+      .single();
+    return { data, error };
+  },
+
+  async toggleSocialLike(postId, username) {
+    if (!_sbOk()) return;
+    const { data: post } = await _sb.from('social_posts').select('liked_by,likes').eq('id', postId).single();
+    if (!post) return;
+    const liked = post.liked_by || [];
+    const already = liked.includes(username);
+    const newLikedBy = already ? liked.filter(u => u !== username) : [...liked, username];
+    return _sb.from('social_posts').update({ liked_by: newLikedBy, likes: newLikedBy.length }).eq('id', postId);
+  },
+
+  async deleteSocialPost(postId, userId) {
+    if (!_sbOk()) return;
+    return _sb.from('social_posts').delete().eq('id', postId).eq('user_id', userId);
+  },
+
+  // Upload a Car Spotting image to post-images bucket
+  // On failure returns { error } — NEVER falls back to raw base64
+  // (base64 in the social_posts table would bloat every feed load).
+  async uploadSpottingImage(userId, base64DataUrl, index) {
+    if (!_sbOk()) return { error: { message: 'Not connected — image not uploaded.' } };
+    try {
+      const arr   = base64DataUrl.split(',');
+      const mime  = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+      const bstr  = atob(arr[1]);
+      const bytes = new Uint8Array(bstr.length);
+      for (let i = 0; i < bstr.length; i++) bytes[i] = bstr.charCodeAt(i);
+      const file = new File([bytes], `spot_${index}.jpg`, { type: mime });
+      const path = `spotting/${userId}/${Date.now()}_${index}.jpg`;
+      return DB._uploadFile('post-images', path, file);
+    } catch(e) { return { error: e }; }
+  },
+
 };
 
-// ─── DATA FORMAT HELPERS ───────────────────────────────────────
-// Convert Supabase row format → app's internal format
+// ─── DATA FORMAT CONVERTERS ───────────────────────────────────
+// These three functions are the translation layer between Supabase's
+// snake_case column names and the app's camelCase property names.
+//
+// dbPostToApp(row)    — Supabase posts row   → S.posts[] entry
+// dbUserToApp(row)    — Supabase profiles row → S.users[] entry
+// appPostToDb(post)   — S.posts[] entry      → Supabase posts row
+//
+// IMPORTANT: any time a new column is added to the Supabase posts or
+// profiles table, it must be mapped here or the app won't see it.
+//
+// dbPostToApp sets comments:[] and commentCount:0 because comment data
+// is loaded separately via getCommentCounts() to avoid a JOIN on the
+// main feed query (which would be significantly slower).
 function dbPostToApp(row) {
   if (!row) return null;
   return {
@@ -589,6 +787,12 @@ function dbPostToApp(row) {
   };
 }
 
+// dbUserToApp — converts a Supabase profiles row to the app user format.
+// Note: getAllProfiles() only fetches a subset of columns (for speed),
+// so some fields here (bio, location, instagram, etc.) will be empty
+// strings when the user came from getAllProfiles. They're populated
+// fully when getProfile(userId) or getProfileByUsername() is called,
+// which selects all columns.
 function dbUserToApp(row) {
   if (!row) return null;
   return {
@@ -638,10 +842,22 @@ function appPostToDb(post) {
     saved_by:     post.savedBy     || [],
     reactions:    post.reactions   || {},
   
-  // ─── BOTM VOTING ───────────────────────────────────────────
+  // ─── BUILD OF THE MONTH VOTING ────────────────────────────
+  // BOTM votes use a voteKey like "botm_2025_05" (year_month format)
+  // so votes automatically reset each calendar month without any
+  // cron job or cleanup needed.
+  //
+  // The botm_votes table has a unique constraint on (user_id, vote_key)
+  // so upsert replaces an existing vote for the same month — meaning
+  // a user CAN change their vote within the month.
+  // To check if a user has voted this month, app.js checks for a row
+  // with the current voteKey and the user's id.
+  //
+  // Supabase table needed: botm_votes (user_id, vote_key, post_id, created_at)
+  // RLS: SELECT public, INSERT for authenticated users only.
   async castBotmVote(postId, userId, voteKey) {
     if (!_sbOk()) return { error: 'not connected' };
-    // Upsert — one row per user per month (voteKey = "botm_2025_05")
+    // Upsert replaces an existing vote for this user+month
     const { data, error } = await _sb
       .from('botm_votes')
       .upsert({ user_id: userId, vote_key: voteKey, post_id: postId, created_at: new Date().toISOString() },
@@ -658,10 +874,17 @@ function appPostToDb(post) {
     return data || [];
   },
 
-  // ─── FULL TEXT SEARCH ──────────────────────────────────────
+  // ─── FULL TEXT SEARCH ─────────────────────────────────────
+  // searchPostsFTS() tries Supabase's native full-text search (websearch mode)
+  // which supports quoted phrases, AND/OR operators, and stemming.
+  // If FTS returns no results (e.g. FTS index not set up on the table),
+  // falls back to ILIKE pattern matching on title and description.
+  //
+  // To set up FTS in Supabase: add a tsvector column or use the
+  // textSearch() method which Supabase handles server-side.
+  // For now the ILIKE fallback is reliable enough for a small community.
   async searchPostsFTS(query, limit = 30) {
     if (!_sbOk() || !query?.trim()) return [];
-    // Try Supabase full-text search first
     const { data, error } = await _sb
       .from('posts')
       .select('*')
