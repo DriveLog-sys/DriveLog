@@ -138,7 +138,7 @@
     /* Toast */
     .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--raised);border:1px solid var(--mid);border-radius:30px;padding:9px 22px;font-family:var(--cond);font-size:.86rem;font-weight:700;color:var(--text);z-index:9999;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap}
     .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-    .toast.ok{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.1);color:#4ade80}
+    .toast.ok{border-color:#16a34a;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;box-shadow:0 4px 16px rgba(34,197,94,.35)}
     .toast.err{border-color:rgba(232,57,42,.4);background:var(--accent-soft);color:var(--accent)}
 
     /* Avatar preview — small circle */
@@ -310,7 +310,8 @@
         </div>
         <div class="s-field">
           <label class="s-label">Bio</label>
-          <textarea class="s-input" id="fBio" placeholder="Tell the community about yourself and your builds…"></textarea>
+          <textarea class="s-input" id="fBio" maxlength="150" placeholder="Tell the community about yourself and your builds…"></textarea>
+          <div id="bioCharCount" style="text-align:right;font-size:.78rem;color:var(--muted);margin-top:4px">0 / 150</div>
         </div>
         <button class="btn-save" id="saveProfile"><i class="fas fa-save"></i> Save Profile</button>
       </div>
@@ -539,7 +540,7 @@
 
   /* ── AV COLORS ── */
   const AV_SWATCHES = ['#e8392a','#3b82f6','#a855f7','#22c55e','#f59e0b','#14b8a6','#ec4899','#6366f1','#f0a030','#10b981'];
-  let currentAvColor = prefs.avColor || '#e8392a';
+  let currentAvColor = prefs.avColor || '#3b82f6';
   const avPreview = document.getElementById('avPreview');
   const avColorsEl = document.getElementById('avColors');
   const user = getUser();
@@ -586,7 +587,7 @@
   /* ── Load prefs into appearance ── */
   const accentColors = ['#e8392a','#3b82f6','#a855f7','#f0a030','#22c55e','#14b8a6','#ec4899','#f59e0b'];
   const accentSwatches = document.getElementById('accentSwatches');
-  let currentAccent = prefs.accent || '#e8392a';
+  let currentAccent = prefs.accent || '#3b82f6'; // site's real default accent — was wrongly '#e8392a' (red), which got silently saved as your permanent accent on any settings save
   accentSwatches.innerHTML = accentColors.map(c =>
     `<div class="accent-sw${c === currentAccent ? ' selected' : ''}" data-c="${c}" style="background:${c}"></div>`
   ).join('');
@@ -639,7 +640,7 @@
   /* ── Save handlers ── */
   document.getElementById('saveProfile').addEventListener('click', () => {
     const u = getUser(); if (!u) { toast('Not signed in', 'err'); return; }
-    u.bio      = document.getElementById('fBio').value.trim();
+    u.bio      = document.getElementById('fBio').value.trim().slice(0, 150);
     u.location = document.getElementById('fLocation').value.trim();
     saveUser(u);
     const users = getUsers();
@@ -721,8 +722,8 @@
     const u = getUser();
     const data = {
       user: u,
-      posts: JSON.parse(localStorage.getItem('dl_posts') || '[]'),
-      following: JSON.parse(localStorage.getItem('dl_following') || '[]'),
+      posts: JSON.parse(localStorage.getItem('dl_posts_cache') || '[]').filter(p => p.user === u?.username),
+      following: u ? JSON.parse(localStorage.getItem('dl_following_'+u.username) || '[]') : [],
       prefs: getPrefs(),
       exported: new Date().toISOString(),
     };
@@ -749,9 +750,10 @@
       if (prompt('Type your username to confirm:') === u.username) {
         localStorage.removeItem('dl_user');
         localStorage.removeItem('dl_user_cache');
-        localStorage.removeItem('dl_following');
-        const posts = JSON.parse(localStorage.getItem('dl_posts') || '[]').filter(p => p.user !== u.username);
-        localStorage.setItem('dl_posts', JSON.stringify(posts));
+        localStorage.removeItem('dl_avatar_url');
+        localStorage.removeItem('dl_following_'+u.username);
+        const posts = JSON.parse(localStorage.getItem('dl_posts_cache') || '[]').filter(p => p.user !== u.username);
+        localStorage.setItem('dl_posts_cache', JSON.stringify(posts));
         toast('Account deleted', '');
         setTimeout(() => window.location.href = 'index.html', 1200);
       } else {
@@ -806,7 +808,7 @@
   function autoSaveAll() {
     const u = getUser(); if (!u) return;
     // Save profile fields
-    u.bio      = (document.getElementById('fBio')?.value || '').trim();
+    u.bio      = (document.getElementById('fBio')?.value || '').trim().slice(0, 150);
     u.location = (document.getElementById('fLocation')?.value || '').trim();
     u.instagram = (document.getElementById('fInstagram')?.value || '').trim();
     u.tiktok    = (document.getElementById('fTikTok')?.value || '').trim();
@@ -1038,23 +1040,20 @@
     });
   }
 
-  // Bio word count
+  // Bio character count (150 char limit — maxlength on the textarea already
+  // blocks typing/pasting past this, this is just the live counter)
+  const BIO_CHAR_LIMIT = 150;
   const bioEl = document.getElementById('fBio');
-  const bioCount = document.getElementById('bioWordCount');
+  const bioCount = document.getElementById('bioCharCount');
   function updateBioCount() {
     if (!bioEl || !bioCount) return;
-    const words = bioEl.value.trim().split(/\s+/).filter(Boolean).length;
-    bioCount.textContent = words + ' / 50 words';
-    bioCount.style.color = words > 50 ? '#e84242' : 'var(--muted)';
+    const len = bioEl.value.length;
+    bioCount.textContent = len + ' / ' + BIO_CHAR_LIMIT;
+    bioCount.style.color = len >= BIO_CHAR_LIMIT ? '#e84242' : 'var(--muted)';
   }
   if (bioEl) {
     bioEl.addEventListener('input', updateBioCount);
-    // Trim on save
-    bioEl.addEventListener('blur', () => {
-      const words = bioEl.value.trim().split(/\s+/);
-      if (words.length > 50) bioEl.value = words.slice(0,50).join(' ');
-      updateBioCount();
-    });
+    updateBioCount(); // show correct count for an existing bio on page load
   }
 
   document.getElementById('enableUsernameEdit').addEventListener('click', () => {

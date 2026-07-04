@@ -421,11 +421,15 @@ async function loadStorage() {
           localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
           localStorage.setItem('dl_user', JSON.stringify(S.user));
         } else {
-          // Refresh failed — genuinely logged out
-          S.user = null;
-          localStorage.removeItem('dl_user_cache');
-          localStorage.removeItem('dl_user');
-          localStorage.removeItem('dl_avatar_url');
+          // Refresh came back with no session. This used to be treated as
+          // definitive proof of logout and wiped everything — but that's
+          // also exactly what a fast reload / timing race looks like (e.g.
+          // right after returning from settings.html), which was silently
+          // signing people out. A real, explicit sign-out already clears
+          // storage directly via logout() — so here we just keep showing
+          // the cached user and try again next load, instead of nuking a
+          // possibly-still-valid session on an ambiguous signal.
+          S.user = cachedUser;
         }
       } catch(_) {
         // Network error during refresh — keep cached user, try again next load
@@ -2964,6 +2968,7 @@ function handleNotifLink(link) {
 function isFollowing(u){return S.following.includes(u);}
 function toggleFollow(username) {
   if(!S.user){toast('Sign in to follow members','err'); el('authModal').classList.add('open'); return;}
+  if(username===S.user.username){return;} // can't follow yourself, regardless of how this got triggered
   const idx=S.following.indexOf(username);
   const isNowFollowing = idx < 0;
   if(idx>=0){
@@ -4453,6 +4458,23 @@ function updateProfilePage() {
   const ownDmBtn   = el('profileDmBtn');
   if (ownEditBtn) ownEditBtn.style.display = 'inline-flex';
   if (ownDmBtn)   ownDmBtn.style.display = 'none';
+  // Share button — this render path (own profile via normal nav) never
+  // wired this up before, which is why clicking it did nothing.
+  const ownShareBtn = el('profileShareBtn');
+  if (ownShareBtn) {
+    ownShareBtn.style.display = 'inline-flex';
+    ownShareBtn.onclick = () => {
+      const profileUrl = `${window.location.origin}${window.location.pathname}?user=${encodeURIComponent(u.username)}`;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(profileUrl).then(() => toast('Profile link copied! 🔗','ok'));
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = profileUrl; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+        toast('Profile link copied! 🔗','ok');
+      }
+    };
+  }
   const grid=el('profileGrid');
   if(posts.length){el('noBuilds').style.display='none';grid.innerHTML=posts.map((p,i)=>cardHTML(p,i)).join('');attachCardEvents(grid);}
   else{grid.innerHTML='';el('noBuilds').style.display='block';}
@@ -7354,11 +7376,11 @@ function renderTrendingTags() {
 }
 
 // ─── BIO WORD LIMIT ────────────────────────────────────────────
-function truncateBio(bio, wordLimit=50) {
+function truncateBio(bio, charLimit=150) {
   if (!bio) return '';
-  const words=bio.trim().split(/\s+/);
-  if (words.length<=wordLimit) return bio;
-  return words.slice(0,wordLimit).join(' ')+'…';
+  const trimmed = bio.trim();
+  if (trimmed.length<=charLimit) return trimmed;
+  return trimmed.slice(0,charLimit).trim()+'…';
 }
 
 // ═══════════════════════════════════════════════════════════════
