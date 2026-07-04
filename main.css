@@ -1943,7 +1943,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 /* ═══ Discover grid — two posts side by side, 4:5 ═══ */
 .social-discover-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .social-grid-card{
-  position:relative;aspect-ratio:4/5;border-radius:var(--r-md);
+  position:relative;aspect-ratio:9/16;border-radius:var(--r-md);
   overflow:hidden;cursor:pointer;background:var(--raised);
 }
 .social-grid-card img,.social-grid-card video{
@@ -3839,10 +3839,18 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
 
 /* ─── SOCIAL — MOBILE ─────────────────────────────────────────── */
 @media(max-width:768px){
-  .social-discover-wrap{padding:12px}
+  .social-discover-wrap{padding:12px 12px 90px}
   .social-discover-grid{gap:6px}
   .social-feed-header{flex-wrap:wrap;gap:8px}
   .social-feed-title{font-size:1.1rem}
+  .story-bar{gap:12px;-webkit-overflow-scrolling:touch}
+  .story-bubble{width:60px}
+  .story-bubble-ring{width:56px;height:56px}
+  .story-bubble-name{max-width:60px;font-size:.68rem}
+  .social-tags-strip{margin-bottom:12px}
+  .social-feed-tabs{width:100%;justify-content:space-between}
+  .soc-tab{flex:1;text-align:center;padding:5px 8px}
+  .social-detail-box{max-width:100%}
 }
 
 /* ─── PROFILE — MOBILE ────────────────────────────────────────── */
