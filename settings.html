@@ -11,7 +11,6 @@
       if (p.theme === 'dark' || (p.theme === 'auto' && window.matchMedia('(prefers-color-scheme:dark)').matches)) {
         document.documentElement.classList.add('dark-pending');
       }
-      if (p.accent) document.documentElement.style.setProperty('--accent', p.accent);
     } catch(e) {}
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -94,13 +93,14 @@
     .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
 
     /* Avatar picker */
-    .av-preview{width:74px;height:74px;border-radius:50%;font-family:var(--disp);font-size:1.9rem;display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:16px;transition:background .3s}
-    .av-colors{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
-    .av-swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all var(--tr)}
-    .av-swatch.selected{border-color:#fff;transform:scale(1.15)}
 
     /* Toggle switch */
     .toggle-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--subtle)}
+    .blocked-user-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--subtle)}
+    .blocked-user-row:last-child{border-bottom:none}
+    .blocked-user-av{width:36px;height:36px;border-radius:50%;background:#6b7280;color:#d1d5db;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0}
+    .blocked-user-name{flex:1;font-weight:600;color:var(--text)}
+    .blocked-users-empty{color:var(--muted);font-size:.85rem;padding:8px 0}
     .toggle-row:last-child{border-bottom:none}
     .toggle-label{font-size:.88rem;color:var(--sec)}
     .toggle-label strong{color:var(--text);display:block;font-size:.9rem}
@@ -112,9 +112,6 @@
     .toggle input:checked+.toggle-track::after{transform:translateX(18px)}
 
     /* Accent colors */
-    .accent-swatches{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
-    .accent-sw{width:32px;height:32px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all var(--tr)}
-    .accent-sw.selected{border-color:#fff;transform:scale(1.18)}
 
     /* Theme options */
     .theme-opts{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px}
@@ -140,6 +137,13 @@
     .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
     .toast.ok{border-color:#16a34a;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;box-shadow:0 4px 16px rgba(34,197,94,.35)}
     .toast.err{border-color:rgba(232,57,42,.4);background:var(--accent-soft);color:var(--accent)}
+
+    /* Avatar upload row layout — was previously undefined entirely,
+       which is why the photo and Change Photo button sat cramped together */
+    .avatar-upload-row{display:flex;align-items:flex-start;gap:20px}
+    .avatar-upload-actions{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+    .avatar-upload-note{font-size:.76rem;color:var(--muted);margin:0}
+    .avatar-upload-warn{font-size:.76rem;color:var(--accent);margin:0;display:flex;align-items:center;gap:5px}
 
     /* Avatar preview — small circle */
     .avatar-upload-preview{
@@ -224,6 +228,7 @@
     <div class="s-nav-item" data-sec="notifications"><i class="fas fa-bell"></i> Notifications</div>
     <div class="s-nav-divider"></div>
     <div class="s-nav-item" data-sec="privacy"><i class="fas fa-shield-alt"></i> Privacy</div>
+    <div class="s-nav-item" data-sec="security"><i class="fas fa-lock"></i> Security</div>
     <div class="s-nav-item" data-sec="account"><i class="fas fa-cog"></i> Account</div>
   </nav>
 
@@ -282,9 +287,6 @@
             </div>
           </div>
         </div>
-        <div class="av-preview" id="avPreview"></div>
-        <div class="s-label">Avatar Color (used as fallback)</div>
-        <div class="av-colors" id="avColors"></div>
 
         <div class="s-field">
           <label class="s-label">Username</label>
@@ -352,13 +354,6 @@
           <div class="theme-opt selected" data-theme="light"><i class="fas fa-sun"></i> Light</div>
           <div class="theme-opt" data-theme="auto"><i class="fas fa-circle-half-stroke"></i> Auto</div>
         </div>
-      </div>
-
-      <div class="s-divider"></div>
-
-      <div class="s-field">
-        <label class="s-label">Accent Color</label>
-        <div class="accent-swatches" id="accentSwatches"></div>
       </div>
 
       <div class="s-divider"></div>
@@ -439,6 +434,53 @@
       <div style="margin-top:20px">
         <button class="btn-save" id="savePrivacy"><i class="fas fa-shield-alt"></i> Save Privacy Settings</button>
       </div>
+
+      <div class="s-divider"></div>
+
+      <div class="s-field">
+        <label class="s-label">Blocked Users</label>
+        <div class="s-section-sub" style="margin-bottom:12px">Blocked users can't message you, and you won't see their posts or profile.</div>
+        <div id="blockedUsersList"></div>
+      </div>
+    </div>
+
+    <!-- SECURITY -->
+    <div class="s-section" id="sec-security">
+      <div class="s-section-title">Security</div>
+      <div class="s-section-sub">Add an extra layer of protection to your account</div>
+
+      <div id="mfaStatusLoading" class="s-section-sub">Checking your two-factor status…</div>
+
+      <div id="mfaNotEnrolled" style="display:none">
+        <div class="toggle-row" style="border-bottom:none">
+          <div class="toggle-label"><strong>Two-Factor Authentication</strong>Not enabled — require a code from an authenticator app when signing in</div>
+        </div>
+        <button class="btn-save" id="mfaEnableBtn"><i class="fas fa-shield-alt"></i> Enable 2FA</button>
+      </div>
+
+      <div id="mfaEnrollFlow" style="display:none">
+        <p class="s-section-sub" style="margin-bottom:10px">Scan this QR code with an authenticator app (Google Authenticator, Authy, 1Password, etc.), then enter the 6-digit code it shows.</p>
+        <div id="mfaQrWrap" style="display:flex;justify-content:center;margin-bottom:14px"></div>
+        <div class="s-field">
+          <label class="s-label">Can't scan? Enter this code manually</label>
+          <input class="s-input" id="mfaManualSecret" readonly style="font-family:monospace;font-size:.8rem"/>
+        </div>
+        <div class="s-field">
+          <label class="s-label">Verification Code</label>
+          <input class="s-input" id="mfaEnrollCodeInput" inputmode="numeric" maxlength="6" placeholder="123456" style="text-align:center;letter-spacing:4px;font-size:1.2rem"/>
+        </div>
+        <div class="btn-row">
+          <button class="btn-save" id="mfaConfirmEnrollBtn"><i class="fas fa-check"></i> Confirm & Enable</button>
+          <button class="btn-ghost-s" id="mfaCancelEnrollBtn">Cancel</button>
+        </div>
+      </div>
+
+      <div id="mfaEnrolled" style="display:none">
+        <div class="toggle-row" style="border-bottom:none">
+          <div class="toggle-label"><strong><i class="fas fa-check-circle" style="color:#22c55e"></i> Two-Factor Authentication Enabled</strong>Your account requires a code from your authenticator app at sign-in</div>
+        </div>
+        <button class="btn-danger" id="mfaDisableBtn"><i class="fas fa-times"></i> Disable 2FA</button>
+      </div>
     </div>
 
     <!-- ACCOUNT -->
@@ -451,6 +493,17 @@
         <div class="acct-info-row"><span>Member Since</span><span id="acctJoined">—</span></div>
         <div class="acct-info-row"><span>Total Builds</span><span id="acctBuilds">—</span></div>
       </div>
+
+      <div class="s-field">
+        <label class="s-label">Email Address</label>
+        <input class="s-input" type="email" id="fNewEmail" placeholder="you@example.com" style="margin-bottom:10px"/>
+        <p class="avatar-upload-note" id="emailChangeHint" style="margin-bottom:10px">Changing your email requires confirming the new address before it takes effect.</p>
+      </div>
+      <div class="btn-row">
+        <button class="btn-save" id="saveEmail"><i class="fas fa-envelope"></i> Update Email</button>
+      </div>
+
+      <div class="s-divider"></div>
 
       <div class="s-field">
         <label class="s-label">Change Password</label>
@@ -466,6 +519,7 @@
 
       <div class="btn-row">
         <button class="btn-ghost-s" id="exportData"><i class="fas fa-download"></i> Export My Data</button>
+        <button class="btn-ghost-s" id="signOutDevice"><i class="fas fa-sign-out-alt"></i> Sign Out This Device</button>
         <button class="btn-ghost-s" id="signOutAll"><i class="fas fa-sign-out-alt"></i> Sign Out Everywhere</button>
       </div>
 
@@ -512,11 +566,9 @@
     document.body.classList.add('dark');
   }
   document.documentElement.classList.remove('dark-pending');
-  if (prefs.accent) {
-    document.documentElement.style.setProperty('--accent', prefs.accent);
-    document.documentElement.style.setProperty('--accent-soft', prefs.accent + '15');
-    document.documentElement.style.setProperty('--accent-glow', prefs.accent + '30');
-  }
+  // Accent color is fixed sitewide (blue) and no longer user-customizable —
+  // intentionally not reading/applying prefs.accent here, including any
+  // legacy value saved before this was locked down.
   if (prefs.fontSize) document.documentElement.style.fontSize = prefs.fontSize + 'px';
 
   /* ── Toast ── */
@@ -538,31 +590,11 @@
     });
   });
 
-  /* ── AV COLORS ── */
-  const AV_SWATCHES = ['#e8392a','#3b82f6','#a855f7','#22c55e','#f59e0b','#14b8a6','#ec4899','#6366f1','#f0a030','#10b981'];
-  let currentAvColor = prefs.avColor || '#3b82f6';
-  const avPreview = document.getElementById('avPreview');
-  const avColorsEl = document.getElementById('avColors');
+  // Fallback avatar color used to be user-customizable via a swatch picker
+  // here — removed. Fallback avatars are now always the same neutral
+  // gray/white design used everywhere else on the site, with no per-user
+  // color choice.
   const user = getUser();
-
-  function setAvPreview() {
-    const u = getUser();
-    if (u) { avPreview.textContent = u.username[0].toUpperCase(); }
-    avPreview.style.background = currentAvColor;
-  }
-
-  if (avColorsEl) {
-    avColorsEl.innerHTML = AV_SWATCHES.map(c =>
-      `<div class="av-swatch${c === currentAvColor ? ' selected' : ''}" data-c="${c}" style="background:${c}"></div>`
-    ).join('');
-    avColorsEl.querySelectorAll('.av-swatch').forEach(sw => sw.addEventListener('click', () => {
-      avColorsEl.querySelectorAll('.av-swatch').forEach(x => x.classList.remove('selected'));
-      sw.classList.add('selected');
-      currentAvColor = sw.dataset.c;
-      setAvPreview();
-    }));
-  }
-  setAvPreview();
 
   /* ── Load user into profile form ── */
   if (user) {
@@ -579,26 +611,61 @@
     const posts = JSON.parse(localStorage.getItem('dl_posts_cache') || localStorage.getItem('dl_posts') || '[]');
     const myPosts = posts.filter(p => p.user === user.username).length;
     document.getElementById('acctBuilds').textContent = myPosts;
+    renderBlockedUsersList();
+    (async () => {
+      const sb = getSettingsSb();
+      if (!sb) return;
+      const { data } = await sb.auth.getUser();
+      const emailInput = document.getElementById('fNewEmail');
+      if (emailInput && data?.user?.email) emailInput.value = data.user.email;
+    })();
+    initMfaSection();
   } else {
     document.getElementById('notSignedIn').style.display = 'block';
     document.getElementById('profileForm').style.display = 'none';
   }
 
+  // Requires blocked_users_migration.sql to have been run.
+  async function renderBlockedUsersList() {
+    const container = document.getElementById('blockedUsersList');
+    if (!container) return;
+    const u = getUser(); if (!u?.id) return;
+    const sb = getSettingsSb();
+    if (!sb) { container.innerHTML = '<p class="blocked-users-empty">Unable to connect right now.</p>'; return; }
+    container.innerHTML = '<p class="blocked-users-empty">Loading…</p>';
+    const { data, error } = await sb.from('blocked_users')
+      .select('blocked_id, profiles!blocked_id(username)')
+      .eq('blocker_id', u.id);
+    if (error) {
+      container.innerHTML = '<p class="blocked-users-empty">Couldn\'t load blocked users — has blocked_users_migration.sql been run yet?</p>';
+      return;
+    }
+    const blocked = (data || []).map(b => ({ id: b.blocked_id, username: b.profiles?.username })).filter(b => b.username);
+    if (!blocked.length) {
+      container.innerHTML = '<p class="blocked-users-empty">You haven\'t blocked anyone.</p>';
+      return;
+    }
+    container.innerHTML = blocked.map(b => `
+      <div class="blocked-user-row" data-id="${b.id}">
+        <div class="blocked-user-av">${b.username[0].toUpperCase()}</div>
+        <div class="blocked-user-name">${b.username}</div>
+        <button class="btn-ghost-s" data-unblock="${b.id}">Unblock</button>
+      </div>`).join('');
+    container.querySelectorAll('[data-unblock]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true; btn.textContent = 'Unblocking…';
+        const { error: unblockErr } = await sb.from('blocked_users').delete()
+          .eq('blocker_id', u.id).eq('blocked_id', btn.dataset.unblock);
+        if (unblockErr) { toast('Failed to unblock — try again', 'err'); btn.disabled = false; btn.textContent = 'Unblock'; return; }
+        toast('Unblocked', 'ok');
+        renderBlockedUsersList();
+      });
+    });
+  }
+
   /* ── Load prefs into appearance ── */
-  const accentColors = ['#e8392a','#3b82f6','#a855f7','#f0a030','#22c55e','#14b8a6','#ec4899','#f59e0b'];
-  const accentSwatches = document.getElementById('accentSwatches');
-  let currentAccent = prefs.accent || '#3b82f6'; // site's real default accent — was wrongly '#e8392a' (red), which got silently saved as your permanent accent on any settings save
-  accentSwatches.innerHTML = accentColors.map(c =>
-    `<div class="accent-sw${c === currentAccent ? ' selected' : ''}" data-c="${c}" style="background:${c}"></div>`
-  ).join('');
-  accentSwatches.querySelectorAll('.accent-sw').forEach(sw => sw.addEventListener('click', () => {
-    accentSwatches.querySelectorAll('.accent-sw').forEach(x => x.classList.remove('selected'));
-    sw.classList.add('selected');
-    currentAccent = sw.dataset.c;
-    document.documentElement.style.setProperty('--accent', currentAccent);
-    document.documentElement.style.setProperty('--accent-soft', currentAccent + '15');
-    document.documentElement.style.setProperty('--accent-glow', currentAccent + '30');
-  }));
+  // Accent color is fixed sitewide (blue) — no longer a user preference,
+  // so there's nothing to load, render swatches for, or wire up here.
 
   // Theme
   const currentTheme = prefs.theme || 'dark';
@@ -630,12 +697,12 @@
     const el = document.getElementById(id);
     if (el && np[key] !== undefined) el.checked = np[key];
   });
-  const pp = prefs.privacy || {};
-  ['pPublic','pLeaderboard','pSocials','pFollowing','pLiked'].forEach(id => {
-    const key = id.slice(1).toLowerCase();
-    const el = document.getElementById(id);
-    if (el && pp[key] !== undefined) el.checked = pp[key];
-  });
+  const pp = user || {};
+  document.getElementById('pPublic').checked      = pp.privacyPublic      !== false;
+  document.getElementById('pLeaderboard').checked = pp.privacyLeaderboard !== false;
+  document.getElementById('pSocials').checked     = pp.privacySocials     !== false;
+  document.getElementById('pFollowing').checked   = pp.privacyFollowing   === true;
+  document.getElementById('pLiked').checked       = pp.privacyLiked       === true;
 
   /* ── Save handlers ── */
   document.getElementById('saveProfile').addEventListener('click', () => {
@@ -646,7 +713,6 @@
     const users = getUsers();
     const idx = users.findIndex(x => x.username === u.username);
     if (idx >= 0) { users[idx] = { ...users[idx], ...u }; saveUsers(users); }
-    const p = getPrefs(); p.avColor = currentAvColor; savePrefs(p);
     // Push to Supabase if available
     pushProfileToSupabase(u);
     toast('Profile saved ✓', 'ok');
@@ -670,12 +736,9 @@
     const selectedTheme = document.querySelector('.theme-opt.selected')?.dataset.theme || 'dark';
     const p = getPrefs();
     p.theme = selectedTheme;
-    p.accent = currentAccent;
-    p.avColor = currentAvColor;
     p.fontSize = +slider.value;
     savePrefs(p);
     // Apply immediately in settings page too
-    document.documentElement.style.setProperty('--accent', currentAccent);
     if (selectedTheme === 'dark') document.body.classList.add('dark');
     else document.body.classList.remove('dark');
     toast('Appearance saved ✓', 'ok');
@@ -695,27 +758,165 @@
   });
 
   document.getElementById('savePrivacy').addEventListener('click', () => {
-    const p = getPrefs();
-    p.privacy = {
-      public: document.getElementById('pPublic').checked,
-      leaderboard: document.getElementById('pLeaderboard').checked,
-      socials: document.getElementById('pSocials').checked,
-      following: document.getElementById('pFollowing').checked,
-      liked: document.getElementById('pLiked').checked,
-    };
-    savePrefs(p); toast('Privacy settings saved ✓', 'ok');
+    const u = getUser(); if (!u) { toast('Not signed in', 'err'); return; }
+    u.privacyPublic      = document.getElementById('pPublic').checked;
+    u.privacyLeaderboard = document.getElementById('pLeaderboard').checked;
+    u.privacySocials     = document.getElementById('pSocials').checked;
+    u.privacyFollowing   = document.getElementById('pFollowing').checked;
+    u.privacyLiked       = document.getElementById('pLiked').checked;
+    saveUser(u);
+    const users = getUsers();
+    const idx = users.findIndex(x => x.username === u.username);
+    if (idx >= 0) { users[idx] = { ...users[idx], ...u }; saveUsers(users); }
+    pushPrivacyToSupabase(u);
+    toast('Privacy settings saved ✓', 'ok');
   });
 
-  document.getElementById('savePassword').addEventListener('click', () => {
+  // Requires blocked_users_migration.sql NOT required — 2FA uses Supabase's
+  // built-in auth.mfa API directly, no schema changes needed.
+  let _pendingMfaFactorId = null;
+  async function initMfaSection() {
+    const sb = getSettingsSb();
+    const loadingEl = document.getElementById('mfaStatusLoading');
+    const notEnrolledEl = document.getElementById('mfaNotEnrolled');
+    const enrolledEl = document.getElementById('mfaEnrolled');
+    if (!sb) { loadingEl.textContent = 'Unable to connect right now.'; return; }
+    const { data, error } = await sb.auth.mfa.listFactors();
+    loadingEl.style.display = 'none';
+    if (error) { loadingEl.style.display = ''; loadingEl.textContent = 'Unable to check 2FA status right now.'; return; }
+    const verified = (data?.totp || []).find(f => f.status === 'verified');
+    if (verified) {
+      enrolledEl.style.display = '';
+      notEnrolledEl.style.display = 'none';
+      document.getElementById('mfaDisableBtn').onclick = async () => {
+        if (!confirm('Disable two-factor authentication? Your account will only require a password to sign in.')) return;
+        const btn = document.getElementById('mfaDisableBtn');
+        btn.disabled = true; btn.textContent = 'Disabling…';
+        const { error: unenrollErr } = await sb.auth.mfa.unenroll({ factorId: verified.id });
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-times"></i> Disable 2FA';
+        if (unenrollErr) { toast('Failed to disable 2FA — try again', 'err'); return; }
+        toast('Two-factor authentication disabled', 'ok');
+        initMfaSection();
+      };
+    } else {
+      enrolledEl.style.display = 'none';
+      notEnrolledEl.style.display = '';
+    }
+  }
+
+  document.getElementById('mfaEnableBtn')?.addEventListener('click', async () => {
+    const sb = getSettingsSb();
+    if (!sb) { toast('Unable to connect — try again', 'err'); return; }
+    const btn = document.getElementById('mfaEnableBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Setting up…';
+    const { data, error } = await sb.auth.mfa.enroll({ factorType: 'totp' });
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-shield-alt"></i> Enable 2FA';
+    if (error) { toast(error.message || 'Failed to start 2FA setup', 'err'); return; }
+    _pendingMfaFactorId = data.id;
+    document.getElementById('mfaQrWrap').innerHTML = data.totp.qr_code;
+    document.getElementById('mfaManualSecret').value = data.totp.secret;
+    document.getElementById('mfaEnrollCodeInput').value = '';
+    document.getElementById('mfaNotEnrolled').style.display = 'none';
+    document.getElementById('mfaEnrollFlow').style.display = '';
+  });
+
+  document.getElementById('mfaCancelEnrollBtn')?.addEventListener('click', async () => {
+    const sb = getSettingsSb();
+    if (sb && _pendingMfaFactorId) {
+      try { await sb.auth.mfa.unenroll({ factorId: _pendingMfaFactorId }); } catch(e) {}
+    }
+    _pendingMfaFactorId = null;
+    document.getElementById('mfaEnrollFlow').style.display = 'none';
+    document.getElementById('mfaNotEnrolled').style.display = '';
+  });
+
+  document.getElementById('mfaConfirmEnrollBtn')?.addEventListener('click', async () => {
+    const code = document.getElementById('mfaEnrollCodeInput').value.trim();
+    if (!/^\d{6}$/.test(code)) { toast('Enter the 6-digit code from your app', 'err'); return; }
+    const sb = getSettingsSb();
+    if (!sb || !_pendingMfaFactorId) { toast('Something went wrong — try again', 'err'); return; }
+    const btn = document.getElementById('mfaConfirmEnrollBtn');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying…';
+    try {
+      const { data: challenge, error: challengeErr } = await sb.auth.mfa.challenge({ factorId: _pendingMfaFactorId });
+      if (challengeErr) { toast(challengeErr.message || 'Verification failed', 'err'); return; }
+      const { error: verifyErr } = await sb.auth.mfa.verify({ factorId: _pendingMfaFactorId, challengeId: challenge.id, code });
+      if (verifyErr) { toast('Incorrect code — try again', 'err'); return; }
+      toast('Two-factor authentication enabled ✓', 'ok');
+      document.getElementById('mfaEnrollFlow').style.display = 'none';
+      _pendingMfaFactorId = null;
+      initMfaSection();
+    } finally {
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Confirm & Enable';
+    }
+  });
+
+  document.getElementById('saveEmail').addEventListener('click', async () => {
+    const newEmail = document.getElementById('fNewEmail').value.trim();
+    if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(newEmail)) {
+      toast('Enter a valid email address', 'err'); return;
+    }
+    const sb = getSettingsSb();
+    if (!sb) { toast('Unable to connect — try again', 'err'); return; }
+    const btn = document.getElementById('saveEmail');
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating…';
+    try {
+      const { error } = await sb.auth.updateUser({ email: newEmail });
+      if (error) { toast(error.message || 'Failed to update email', 'err'); return; }
+      toast('Check your new email to confirm the change ✓', 'ok');
+      document.getElementById('emailChangeHint').textContent = 'Confirmation email sent — the change won\'t take effect until you confirm it.';
+    } catch(e) {
+      toast('Something went wrong — try again', 'err');
+    } finally {
+      btn.disabled = false; btn.innerHTML = originalHTML;
+    }
+  });
+
+  document.getElementById('savePassword').addEventListener('click', async () => {
+    const curPw = document.getElementById('fCurrentPw').value;
     const np = document.getElementById('fNewPw').value;
     const cp = document.getElementById('fConfirmPw').value;
+    if (!curPw) { toast('Enter your current password', 'err'); return; }
     if (!np) { toast('Enter a new password', 'err'); return; }
     if (np !== cp) { toast('Passwords do not match', 'err'); return; }
     if (np.length < 6) { toast('Password must be at least 6 characters', 'err'); return; }
-    toast('Password updated ✓', 'ok');
-    document.getElementById('fCurrentPw').value = '';
-    document.getElementById('fNewPw').value = '';
-    document.getElementById('fConfirmPw').value = '';
+
+    const sb = getSettingsSb();
+    if (!sb) { toast('Unable to connect — try again', 'err'); return; }
+
+    const btn = document.getElementById('savePassword');
+    const originalBtnHTML = btn.innerHTML;
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating…';
+
+    try {
+      // Pull the real signed-in email from the live Supabase session (not
+      // local cache, which never stores email) so we can verify the
+      // current password before allowing a change.
+      const { data: userData, error: getErr } = await sb.auth.getUser();
+      if (getErr || !userData?.user?.email) {
+        toast('Session expired — please sign in again', 'err');
+        return;
+      }
+      const { error: verifyErr } = await sb.auth.signInWithPassword({ email: userData.user.email, password: curPw });
+      if (verifyErr) {
+        toast('Current password is incorrect', 'err');
+        return;
+      }
+      const { error: updateErr } = await sb.auth.updateUser({ password: np });
+      if (updateErr) {
+        toast(updateErr.message || 'Failed to update password', 'err');
+        return;
+      }
+      toast('Password updated ✓', 'ok');
+      document.getElementById('fCurrentPw').value = '';
+      document.getElementById('fNewPw').value = '';
+      document.getElementById('fConfirmPw').value = '';
+    } catch (e) {
+      toast('Something went wrong — try again', 'err');
+    } finally {
+      btn.disabled = false; btn.innerHTML = originalBtnHTML;
+    }
   });
 
   document.getElementById('exportData').addEventListener('click', () => {
@@ -735,13 +936,31 @@
     toast('Data exported ✓', 'ok');
   });
 
-  document.getElementById('signOutAll').addEventListener('click', () => {
-    if (confirm('Sign out of all sessions?')) {
-      localStorage.removeItem('dl_user');
-      localStorage.removeItem('dl_user_cache');
-      toast('Signed out everywhere', 'ok');
-      setTimeout(() => window.location.href = 'index.html', 1200);
+  document.getElementById('signOutDevice').addEventListener('click', async () => {
+    if (!confirm('Sign out of this device?')) return;
+    const sb = getSettingsSb();
+    if (sb) { try { await sb.auth.signOut({ scope: 'local' }); } catch(e) { console.warn('Local sign-out error:', e); } }
+    localStorage.removeItem('dl_user');
+    localStorage.removeItem('dl_user_cache');
+    toast('Signed out', 'ok');
+    setTimeout(() => window.location.href = 'index.html', 1200);
+  });
+
+  document.getElementById('signOutAll').addEventListener('click', async () => {
+    if (!confirm('Sign out of ALL devices and sessions?')) return;
+    const btn = document.getElementById('signOutAll');
+    btn.disabled = true; btn.textContent = 'Signing out…';
+    const sb = getSettingsSb();
+    if (sb) {
+      try {
+        const { error } = await sb.auth.signOut({ scope: 'global' });
+        if (error) console.warn('Global sign-out error:', error);
+      } catch(e) { console.warn('Global sign-out error:', e); }
     }
+    localStorage.removeItem('dl_user');
+    localStorage.removeItem('dl_user_cache');
+    toast('Signed out everywhere', 'ok');
+    setTimeout(() => window.location.href = 'index.html', 1200);
   });
 
   document.getElementById('deleteAccount').addEventListener('click', () => {
@@ -826,8 +1045,6 @@
     const slider = document.getElementById('fontSlider');
     const p = getPrefs();
     p.theme = selectedTheme;
-    p.accent = currentAccent;
-    p.avColor = currentAvColor;
     if (slider) p.fontSize = +slider.value;
     savePrefs(p);
     pushProfileToSupabase(u);
@@ -855,9 +1072,10 @@
     let _cropDragging = false, _cropStartX = 0, _cropStartY = 0;
     let _cropZoom = 1;
 
-    function avColorFn(name) {
-      const cols = {'A':'#e8392a','B':'#3b82f6','C':'#22c55e','D':'#f0a030','E':'#a855f7','F':'#14b8a6','G':'#e8392a','H':'#3b82f6','I':'#22c55e','J':'#e8392a','K':'#f0a030','L':'#a855f7','M':'#3b82f6','N':'#22c55e','O':'#f0a030','P':'#14b8a6','Q':'#e8392a','R':'#3b82f6','S':'#a855f7','T':'#f0a030','U':'#14b8a6','V':'#22c55e','W':'#3b82f6','X':'#e8392a','Y':'#f0a030','Z':'#a855f7'};
-      return cols[(name||'?')[0].toUpperCase()] || '#e8392a';
+    // Fallback avatar color is fixed gray sitewide — matches the real
+    // default avatar design, not user-customizable.
+    function avColorFn() {
+      return '#6b7280';
     }
 
     function refreshPreview() {
@@ -867,8 +1085,8 @@
         preview.innerHTML = `<img src="${cu.avatarUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block"/>`;
         if (removeBtn) removeBtn.style.display = 'inline-flex';
       } else {
-        preview.style.background = avColorFn(cu.username);
-        preview.innerHTML = cu.username[0].toUpperCase();
+        preview.style.background = avColorFn();
+        preview.innerHTML = `<span style="color:#d1d5db">${cu.username[0].toUpperCase()}</span>`;
         if (removeBtn) removeBtn.style.display = 'none';
       }
     }
@@ -1037,6 +1255,22 @@
       location:  u.location  || '',
     }).eq('id', u.id).then(({ error }) => {
       if (error) console.warn('Profile push failed:', error);
+    });
+  }
+
+  // Requires blocked_users_migration.sql to have been run — see that file
+  // for the privacy_* columns this writes to.
+  function pushPrivacyToSupabase(u) {
+    if (!u || !u.id) return;
+    const sb = getSettingsSb(); if (!sb) return;
+    sb.from('profiles').update({
+      privacy_public:      u.privacyPublic      !== false,
+      privacy_leaderboard: u.privacyLeaderboard !== false,
+      privacy_socials:     u.privacySocials     !== false,
+      privacy_following:   u.privacyFollowing   === true,
+      privacy_liked:       u.privacyLiked       === true,
+    }).eq('id', u.id).then(({ error }) => {
+      if (error) console.warn('Privacy push failed — did you run blocked_users_migration.sql?', error);
     });
   }
 

@@ -70,6 +70,7 @@ const S = {
   galleryIdx: 0,       // current gallery image index in car modal
   lbImages: [], lbIdx: 0, // lightbox images + current index
   following: [],       // array of usernames the logged-in user follows
+  blockedUsers: [],    // array of usernames the logged-in user has blocked
   notifs: [],          // notification objects for current user
   filters: { categories:[], make:"", yearMin:1940, yearMax:2026, hp:0, likes:0, media:"", build:"" },
   dms: {},             // { otherUsername: [{from,text,ts},...] }
@@ -454,7 +455,8 @@ async function loadStorage() {
     // Only fetch following from DB if we don't have it locally already
     (S.user?.id && !S.following.length) ? DB.getFollowing(S.user.id).catch(() => []) : Promise.resolve(null),
     S.user?.id ? DB.getNotifications(S.user.id).catch(() => []) : Promise.resolve([]),
-  ]).then(([profiles, evts, following, notifs]) => {
+    S.user?.id ? DB.getBlockedUsers(S.user.id).catch(() => []) : Promise.resolve([]),
+  ]).then(([profiles, evts, following, notifs, blocked]) => {
     if (profiles === null) return; // cache is fresh — skip profile processing
     // Profiles + avatars
     if (profiles?.length) {
@@ -520,6 +522,9 @@ async function loadStorage() {
     // Following (null = already had it from cache)
     if (following?.length) { S.following = following; save(); }
 
+    // Blocked users (usernames the current user has blocked)
+    if (blocked?.length) { S.blockedUsers = blocked.map(b => b.username).filter(Boolean); }
+
     // Notifications
     if (notifs?.length) {
       S.notifs = notifs.map(n => ({
@@ -572,7 +577,9 @@ function _doSave() {
 function applyPrefs() {
   try {
     const p = JSON.parse(localStorage.getItem('dl_prefs') || '{}');
-    if (p.accent) setAccent(p.accent);
+    // Accent color is no longer user-customizable — always the site default
+    // blue (set in main.css :root). Intentionally ignoring any stored
+    // p.accent value here, including old ones from before this was locked.
     // Default theme is now LIGHT — only go dark when explicitly set
     const theme = p.theme || 'dark';
     if (theme === 'dark') document.body.classList.add('dark');
@@ -637,6 +644,7 @@ function setupRealtimeSubscriptions() {
   const notifSub = DB.subscribeToNotifications(S.user.id, payload => {
     if (payload.new) {
       const n = payload.new;
+      if (!isNotifTypeEnabled(n.type)) return; // this type is muted in Notification settings
       S.notifs.unshift({ id:n.id, type:n.type, from:n.from_username, msg:n.message, link:n.link||null, time:new Date(n.created_at).getTime(), read:false });
       updateNotifBadge();
       renderNotifList();
@@ -1769,6 +1777,52 @@ function initAuth() {
       }
       return;
     }
+
+    // Check whether this account has 2FA enabled and needs a second factor
+    // before the session is fully trusted.
+    const authLevel = await DB.mfaGetAuthLevel();
+    if (authLevel.nextLevel === 'aal2' && authLevel.currentLevel !== 'aal2') {
+      const { factors } = await DB.mfaListFactors();
+      const factor = factors.find(f => f.status === 'verified');
+      if (factor) {
+        el('authModal').classList.remove('open');
+        _pendingMfaLoginData = data;
+        _pendingMfaFactorId = factor.id;
+        el('mfaCodeInput').value = '';
+        el('mfaCodeErr').textContent = '';
+        el('mfaModal').classList.add('open');
+        setTimeout(() => el('mfaCodeInput')?.focus(), 100);
+        return;
+      }
+    }
+
+    await completeSuccessfulLogin(data);
+  });
+
+  // ── MFA (2FA) verification, shown mid-login when required ──
+  let _pendingMfaLoginData = null;
+  let _pendingMfaFactorId = null;
+  el('mfaModalClose')?.addEventListener('click', () => {
+    el('mfaModal').classList.remove('open');
+    _pendingMfaLoginData = null; _pendingMfaFactorId = null;
+    toast('Sign-in cancelled','');
+  });
+  el('mfaVerifyBtn')?.addEventListener('click', async () => {
+    const code = el('mfaCodeInput').value.trim();
+    if (!/^\d{6}$/.test(code)) { el('mfaCodeErr').textContent = 'Enter the 6-digit code'; return; }
+    const btn = el('mfaVerifyBtn');
+    btn.disabled = true; btn.textContent = 'Verifying…';
+    const { error } = await DB.mfaChallengeAndVerify(_pendingMfaFactorId, code);
+    btn.disabled = false; btn.textContent = 'Verify';
+    if (error) { el('mfaCodeErr').textContent = 'Incorrect code — try again'; return; }
+    el('mfaModal').classList.remove('open');
+    const data = _pendingMfaLoginData;
+    _pendingMfaLoginData = null; _pendingMfaFactorId = null;
+    await completeSuccessfulLogin(data);
+  });
+  el('mfaCodeInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') el('mfaVerifyBtn').click(); });
+
+  async function completeSuccessfulLogin(data) {
     S.user = dbUserToApp(data);
     // Refresh users list
     try {
@@ -1794,7 +1848,7 @@ function initAuth() {
     el('authModal').classList.remove('open');
     document.body.classList.remove('modal-open');
     loginUser(S.user.username);
-  });
+  }
 
   // ── REGISTER ──
   el('doRegister')?.addEventListener('click', async () => {
@@ -2806,6 +2860,25 @@ function seedNotifs() {
     {id:'n4',type:'event',  from:'DriveLog',  msg:'Build of the Week is live!',             time:Date.now()-86400000, read:true },
   ];
 }
+// Maps a notification's `type` to the settings toggle that controls it.
+// Types with no matching toggle (award, message, report) are always shown —
+// these are account/security-relevant and intentionally not silenceable.
+// 'botw' and 'announcements' toggles exist in settings but nothing in the
+// app currently generates those notification types yet, so they're stored
+// but have no effect until that feature exists.
+function isNotifTypeEnabled(type) {
+  try {
+    const notifs = (JSON.parse(localStorage.getItem('dl_prefs') || '{}').notifs) || {};
+    switch (type) {
+      case 'like':
+      case 'reaction': return notifs.likes !== false;
+      case 'comment':  return notifs.comments !== false;
+      case 'follow':   return notifs.followers !== false;
+      case 'event':    return notifs.events !== false;
+      default: return true; // award, message, report, unknown types — always on
+    }
+  } catch(_) { return true; }
+}
 function pushNotif(type,from,msg,link,targetUserId){
   // Always push to current user's local state
   S.notifs.unshift({id:'n'+Date.now(),type,from,msg,link:link||null,time:Date.now(),read:false});
@@ -2818,7 +2891,7 @@ function pushNotif(type,from,msg,link,targetUserId){
   save();
 }
 function updateNotifBadge() {
-  const unread = S.notifs.filter(n=>!n.read).length;
+  const unread = S.notifs.filter(n=>!n.read && isNotifTypeEnabled(n.type)).length;
   const badge = el('notifBadge');
   const mobBadge = el('mobTabNotifBadge');
   if (badge) {
@@ -2847,7 +2920,9 @@ function renderNotifPage() {
     };
   }
 
-  if (!S.notifs.length) {
+  const visibleNotifs = S.notifs.filter(n => isNotifTypeEnabled(n.type));
+
+  if (!visibleNotifs.length) {
     list.innerHTML = '<div class="notif-empty" style="padding:40px 20px;text-align:center"><i class="fas fa-bell" style="font-size:2rem;opacity:.3;display:block;margin-bottom:12px"></i>No notifications yet</div>';
     return;
   }
@@ -2855,7 +2930,7 @@ function renderNotifPage() {
   const icons  = { like:'fas fa-heart', comment:'fas fa-comment', follow:'fas fa-user-plus', event:'fas fa-calendar', welcome:'fas fa-star', reaction:'fas fa-fire', award:'fas fa-medal', dm:'fas fa-envelope', default:'fas fa-bell' };
   const colors = { like:'#ef4444', comment:'#3b82f6', follow:'#22c55e', event:'#a855f7', welcome:'#f0a030', reaction:'#f0a030', award:'#c9a84c', dm:'#14b8a6', default:'#555' };
 
-  list.innerHTML = S.notifs.slice(0, 50).map(n => {
+  list.innerHTML = visibleNotifs.slice(0, 50).map(n => {
     const icon  = icons[n.type]  || icons.default;
     const color = colors[n.type] || colors.default;
     return `<div class="notif-item${n.read?'':' unread'}" data-link="${n.link||''}">
@@ -2873,7 +2948,7 @@ function renderNotifPage() {
   // Mark as read + navigate on tap
   list.querySelectorAll('.notif-item').forEach((item, i) => {
     item.addEventListener('click', () => {
-      if (S.notifs[i]) S.notifs[i].read = true;
+      if (visibleNotifs[i]) visibleNotifs[i].read = true;
       updateNotifBadge();
       item.classList.remove('unread');
       item.querySelector('.notif-unread-dot')?.remove();
@@ -2900,8 +2975,9 @@ function renderNotifList() {
   const cats = ['all','like','comment','follow','event','dm','award'];
   const active = list._activeCat || 'all';
 
-  // Only show unread notifications — read ones are dismissed
-  const unreadNotifs = S.notifs.filter(n => !n.read);
+  // Only show unread notifications — read ones are dismissed. Also
+  // exclude any type the user has muted in Notification settings.
+  const unreadNotifs = S.notifs.filter(n => !n.read && isNotifTypeEnabled(n.type));
   const filtered = active === 'all' ? unreadNotifs : unreadNotifs.filter(n => n.type === active);
 
   if (!unreadNotifs.length) {
@@ -3001,6 +3077,7 @@ function updateFollowBtn(username) {
 // ─── FEED ─────────────────────────────────────────────────────
 // ─── FILTER HELPERS ───────────────────────────────────────────
 function applyFiltersToPost(p) {
+  if (S.blockedUsers.includes(p.user)) return false; // hide posts from blocked users
   const f = S.filters;
   // Multi-category: post must match at least one selected category
   if (f.categories.length > 0) {
@@ -3538,6 +3615,11 @@ function renderCategories() {
 
 // ─── LEADERBOARD ──────────────────────────────────────────────
 function renderLeaderboard() {
+  // Users who've opted out of "Show on Leaderboard" are excluded from every
+  // member-based leaderboard list below (they still appear in build
+  // leaderboards under their own posts — this only hides them from the
+  // "who's the top member" style rankings).
+  const leaderboardUsers = S.users.filter(u => u.privacyLeaderboard !== false);
   const top=[...S.posts].sort((a,b)=>b.likes-a.likes).slice(0,10);
   el('lbBuilds').innerHTML=`<div class="lb-list">${top.map((p,i)=>{
     const img=p.images?.[0];
@@ -3550,7 +3632,7 @@ function renderLeaderboard() {
   }).join('')}</div>`;
   el('lbBuilds').querySelectorAll('.lb-row[data-id]').forEach(r=>r.addEventListener('click',()=>{const p=S.posts.find(x=>x.id===r.dataset.id);if(p)openCarPage(p);}));
 
-  const topM=[...S.users].sort((a,b)=>(b.totalLikes||0)-(a.totalLikes||0)).slice(0,10);
+  const topM=[...leaderboardUsers].sort((a,b)=>(b.totalLikes||0)-(a.totalLikes||0)).slice(0,10);
   el('lbMembers').innerHTML=`<div class="lb-list">${topM.map((u,i)=>`
     <div class="lb-row${i===0?' gold':i===1?' silver':i===2?' bronze':''}">
       <div class="lb-pos${i===0?' p1':i===1?' p2':i===2?' p3':' pn'}">${i+1}</div>
@@ -3571,7 +3653,7 @@ function renderLeaderboard() {
   }).join('');
   el('lbCats').querySelectorAll('.lb-cat-row[data-id]').forEach(r=>r.addEventListener('click',()=>{const p=S.posts.find(x=>x.id===r.dataset.id);if(p)openCarPage(p);}));
 
-  const topPosts=[...S.users].sort((a,b)=>{
+  const topPosts=[...leaderboardUsers].sort((a,b)=>{
     const ap=S.posts.filter(p=>p.user===a.username).length;
     const bp=S.posts.filter(p=>p.user===b.username).length;
     return bp-ap;
@@ -3586,7 +3668,7 @@ function renderLeaderboard() {
     </div>`;
   }).join('')}</div>`;
 
-  const oldestUsers=[...S.users].filter(u=>u.joinedFull||u.joined).sort((a,b)=>{
+  const oldestUsers=[...leaderboardUsers].filter(u=>u.joinedFull||u.joined).sort((a,b)=>{
     const aT=new Date(a.joinedFull||a.joined+'-01').getTime();
     const bT=new Date(b.joinedFull||b.joined+'-01').getTime();
     return aT-bT;
@@ -3854,7 +3936,7 @@ function initMembers() {
 function renderMembers() {
   const searchEl = el('membersSearch');
   const q = searchEl ? searchEl.value.toLowerCase() : '';
-  let members=[...S.users].filter(u=>!q||u.username.toLowerCase().includes(q)||(u.bio||'').toLowerCase().includes(q));
+  let members=[...S.users].filter(u=>!S.blockedUsers.includes(u.username) && (!q||u.username.toLowerCase().includes(q)||(u.bio||'').toLowerCase().includes(q)));
   if(S.memberSort==='likes')  members.sort((a,b)=>(b.totalLikes||0)-(a.totalLikes||0));
   else if(S.memberSort==='builds') members.sort((a,b)=>(b.posts||0)-(a.posts||0));
   else members.sort((a,b)=>b.joined>a.joined?1:-1);
@@ -3930,6 +4012,26 @@ async function viewMemberProfile(username) {
         <i class="fas fa-user-slash" style="font-size:3rem;opacity:.3;display:block;margin-bottom:16px"></i>
         <h2>Profile Not Found</h2>
         <p>This user may not exist or was removed.</p>
+        <button class="btn-ghost small" onclick="goTo('home')" style="margin-top:12px">
+          <i class="fas fa-home"></i> Go Home
+        </button>
+      </div>`;
+    }
+    el('profilePostsWrap').style.display = 'none';
+    el('profileActions').style.display = 'none';
+    return;
+  }
+
+  const isOwnProfile = S.user?.username === username;
+  if (u.privacyPublic === false && !isOwnProfile && !S.user?.isAdmin) {
+    goTo('profile');
+    const privMsg = el('noLoginMsg');
+    if (privMsg) {
+      privMsg.style.display = 'block';
+      privMsg.innerHTML = `<div class="profile-not-found" style="text-align:center;padding:40px 20px">
+        <i class="fas fa-lock" style="font-size:3rem;opacity:.3;display:block;margin-bottom:16px"></i>
+        <h2>This Profile is Private</h2>
+        <p>${esc(username)} has chosen to keep their profile private.</p>
         <button class="btn-ghost small" onclick="goTo('home')" style="margin-top:12px">
           <i class="fas fa-home"></i> Go Home
         </button>
@@ -4066,6 +4168,41 @@ async function viewMemberProfile(username) {
     followBtnEl.onclick = () => toggleFollow(username);
   }
 
+  // Block button — only shown on other people's profiles, never your own
+  const blockBtnEl = el('profileBlockBtn');
+  if (blockBtnEl) {
+    if (isOwn || !S.user) {
+      blockBtnEl.style.display = 'none';
+    } else {
+      blockBtnEl.style.display = 'inline-flex';
+      const isBlocked = S.blockedUsers.includes(username);
+      blockBtnEl.innerHTML = isBlocked ? '<i class="fas fa-ban"></i> Unblock' : '<i class="fas fa-ban"></i> Block';
+      blockBtnEl.className = isBlocked ? 'btn-ghost small' : 'btn-ghost small';
+      blockBtnEl.onclick = async () => {
+        const target = S.users.find(x => x.username === username);
+        if (!target?.id || !S.user?.id) { toast('Unable to reach this user right now','err'); return; }
+        blockBtnEl.disabled = true;
+        try {
+          if (isBlocked) {
+            const { error } = await DB.unblockUser(S.user.id, target.id);
+            if (error) { toast('Failed to unblock — try again','err'); return; }
+            S.blockedUsers = S.blockedUsers.filter(u => u !== username);
+            toast(`Unblocked ${username}`, 'ok');
+          } else {
+            if (!confirm(`Block ${username}? They won't be able to message you, and you won't see their posts or profile in the members list.`)) return;
+            const { error } = await DB.blockUser(S.user.id, target.id);
+            if (error) { toast('Failed to block — try again','err'); return; }
+            S.blockedUsers.push(username);
+            toast(`${username} has been blocked`, 'ok');
+          }
+        } finally {
+          blockBtnEl.disabled = false;
+          viewMemberProfile(username); // re-render to reflect new block state
+        }
+      };
+    }
+  }
+
   // Pin hint (own profile only)
   const pinHint = el('profilePinHint');
   if (pinHint) pinHint.style.display = isOwn ? 'inline-flex' : 'none';
@@ -4124,6 +4261,11 @@ async function viewPublicProfile(username) {
 }
 
 function buildSocialLinks(u) {
+  // Respect the "Show Social Links" privacy toggle — owners always see
+  // their own links (so they can still edit/verify them), everyone else
+  // sees nothing if it's turned off.
+  const isOwner = S.user?.username === u.username;
+  if (u.privacySocials === false && !isOwner) return '';
   return [
     u.instagram?`<a class="prof-social ig" href="https://instagram.com/${u.instagram}" target="_blank" rel="noopener"><i class="fab fa-instagram"></i> @${u.instagram}</a>`:'',
     u.tiktok?`<a class="prof-social tt" href="https://tiktok.com/@${u.tiktok}" target="_blank" rel="noopener"><i class="fab fa-tiktok"></i> @${u.tiktok}</a>`:'',
@@ -5497,6 +5639,12 @@ async function renderMessages() {
 
 async function openDmWith(username) {
   if (!S.user) { toast('Sign in to send messages','err'); return; }
+  if (S.blockedUsers.includes(username)) { toast('You have blocked this user','err'); return; }
+  const otherUserForBlockCheck = S.users.find(u => u.username === username);
+  if (otherUserForBlockCheck?.id && S.user?.id) {
+    const blocked = await DB.isBlockedEitherWay(S.user.id, otherUserForBlockCheck.id).catch(() => false);
+    if (blocked) { toast('You can\'t message this user','err'); return; }
+  }
   S.openDm = username;
   // Mark all messages from this user as read locally
   const msgs = loadDmThread(username);
@@ -5597,6 +5745,7 @@ function renderDmMessages(username) {
 async function sendDmMessage() {
   if (!S.user) { toast('Sign in to send messages','err'); return; }
   if (!S.openDm) return;
+  if (S.blockedUsers.includes(S.openDm)) { toast('You have blocked this user','err'); return; }
   const txt      = el('msgInput').value.trim();
   const fileInput= el('msgFileInput');
   const imgFile  = fileInput?.files[0];

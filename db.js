@@ -110,6 +110,72 @@ const DB = {
     return _sb.auth.signOut();
   },
 
+  // ── Sign out — explicit scope variants ──────────────────────
+  // signOut() above uses Supabase's default scope. These two are
+  // explicit so "this device only" vs "everywhere" actually differ:
+  // 'local'  = only this browser's session is revoked
+  // 'global' = every session/device for this account is revoked
+  async signOutLocal() {
+    if (!_sbOk()) return { error: null };
+    const { error } = await _sb.auth.signOut({ scope: 'local' });
+    return { error };
+  },
+  async signOutGlobal() {
+    if (!_sbOk()) return { error: null };
+    const { error } = await _sb.auth.signOut({ scope: 'global' });
+    return { error };
+  },
+
+  // ── Email change ─────────────────────────────────────────────
+  // Supabase sends a confirmation link to the new address (and, depending
+  // on project auth settings, sometimes the old one too) before the change
+  // actually takes effect — the returned user object here is NOT yet the
+  // final state, just confirmation the request was accepted.
+  async updateEmail(newEmail) {
+    if (!_sbOk()) return { error: { message: 'Not connected to database.' } };
+    const { data, error } = await _sb.auth.updateUser({ email: newEmail });
+    return { data, error };
+  },
+
+  // ── Two-factor authentication (TOTP via Supabase Auth MFA) ───
+  async mfaListFactors() {
+    if (!_sbOk()) return { factors: [], error: null };
+    const { data, error } = await _sb.auth.mfa.listFactors();
+    if (error) return { factors: [], error };
+    return { factors: data?.totp || [], error: null };
+  },
+  async mfaEnroll() {
+    if (!_sbOk()) return { error: { message: 'Not connected to database.' } };
+    const { data, error } = await _sb.auth.mfa.enroll({ factorType: 'totp' });
+    return { data, error };
+  },
+  async mfaVerifyEnrollment(factorId, code) {
+    if (!_sbOk()) return { error: { message: 'Not connected to database.' } };
+    const { data: challenge, error: challengeErr } = await _sb.auth.mfa.challenge({ factorId });
+    if (challengeErr) return { error: challengeErr };
+    const { data, error } = await _sb.auth.mfa.verify({ factorId, challengeId: challenge.id, code });
+    return { data, error };
+  },
+  async mfaUnenroll(factorId) {
+    if (!_sbOk()) return { error: { message: 'Not connected to database.' } };
+    const { data, error } = await _sb.auth.mfa.unenroll({ factorId });
+    return { data, error };
+  },
+  // Called at sign-in time to check whether a second-factor challenge is
+  // required before the session is fully trusted (aal2).
+  async mfaGetAuthLevel() {
+    if (!_sbOk()) return { nextLevel: 'aal1', currentLevel: 'aal1' };
+    const { data } = await _sb.auth.mfa.getAuthenticatorAssuranceLevel();
+    return data || { nextLevel: 'aal1', currentLevel: 'aal1' };
+  },
+  async mfaChallengeAndVerify(factorId, code) {
+    if (!_sbOk()) return { error: { message: 'Not connected to database.' } };
+    const { data: challenge, error: challengeErr } = await _sb.auth.mfa.challenge({ factorId });
+    if (challengeErr) return { error: challengeErr };
+    const { data, error } = await _sb.auth.mfa.verify({ factorId, challengeId: challenge.id, code });
+    return { data, error };
+  },
+
   // ── Get current session ────────────────────────────────────
   // Returns the logged-in user from the Supabase auth token,
   // or null if not logged in.
@@ -520,6 +586,33 @@ const DB = {
     }
   },
 
+  // ─── BLOCKS ────────────────────────────────────────────────
+  // Requires the blocked_users table — see blocked_users_migration.sql
+  async blockUser(blockerId, blockedId) {
+    if (!_sbOk()) return { error: { message: 'Not connected to database.' } };
+    const { error } = await _sb.from('blocked_users').insert({ blocker_id: blockerId, blocked_id: blockedId });
+    if (error && error.code !== '23505') return { error }; // ignore duplicate-block conflicts
+    return { error: null };
+  },
+  async unblockUser(blockerId, blockedId) {
+    if (!_sbOk()) return { error: { message: 'Not connected to database.' } };
+    const { error } = await _sb.from('blocked_users').delete().eq('blocker_id', blockerId).eq('blocked_id', blockedId);
+    return { error };
+  },
+  // Returns usernames the current user has blocked
+  async getBlockedUsers(blockerId) {
+    if (!_sbOk()) return [];
+    const { data } = await _sb.from('blocked_users').select('blocked_id, profiles!blocked_id(username)').eq('blocker_id', blockerId);
+    return (data || []).map(b => ({ id: b.blocked_id, username: b.profiles?.username })).filter(b => b.username);
+  },
+  // Checks both directions — true if either user has blocked the other
+  async isBlockedEitherWay(userIdA, userIdB) {
+    if (!_sbOk() || !userIdA || !userIdB) return false;
+    const { data } = await _sb.from('blocked_users').select('blocker_id')
+      .or(`and(blocker_id.eq.${userIdA},blocked_id.eq.${userIdB}),and(blocker_id.eq.${userIdB},blocked_id.eq.${userIdA})`);
+    return !!(data && data.length);
+  },
+
   // ─── MESSAGES ──────────────────────────────────────────────
   async getMessages(userId, otherUserId) {
     const { data } = await _sb
@@ -838,6 +931,14 @@ function dbUserToApp(row) {
     totalLikes:  row.total_likes || 0,
     joined:      (row.joined_at || row.created_at || '').slice(0, 7),
     joinedFull:  row.joined_at || row.created_at,
+    // Privacy prefs — stored server-side because they need to affect what
+    // OTHER users see, not just this device (localStorage can't do that).
+    // Defaults match the settings page's original toggle defaults.
+    privacyPublic:      row.privacy_public      !== false, // default true
+    privacyLeaderboard: row.privacy_leaderboard !== false, // default true
+    privacySocials:     row.privacy_socials     !== false, // default true
+    privacyFollowing:   row.privacy_following    === true,  // default false
+    privacyLiked:       row.privacy_liked        === true,  // default false
   };
 }
 

@@ -198,6 +198,21 @@
   </div>
 </div>
 
+<!-- MFA (2FA) VERIFICATION MODAL — shown mid-login if the account has
+     two-factor authentication enabled -->
+<div class="modal-overlay" id="mfaModal">
+  <div class="modal-box" style="max-width:380px">
+    <button class="modal-close" id="mfaModalClose"><i class="fas fa-times"></i></button>
+    <h2><i class="fas fa-shield-alt"></i> Two-Factor Verification</h2>
+    <p class="form-hint" style="margin-bottom:16px">Enter the 6-digit code from your authenticator app.</p>
+    <div class="auth-field">
+      <input class="finput" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" id="mfaCodeInput" placeholder="123456" style="text-align:center;letter-spacing:4px;font-size:1.3rem"/>
+      <div class="auth-field-err" id="mfaCodeErr"></div>
+    </div>
+    <button class="btn-primary full" id="mfaVerifyBtn">Verify</button>
+  </div>
+</div>
+
 <!-- HEADER -->
 <header class="site-header" id="siteHeader">
   <div class="header-inner">
@@ -733,6 +748,7 @@
           <button class="btn-primary small" id="followBtn" style="display:none"><i class="fas fa-user-plus"></i> Follow</button>
           <button class="btn-ghost small" id="profileDmBtn" style="display:none"><i class="fas fa-envelope"></i> Message</button>
           <button class="btn-ghost small" id="profileShareBtn"><i class="fas fa-link"></i> Share</button>
+          <button class="btn-ghost small" id="profileBlockBtn" style="display:none"><i class="fas fa-ban"></i> Block</button>
           <a href="settings.html" class="btn-ghost small" id="editProfileBtn"><i class="fas fa-pencil-alt"></i> Edit Profile</a>
         </div>
       </div>
