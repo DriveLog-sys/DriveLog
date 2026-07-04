@@ -225,7 +225,7 @@
       <a class="nav-link" data-page="leaderboard">Leaderboard</a>
       <a class="nav-link" data-page="garage">Garage</a>
       <a class="nav-link" data-page="messages">Messages <span class="nav-dm-badge" id="navDmBadge" style="display:none"></span></a>
-      <a class="nav-link" data-page="explore">More</a>
+      <a class="nav-link" data-page="explore">More..</a>
     </nav>
     <div class="header-right">
       <!-- Persistent search bar — always visible on mobile between logo and avatar -->
@@ -235,7 +235,7 @@
       </div>
       <!-- Desktop: expanding inline search -->
       <div class="header-search-wrap desk-only" id="headerSearchWrap">
-        <button class="icon-btn header-search-trigger" id="searchBtn" title="Search"><i class="fas fa-search"></i></button>
+        <button class="icon-btn header-search-trigger" id="searchBtn" title="Search"><i class="fas fa-search"></i><span>Search</span></button>
         <div class="header-search-bar" id="headerSearchBar">
           <i class="fas fa-search header-search-icon"></i>
           <input type="text" class="header-search-input" id="headerSearchInput" placeholder="Search builds, members…" autocomplete="off" spellcheck="false"/>
@@ -526,47 +526,47 @@
   <!-- MEMBERS -->
   <!-- SOCIAL FEED PAGE (replaces members in nav) -->
   <section class="page" id="page-social">
-    <div class="social-layout">
-      <!-- Left: vertical scroll feed -->
-      <div class="social-feed-col" id="socialFeedCol">
-        <div class="social-feed-header">
-          <h2 class="social-feed-title">Car Spotting</h2>
-          <button class="social-upload-btn btn-primary small" id="socialUploadBtn">
-            <i class="fas fa-camera"></i> Post
-          </button>
-          <div class="social-feed-tabs">
-            <button class="soc-tab active" data-soctab="foryou">For You</button>
-            <button class="soc-tab" data-soctab="following">Following</button>
-            <button class="soc-tab" data-soctab="builds">Builds</button>
-          </div>
-        </div>
-        <!-- Social search bar -->
-        <div class="social-search-bar">
-          <i class="fas fa-search social-search-icon"></i>
-          <input type="text" id="socialSearchInput" class="social-search-input" placeholder="Search posts, captions, #hashtags…"/>
-          <button class="social-search-clear" id="socialSearchClear" style="display:none"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="social-posts-wrap" id="socialPostsWrap">
-          <!-- Posts render here -->
-        </div>
-        <div class="social-load-sentinel" id="socialSentinel"></div>
+    <div class="social-discover-wrap">
+      <div class="social-feed-header">
+        <h2 class="social-feed-title">Car Spotting</h2>
+        <button class="social-upload-btn btn-primary small" id="socialUploadBtn">
+          <i class="fas fa-camera"></i> Post
+        </button>
       </div>
-      <!-- Right: sidebar -->
-      <div class="social-sidebar-col">
-        <div class="widget">
-          <div class="widget-title"><i class="fas fa-users widget-icon"></i> Who to Follow</div>
-          <div id="socialWhoToFollow"></div>
-        </div>
-        <div class="widget">
-          <div class="widget-title"><i class="fas fa-calendar-alt widget-icon"></i> Upcoming Events
-            <a class="widget-see-all" onclick="goTo('events')">See all</a>
-          </div>
-          <div id="socialEventsPreview"></div>
-        </div>
-        <div class="widget">
-          <div class="widget-title"><i class="fas fa-fire widget-icon"></i> Trending Tags</div>
-          <div class="social-tags" id="socialTags"></div>
-        </div>
+
+      <!-- Story bar: horizontal-scrolling profile bubbles, Snapchat-style -->
+      <div class="story-bar-wrap">
+        <div class="story-bar" id="storyBar"><!-- bubbles render here --></div>
+      </div>
+
+      <!-- Trending tags — compact strip -->
+      <div class="social-tags-strip" id="socialTags"></div>
+
+      <div class="social-feed-tabs">
+        <button class="soc-tab active" data-soctab="foryou">For You</button>
+        <button class="soc-tab" data-soctab="following">Following</button>
+        <button class="soc-tab" data-soctab="builds">Builds</button>
+      </div>
+
+      <!-- Social search bar -->
+      <div class="social-search-bar">
+        <i class="fas fa-search social-search-icon"></i>
+        <input type="text" id="socialSearchInput" class="social-search-input" placeholder="Search posts, captions, #hashtags…"/>
+        <button class="social-search-clear" id="socialSearchClear" style="display:none"><i class="fas fa-times"></i></button>
+      </div>
+
+      <!-- Discover grid: two posts side by side, 4:5 thumbnails -->
+      <div class="social-posts-wrap" id="socialPostsWrap">
+        <!-- Posts render here -->
+      </div>
+      <div class="social-load-sentinel" id="socialSentinel"></div>
+    </div>
+
+    <!-- Detail view — opened when a discover-grid card is tapped -->
+    <div class="modal-overlay" id="socialDetailModal">
+      <div class="modal-box social-detail-box">
+        <button class="modal-close" id="socialDetailClose"><i class="fas fa-times"></i></button>
+        <div id="socialDetailContent"></div>
       </div>
     </div>
   </section>

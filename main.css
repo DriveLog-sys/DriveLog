@@ -61,8 +61,8 @@ button:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent-soft)}
 h1,h2,h3{font-family:var(--disp);letter-spacing:1px}
 
 /* ─── BUTTONS ───────────────────────────────────────────────── */
-.btn-primary{background:var(--accent);color:#fff;padding:10px 24px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.92rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;transition:background var(--tr),transform var(--tr),box-shadow var(--tr);display:inline-flex;align-items:center;gap:8px}
-.btn-primary:hover{background:var(--accent-dim);transform:translateY(-1px);box-shadow:0 8px 24px var(--accent-glow)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#fff;padding:10px 24px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.92rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;transition:background var(--tr),transform var(--tr),box-shadow var(--tr);display:inline-flex;align-items:center;gap:8px;box-shadow:0 4px 14px var(--accent-glow)}
+.btn-primary:hover{background:linear-gradient(135deg,var(--accent-dim),var(--accent));transform:translateY(-1px);box-shadow:0 8px 24px var(--accent-glow)}
 .btn-primary.full{width:100%;justify-content:center}
 .btn-primary.small{padding:7px 16px;font-size:.8rem}
 .btn-primary.large{padding:12px 28px;font-size:1rem}
@@ -72,8 +72,8 @@ h1,h2,h3{font-family:var(--disp);letter-spacing:1px}
 .btn-ghost.large{padding:12px 28px;font-size:1rem}
 .icon-btn{width:38px;height:38px;border-radius:50%;background:var(--raised);border:1px solid var(--mid);color:var(--sec);display:flex;align-items:center;justify-content:center;font-size:.85rem;transition:all var(--tr);position:relative}
 .icon-btn:hover{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn-post{background:var(--accent);color:#fff;padding:8px 18px;border-radius:var(--r-sm);font-family:var(--cond);font-weight:700;font-size:.88rem;letter-spacing:1px;text-transform:uppercase;transition:all var(--tr)}
-.btn-post:hover{background:var(--accent-dim);box-shadow:0 4px 16px var(--accent-glow)}
+.btn-post{background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#fff;padding:8px 18px;border-radius:var(--r-sm);font-family:var(--cond);font-weight:700;font-size:.88rem;letter-spacing:1px;text-transform:uppercase;transition:all var(--tr);box-shadow:0 4px 14px var(--accent-glow)}
+.btn-post:hover{background:linear-gradient(135deg,var(--accent-dim),var(--accent));box-shadow:0 8px 24px var(--accent-glow)}
 .btn-auth{background:transparent;color:var(--sec);padding:8px 16px;border-radius:var(--r-sm);font-family:var(--cond);font-weight:600;font-size:.88rem;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--mid);transition:all var(--tr)}
 .btn-auth:hover{border-color:#555;color:var(--text)}
 
@@ -760,7 +760,7 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
 
 .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--raised);border:1px solid var(--mid);border-radius:30px;padding:9px 22px;font-family:var(--cond);font-size:.86rem;font-weight:700;color:var(--text);z-index:9999;opacity:0;transition:all .3s ease;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.toast.ok{border-color:#16a34a;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;box-shadow:0 4px 16px rgba(34,197,94,.35)}
+.toast.ok{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.1);color:#4ade80}
 .toast.err{border-color:rgba(232,57,42,.4);background:var(--accent-soft);color:var(--accent)}
 
 /* ─── RESPONSIVE ────────────────────────────────────────────── */
@@ -821,8 +821,8 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
 .fs-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;background:var(--surface)}
 
 /* Filter trigger button in sort row */
-.filter-trigger-btn{display:inline-flex;align-items:center;gap:7px;padding:6px 16px;background:var(--accent);color:#fff;border-radius:var(--r-sm);font-family:var(--cond);font-size:.82rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all var(--tr);border:none;white-space:nowrap}
-.filter-trigger-btn:hover{background:var(--accent-dim);transform:translateY(-1px)}
+.filter-trigger-btn{display:inline-flex;align-items:center;gap:7px;padding:6px 16px;background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#fff;border-radius:var(--r-sm);font-family:var(--cond);font-size:.82rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all var(--tr);border:none;white-space:nowrap;box-shadow:0 4px 12px var(--accent-glow)}
+.filter-trigger-btn:hover{background:linear-gradient(135deg,var(--accent-dim),var(--accent));transform:translateY(-1px);box-shadow:0 6px 18px var(--accent-glow)}
 .filter-trigger-count{background:rgba(255,255,255,.3);border-radius:30px;padding:1px 7px;font-size:.7rem}
 .sort-divider{width:1px;height:22px;background:var(--border);margin:0 4px;flex-shrink:0}
 .feed-results-info{font-family:var(--cond);font-size:.78rem;color:var(--muted);margin-bottom:14px;letter-spacing:.5px}
@@ -1896,11 +1896,72 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
    SOCIAL FEED PAGE
    ═══════════════════════════════════════════════════════════════ */
 #page-social{padding:0}
-.social-layout{display:grid;grid-template-columns:1fr 300px;gap:28px;max-width:1100px;margin:0 auto;padding:28px 24px 80px}
-.social-feed-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.social-discover-wrap{max-width:640px;margin:0 auto;padding:28px 24px 80px}
+.social-feed-header{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
 .social-feed-title{font-family:var(--disp);font-size:1.8rem;letter-spacing:1px;color:var(--text);margin-right:auto}
-.social-feed-tabs{display:flex;gap:4px;background:var(--raised);border:1px solid var(--border);border-radius:30px;padding:3px}
+
+/* ═══ STORY BAR — horizontal-scrolling profile bubbles ═══ */
+.story-bar-wrap{margin-bottom:18px}
+.story-bar{
+  display:flex;gap:16px;overflow-x:auto;padding:6px 2px 10px;
+  scrollbar-width:none;-ms-overflow-style:none;
+}
+.story-bar::-webkit-scrollbar{display:none}
+.story-bubble{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  flex-shrink:0;width:68px;cursor:pointer;
+}
+.story-bubble-ring{
+  width:64px;height:64px;border-radius:50%;padding:3px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),var(--accent-dim));
+  display:flex;align-items:center;justify-content:center;position:relative;
+  transition:transform var(--tr);
+}
+.story-bubble:hover .story-bubble-ring{transform:scale(1.05)}
+.story-bubble-ring .av-circle,.story-bubble-ring .has-photo{
+  width:100%!important;height:100%!important;border:2px solid var(--surface);
+}
+.story-bubble-own .story-bubble-ring{background:var(--border)}
+.story-bubble-own-plus{
+  position:absolute;bottom:-1px;right:-1px;width:20px;height:20px;
+  border-radius:50%;background:var(--accent);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.6rem;border:2px solid var(--surface);
+}
+.story-bubble-name{
+  font-size:.72rem;color:var(--text);max-width:68px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;
+}
+.story-bar-empty{color:var(--muted);font-size:.85rem;padding:8px 2px}
+
+/* ═══ Trending tags strip ═══ */
+.social-tags-strip{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+
+.social-feed-tabs{display:flex;gap:4px;background:var(--raised);border:1px solid var(--border);border-radius:30px;padding:3px;width:fit-content;margin-bottom:14px}
 .soc-tab{padding:5px 16px;border-radius:30px;font-family:var(--cond);font-size:.76rem;font-weight:700;letter-spacing:.8px;color:var(--muted);cursor:pointer;transition:all var(--tr)}
+
+/* ═══ Discover grid — two posts side by side, 4:5 ═══ */
+.social-discover-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.social-grid-card{
+  position:relative;aspect-ratio:4/5;border-radius:var(--r-md);
+  overflow:hidden;cursor:pointer;background:var(--raised);
+}
+.social-grid-card img,.social-grid-card video{
+  width:100%;height:100%;object-fit:cover;display:block;
+}
+.social-grid-card-overlay{
+  position:absolute;left:0;right:0;bottom:0;padding:10px;
+  background:linear-gradient(to top,rgba(0,0,0,.72),transparent 70%);
+  display:flex;align-items:center;gap:6px;
+}
+.social-grid-card-user{color:#fff;font-size:.76rem;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.social-grid-card-likes{margin-left:auto;color:#fff;font-size:.72rem;display:flex;align-items:center;gap:4px;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.social-grid-multi-badge{position:absolute;top:8px;right:8px;color:#fff;font-size:.8rem;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.social-grid-card:hover{transform:scale(1.01)}
+
+/* ═══ Detail modal — the full rich card, opened on tap ═══ */
+.social-detail-box{max-width:520px;padding:0;background:transparent;box-shadow:none}
+.social-detail-box .social-post-card{max-width:none;margin:0}
 .soc-tab.active{background:var(--accent);color:#fff}
 
 /* Social post card */
@@ -1982,8 +2043,7 @@ video.social-post-media{max-height:480px;background:#000}
 .profile-bio{font-size:.88rem;color:var(--text);line-height:1.7;margin-bottom:6px;max-width:520px;font-style:normal}
 
 @media(max-width:800px){
-  .social-layout{grid-template-columns:1fr;padding:16px 14px 60px}
-  .social-sidebar-col{display:none}
+  .social-discover-wrap{padding:16px 14px 60px}
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -3493,8 +3553,6 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
   .atg-grid{grid-template-columns:1fr 1fr}
 
   /* ─── Social ─── */
-  .social-layout{grid-template-columns:1fr}
-  .social-sidebar-col{display:none}
   .social-feed-header{flex-wrap:wrap;gap:8px}
 
   /* ─── Messages ─── */
@@ -3781,9 +3839,8 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
 
 /* ─── SOCIAL — MOBILE ─────────────────────────────────────────── */
 @media(max-width:768px){
-  .social-layout{grid-template-columns:1fr;padding:0}
-  .social-sidebar-col{display:none}
-  .social-feed-col{padding:12px}
+  .social-discover-wrap{padding:12px}
+  .social-discover-grid{gap:6px}
   .social-feed-header{flex-wrap:wrap;gap:8px}
   .social-feed-title{font-size:1.1rem}
 }
@@ -6393,7 +6450,7 @@ body:not(.dark) .save-btn {
 .sidebar-post-btn {
   width: 100%;
   padding: 9px 14px;
-  background: var(--accent);
+  background: linear-gradient(135deg,var(--accent),var(--accent-dim));
   color: #fff;
   border: none;
   border-radius: var(--r-sm);
@@ -6406,9 +6463,10 @@ body:not(.dark) .save-btn {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  transition: background var(--tr);
+  transition: all var(--tr);
+  box-shadow: 0 4px 14px var(--accent-glow);
 }
-.sidebar-post-btn:hover { background: var(--accent-dim); }
+.sidebar-post-btn:hover { background: linear-gradient(135deg,var(--accent-dim),var(--accent)); box-shadow: 0 8px 22px var(--accent-glow); }
 
 /* ─── PLACEHOLDER PAGES (Guidelines/About/Privacy/Help) ───────── */
 .placeholder-page-wrap{
@@ -6849,7 +6907,19 @@ body:not(.dark) .save-btn {
   align-items: center;
 }
 /* The trigger icon-btn stays visible until opened */
-.header-search-wrap .header-search-trigger { flex-shrink: 0; }
+.header-search-wrap .header-search-trigger {
+  flex-shrink: 0;
+  width: auto;
+  min-width: 150px;
+  border-radius: 19px;
+  padding: 0 18px;
+  gap: 9px;
+  justify-content: center;
+  font-family: var(--cond);
+  font-size: .8rem;
+  font-weight: 700;
+  letter-spacing: .5px;
+}
 
 /* The expanding bar — hidden by default, slides in from right */
 .header-search-bar {
@@ -7430,9 +7500,7 @@ html, body { overflow-x: hidden; }
 
   /* ── SOCIAL / CAR SPOTTING ───────────────────────────────── */
   #page-social { padding: 0 !important; overflow-x: hidden !important; }
-  .social-layout { display: flex !important; flex-direction: column !important; padding: 0 !important; }
-  .social-sidebar-col { display: none !important; }
-  .social-feed-col { width: 100% !important; padding: 0 !important; }
+  .social-discover-wrap { width: 100% !important; padding: 12px !important; }
   .social-feed-header {
     display: flex !important;
     flex-wrap: wrap !important;

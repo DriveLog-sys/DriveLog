@@ -6896,10 +6896,14 @@ function initSocialPage() {
   );
   if (submitBtn) submitBtn.addEventListener('click', submitSocialPost);
 
-  // Render sidebar widgets
-  renderSocialEventsPreview();
-  renderSuggestedFollows('socialWhoToFollow');
+  renderStoryBar();
   renderTrendingTags();
+
+  // Detail modal — closes on X, backdrop click, or Escape
+  el('socialDetailClose')?.addEventListener('click', closeSocialDetail);
+  el('socialDetailModal')?.addEventListener('click', e => {
+    if (e.target === el('socialDetailModal')) closeSocialDetail();
+  });
 
   // Sidebar usernames/avatars → profile (delegated once; buttons excluded)
   const socialPage_ = el('page-social');
@@ -7398,12 +7402,14 @@ function renderSocialFeed(reset) {
   const wrap = el('socialPostsWrap'); if (!wrap) return;
   if (S._socialSearchQ) { doSocialSearch(); return; }
 
+  renderStoryBar();
+
   // Paint whatever we already have in memory instantly
   const cached = getSocialPosts();
   if (cached.length) {
     const slice = cached.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
-    wrap.innerHTML = slice.map(p => renderSocialCard(p)).join('');
-    bindSocialCardEvents(wrap);
+    wrap.innerHTML = `<div class="social-discover-grid">${slice.map(p => renderSocialGridCard(p)).join('')}</div>`;
+    bindSocialGridEvents(wrap);
   } else if (reset) {
     wrap.innerHTML = '';
   }
@@ -7424,13 +7430,15 @@ function renderSocialFeed(reset) {
         <p>Be the first to share a car you spotted.</p>
         ${S.user ? '<button class="btn-primary" onclick="goTo(\'spotpost\')"><i class="fas fa-camera"></i> Post a Spot</button>' : ''}
       </div>`;
+      renderStoryBar();
       return;
     }
 
     const visible = getSocialPosts().slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
-    wrap.innerHTML = visible.map(p => renderSocialCard(p)).join('');
-    bindSocialCardEvents(wrap);
+    wrap.innerHTML = `<div class="social-discover-grid">${visible.map(p => renderSocialGridCard(p)).join('')}</div>`;
+    bindSocialGridEvents(wrap);
     renderTrendingTags();
+    renderStoryBar();
   }).catch(err => {
     console.warn('Social posts fetch failed (table may not exist yet):', err?.message || err);
     if (!cached.length) {
@@ -7671,8 +7679,8 @@ function doSocialSearch() {
     wrap.innerHTML = `<div class="social-no-results"><i class="fas fa-search"></i><p>No posts found for "<b>${esc(q)}</b>"</p></div>`;
     return;
   }
-  wrap.innerHTML = results.map(p => renderSocialCard(p)).join('');
-  bindSocialCardEvents(wrap);
+  wrap.innerHTML = `<div class="social-discover-grid">${results.map(p => renderSocialGridCard(p)).join('')}</div>`;
+  bindSocialGridEvents(wrap);
 }
 
 // Handle browser/mobile back button
@@ -7701,6 +7709,106 @@ function socialCaptionHTML(caption) {
     return linked;
   });
   return lines.join('<br/>');
+}
+
+// ─── STORY BAR — horizontal-scrolling profile bubbles (Snapchat-style) ──
+// Shows your own bubble first (tap → post a new spot), then one bubble per
+// distinct recent poster, most-recent-first. Tapping someone else's bubble
+// opens their profile via the existing global [data-user] click handler —
+// no extra click wiring needed for that part.
+function renderStoryBar() {
+  const bar = el('storyBar'); if (!bar) return;
+  const posts = getSocialPosts();
+  const seenUsers = new Set();
+  const posters = [];
+  posts.forEach(p => {
+    if (!p.user || seenUsers.has(p.user) || p.user === S.user?.username) return;
+    seenUsers.add(p.user);
+    posters.push(p.user);
+  });
+
+  const ownBubble = S.user ? `
+    <div class="story-bubble story-bubble-own" id="storyBubbleOwn">
+      <div class="story-bubble-ring">
+        ${renderAv(S.user.username, 58, 'story-bubble-av-inner')}
+        <div class="story-bubble-own-plus"><i class="fas fa-plus"></i></div>
+      </div>
+      <span class="story-bubble-name">You</span>
+    </div>` : '';
+
+  const otherBubbles = posters.slice(0, 20).map(u => `
+    <div class="story-bubble clickable-user" data-user="${esc(u)}">
+      <div class="story-bubble-ring">${renderAv(u, 58, 'story-bubble-av-inner')}</div>
+      <span class="story-bubble-name">${esc(u)}</span>
+    </div>`).join('');
+
+  if (!ownBubble && !otherBubbles) {
+    bar.innerHTML = '<p class="story-bar-empty">No spotters yet — be the first to post!</p>';
+    return;
+  }
+  bar.innerHTML = ownBubble + otherBubbles;
+
+  const ownEl = el('storyBubbleOwn');
+  if (ownEl) ownEl.addEventListener('click', () => {
+    if (!S.user) { toast('Sign in to post','err'); el('authModal').classList.add('open'); return; }
+    goTo('spotpost');
+  });
+}
+
+// Compact 4:5 thumbnail card for the discover grid — tapping opens the
+// full rich card (comments, carousel, etc.) in the detail modal.
+function renderSocialGridCard(p) {
+  if (!p) return '';
+  const media = (p.media||[]).filter(Boolean);
+  const first = media[0];
+  const isVideo = first?.type === 'video';
+  const thumbSrc = first?.url || '';
+  const badge = media.length > 1
+    ? '<div class="social-grid-multi-badge"><i class="fas fa-clone"></i></div>'
+    : (isVideo ? '<div class="social-grid-multi-badge"><i class="fas fa-play"></i></div>' : '');
+  const mediaTag = thumbSrc
+    ? (isVideo
+        ? `<video src="${thumbSrc}" muted playsinline preload="metadata"></video>`
+        : `<img src="${thumbSrc}" alt="" loading="lazy"/>`)
+    : `<div style="width:100%;height:100%;background:${phBg(p.id)}"></div>`;
+  return `<div class="social-grid-card" data-id="${p.id}">
+    ${mediaTag}
+    ${badge}
+    <div class="social-grid-card-overlay">
+      <span class="social-grid-card-user">${esc(p.user)}</span>
+      <span class="social-grid-card-likes"><i class="fas fa-heart"></i> ${(p.likedBy||[]).length}</span>
+    </div>
+  </div>`;
+}
+
+function bindSocialGridEvents(wrap) {
+  if (!wrap) return;
+  wrap.querySelectorAll('.social-grid-card').forEach(card => {
+    card.addEventListener('click', () => openSocialDetail(card.dataset.id));
+    // Video thumbnails show a black box until a frame is grabbed
+    const video = card.querySelector('video');
+    if (video) video.addEventListener('loadedmetadata', () => { video.currentTime = video.duration * 0.1; }, { once:true });
+  });
+}
+
+// Opens the full rich card (same one used everywhere else — comments,
+// carousel, like/delete/report — nothing lost by moving to a grid+modal
+// layout) in a modal when a discover-grid thumbnail is tapped.
+function openSocialDetail(id) {
+  const post = findSocialPost(id);
+  if (!post) return;
+  const content = el('socialDetailContent');
+  const modal = el('socialDetailModal');
+  if (!content || !modal) return;
+  content.innerHTML = renderSocialCard(post);
+  bindSocialCardEvents(content);
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeSocialDetail() {
+  const modal = el('socialDetailModal');
+  if (modal) modal.classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 function renderSocialCard(p) {
