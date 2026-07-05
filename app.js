@@ -867,7 +867,11 @@ function initHeader() {
     e.stopPropagation();
     viewPublicProfile(username);
   });
-  el('avChip')?.addEventListener('click', e=>{e.stopPropagation(); el('avDrop').classList.toggle('open'); el('notifDrop').classList.remove('open');});
+  el('avChip')?.addEventListener('click', e=>{
+    e.stopPropagation();
+    if (window.innerWidth <= 768) { goTo('profile'); return; }
+    el('avDrop').classList.toggle('open'); el('notifDrop').classList.remove('open');
+  });
   el('notifBtn')?.addEventListener('click', e=>{e.stopPropagation(); el('notifDrop').classList.toggle('open'); el('avDrop').classList.remove('open'); renderNotifList();});
   document.addEventListener('click', ()=>{el('avDrop').classList.remove('open'); el('notifDrop').classList.remove('open');});
   el('avDrop')?.addEventListener('click',    e=>e.stopPropagation());

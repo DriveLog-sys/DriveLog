@@ -3613,6 +3613,7 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
   .header-actions .icon-btn{width:34px;height:34px;font-size:.82rem}
   .av-chip{padding:4px 8px;gap:6px;font-size:.78rem}
   .av-chip .av-chip-av{width:26px;height:26px;font-size:.7rem}
+  .header-right{padding-right:6px!important}
 }
 
 /* ─── MOBILE NAVIGATION DRAWER ────────────────────────────────── */
@@ -6920,10 +6921,10 @@ body:not(.dark) .save-btn {
   flex-shrink: 0;
   width: auto;
   min-width: 150px;
-  border-radius: 19px;
-  padding: 0 18px;
+  border-radius: 10px;
+  padding: 0 16px;
   gap: 9px;
-  justify-content: center;
+  justify-content: flex-start;
   font-family: var(--cond);
   font-size: .8rem;
   font-weight: 700;
@@ -7309,7 +7310,7 @@ html, body { overflow-x: hidden; }
     font-size: 1.4rem !important;
     letter-spacing: 2px !important;
     line-height: 1 !important;
-    padding: 3px 0 0 0 !important;
+    padding: 6px 0 0 0 !important;
     display: flex !important;
     align-items: center !important;
     flex-shrink: 0 !important;
