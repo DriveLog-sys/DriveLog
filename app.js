@@ -7721,16 +7721,19 @@ function renderStoryBar() {
   const posts = getSocialPosts();
   const seenUsers = new Set();
   const posters = [];
+  let ownHasPost = false;
   posts.forEach(p => {
-    if (!p.user || seenUsers.has(p.user) || p.user === S.user?.username) return;
+    if (!p.user) return;
+    if (p.user === S.user?.username) { ownHasPost = true; return; }
+    if (seenUsers.has(p.user)) return;
     seenUsers.add(p.user);
     posters.push(p.user);
   });
 
   const ownBubble = S.user ? `
-    <div class="story-bubble story-bubble-own" id="storyBubbleOwn">
+    <div class="story-bubble story-bubble-own${ownHasPost ? ' has-story' : ''}" id="storyBubbleOwn">
       <div class="story-bubble-ring">
-        ${renderAv(S.user.username, 58, 'story-bubble-av-inner')}
+        ${renderAv(S.user.username, 64, 'story-bubble-av-inner')}
         <div class="story-bubble-own-plus"><i class="fas fa-plus"></i></div>
       </div>
       <span class="story-bubble-name">You</span>
@@ -7738,7 +7741,7 @@ function renderStoryBar() {
 
   const otherBubbles = posters.slice(0, 20).map(u => `
     <div class="story-bubble clickable-user" data-user="${esc(u)}">
-      <div class="story-bubble-ring">${renderAv(u, 58, 'story-bubble-av-inner')}</div>
+      <div class="story-bubble-ring">${renderAv(u, 64, 'story-bubble-av-inner')}</div>
       <span class="story-bubble-name">${esc(u)}</span>
     </div>`).join('');
 
