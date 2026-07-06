@@ -444,9 +444,13 @@ async function loadStorage() {
   if (S.user?.id) setupRealtimeSubscriptions();
 
   // ── Fire non-critical in background without blocking ──────────
-  // Profiles: only re-fetch if cache is >10 min old
+  // Profiles: only re-fetch if cache is stale. Was 10 minutes — that's why
+  // an updated avatar could take up to 10 min to show up for other people
+  // viewing your posts/profile. Shortened substantially; see also the
+  // per-user on-demand fallback in setAvEl() for the "never fetched them
+  // at all yet" case, which this TTL alone doesn't cover.
   const profileCacheAge = Date.now() - (parseInt(localStorage.getItem('dl_profile_cache_ts')||'0'));
-  const profilesStale   = profileCacheAge > 10 * 60 * 1000; // 10 minutes
+  const profilesStale   = profileCacheAge > 90 * 1000; // 90 seconds
   const profilesFetch   = profilesStale ? DB.getAllProfiles().catch(() => []) : Promise.resolve(S.users.length ? null : []);
 
   Promise.all([
@@ -966,18 +970,44 @@ function setAvEl(domEl, username) {
       domEl.innerHTML = _defaultAvSVG();
       domEl.style.background = 'transparent';
     }
+    // We don't have this user in S.users at all yet (e.g. they posted
+    // after our last profile fetch, or joined very recently) — the normal
+    // 90-second cache refresh eventually catches this, but for a post
+    // that's visible RIGHT NOW, fetch just this one avatar directly
+    // instead of waiting on the bulk refresh.
+    if (!S.users.find(u => u.username === username) && !_avFetchInFlight.has(username)) {
+      _avFetchInFlight.add(username);
+      DB.getProfileByUsername(username).then(row => {
+        _avFetchInFlight.delete(username);
+        if (row?.avatar_url?.startsWith('http')) {
+          cacheAvatarUrl(username, row.avatar_url);
+          // Re-apply to every currently-visible element for this user,
+          // not just the one that triggered the fetch
+          document.querySelectorAll(`[data-user="${CSS.escape(username)}"]`).forEach(node => {
+            if (node.querySelector('svg') || !node.querySelector('img')) setAvEl(node, username);
+          });
+        }
+      }).catch(() => { _avFetchInFlight.delete(username); });
+    }
   }
+  setStoryRing(domEl, username);
 }
+const _avFetchInFlight = new Set();
 
-// Return avatar HTML string — shows photo or default grey SVG
+// Return avatar HTML string — shows photo or default grey SVG, with the
+// 24hr "active Car Spotting story" ring auto-applied where relevant.
+// Skips the ring for story-bar bubbles themselves, which already have
+// their own dedicated ring wrapper — this avoids a doubled-up ring there.
 function renderAv(username, size, extraClass) {
   const url = getAvatarUrl(username);
   const cls = [extraClass||''].filter(Boolean).join(' ');
   const s = size || 40;
-  if (url) {
-    return `<div class="${cls} has-photo" style="width:${s}px;height:${s}px;border-radius:50%;overflow:hidden;flex-shrink:0"><img src="${url}" alt="" class="av-photo" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`;
-  }
-  return `<div class="${cls}" style="width:${s}px;height:${s}px;border-radius:50%;overflow:hidden;flex-shrink:0;background:transparent">${_defaultAvSVG()}</div>`;
+  const isStoryBubbleInner = cls.includes('story-bubble-av-inner');
+  const ringClass = (!isStoryBubbleInner && hasActiveSpotStory(username)) ? ' has-story-ring' : '';
+  const inner = url
+    ? `<div class="has-photo" style="width:100%;height:100%;border-radius:50%;overflow:hidden"><img src="${url}" alt="" class="av-photo" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
+    : `<div style="width:100%;height:100%;border-radius:50%;overflow:hidden;background:transparent">${_defaultAvSVG()}</div>`;
+  return `<div class="${cls}${ringClass}" style="width:${s}px;height:${s}px;flex-shrink:0;position:relative">${inner}</div>`;
 }
 
 function updateAuthUI() {
@@ -1102,7 +1132,8 @@ function renderFeaturedMembers() {
     const img = url
       ? `<img src="${url}" alt="" class="av-photo"/>`
       : _defaultAvSVG();
-    return `<div class="fm-av clickable-user" data-user="${u.username}" title="${esc(u.username)}" style="background:${bg}">${img}</div>`;
+    const ring = hasActiveSpotStory(u.username) ? ' has-story-ring' : '';
+    return `<div class="fm-av clickable-user${ring}" data-user="${u.username}" title="${esc(u.username)}" style="background:${bg}">${img}</div>`;
   }).join('') + (extra > 0
     ? `<div class="fm-av fm-av-more" onclick="goTo('members')">+${Math.min(extra,9)}${extra>=9?'+':''}</div>`
     : '');
@@ -1483,8 +1514,9 @@ async function runInlineSearch(q) {
   results.innerHTML = [
     userMatches.length ? `<div class="hsr-section">People</div>${userMatches.map(u => {
       const url = getAvatarUrl(u.username);
+      const ring = hasActiveSpotStory(u.username) ? ' has-story-ring' : '';
       return `<div class="hsr-item hsr-user" data-user="${esc(u.username)}">
-        ${url?`<img src="${url}" class="hsr-av" alt=""/>`:`<div class="hsr-av">${avSVG}</div>`}
+        ${url?`<img src="${url}" class="hsr-av${ring}" alt=""/>`:`<div class="hsr-av${ring}">${avSVG}</div>`}
         <div class="hsr-info"><div class="hsr-name">${esc(u.username)}</div><div class="hsr-sub">${u.posts||0} builds</div></div>
       </div>`; }).join('')}` : '',
     postMatches.length ? `<div class="hsr-section">${userMatches.length?'Builds':'Results'}</div>${postMatches.map(p => {
@@ -3968,7 +4000,7 @@ function renderMembers() {
         ${rank<3?`<div class="member-rank rank${rank+1}">#${rank+1}</div>`:''}
       </div>
       <div class="member-body">
-        <div class="member-av" style="background:transparent">${ u.avatarUrl ? `<img src="${u.avatarUrl}" alt="" class="av-photo"/>`
+        <div class="member-av${hasActiveSpotStory(u.username)?' has-story-ring':''}" style="background:transparent">${ u.avatarUrl ? `<img src="${u.avatarUrl}" alt="" class="av-photo"/>`
             : u.username[0].toUpperCase()
         }</div>
         <div class="member-info">
@@ -5257,7 +5289,7 @@ function renderComment(comment, allComments, depth) {
   const indent = depth > 0 ? 'style="margin-left:28px;border-left:2px solid var(--border);padding-left:14px;"' : '';
   return `<div class="cp-comment" data-cid="${comment.id}" ${indent}>
     <div class="cp-comment-head">
-      ${(()=>{const _cu=getAvatarUrl(comment.user);return _cu?`<div class="comment-av av-circle clickable-user has-photo" data-user="${comment.user}"><img src="${_cu}" alt="" class="av-photo"/></div>`:`<div class="comment-av av-circle clickable-user" data-user="${comment.user}" style="background:${avColor(comment.user)}">${comment.user[0].toUpperCase()}</div>`;})()} 
+      ${(()=>{const _cu=getAvatarUrl(comment.user);const _ring=hasActiveSpotStory(comment.user)?' has-story-ring':'';return _cu?`<div class="comment-av av-circle clickable-user has-photo${_ring}" data-user="${comment.user}"><img src="${_cu}" alt="" class="av-photo"/></div>`:`<div class="comment-av av-circle clickable-user${_ring}" data-user="${comment.user}" style="background:${avColor(comment.user)}">${comment.user[0].toUpperCase()}</div>`;})()} 
       <div class="cp-comment-meta">
         <b class="comment-author clickable-user" data-user="${comment.user}">${esc(comment.user)}</b>
         <span class="comment-time">${timeAgo(new Date(comment.date).getTime())}</span>
@@ -7391,6 +7423,30 @@ function dbSocialToApp(row) {
 
 // getSocialPosts — merge Supabase posts with any local-only fallbacks
 // S._socialPosts is populated by renderSocialFeed after Supabase fetch
+const SPOT_STORY_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours, same convention as Instagram/Snapchat stories
+
+// Unlike getSocialPosts(), this ignores the current Car Spotting page's
+// tab filter (For You/Following/Builds) — it needs to answer "does this
+// person have an active Car Spotting post" correctly from ANY page on the
+// site, not just while looking at a particular feed tab.
+function hasActiveSpotStory(username) {
+  if (!username) return false;
+  const posts = S._socialPosts?.length
+    ? S._socialPosts
+    : JSON.parse(localStorage.getItem('dl_social_posts')||'[]').map(dbSocialToApp).filter(Boolean);
+  const cutoff = Date.now() - SPOT_STORY_WINDOW_MS;
+  return posts.some(p => p.user === username && p.ts > cutoff);
+}
+
+// Adds/removes the gradient "story ring" class on an avatar element,
+// depending on whether that user currently has an active Car Spotting
+// post. Called from setAvEl() so every avatar rendered through the normal
+// DOM-update path gets this automatically, site-wide.
+function setStoryRing(domEl, username) {
+  if (!domEl) return;
+  domEl.classList.toggle('has-story-ring', hasActiveSpotStory(username));
+}
+
 function getSocialPosts() {
   // Use in-memory cache if available (populated from Supabase)
   if (S._socialPosts?.length) {

@@ -137,6 +137,20 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 .av-chip{display:flex;align-items:center;gap:8px;background:var(--raised);border:1px solid var(--mid);border-radius:30px;padding:4px 12px 4px 4px;cursor:pointer;transition:border-color var(--tr)}
 .av-chip:hover{border-color:var(--accent)}
 .av-circle{width:28px;height:28px;border-radius:50%;font-family:var(--disp);font-size:.9rem;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
+
+/* ═══ Universal "active Car Spotting story" ring ═══
+   Applied via JS (setAvEl) to any avatar, anywhere on the site, when that
+   user has posted to Car Spotting in the last 24 hours — matching the
+   Instagram/Snapchat convention. Uses a pseudo-element sized slightly
+   larger than the avatar itself so it never affects layout/sizing at any
+   of the many places avatars render (header, cards, members, profile,
+   comments, DMs, notifications). */
+.has-story-ring{position:relative}
+.has-story-ring::before{
+  content:'';position:absolute;inset:-3px;border-radius:50%;
+  background:conic-gradient(from 180deg,#f0a030,#3b82f6,#e8392a,#f0a030);
+  z-index:-1;
+}
 .av-chip span{font-family:var(--cond);font-size:.85rem;font-weight:600}
 .av-drop{position:absolute;top:calc(100% + 8px);right:0;background:var(--raised);border:1px solid var(--mid);border-radius:var(--r-lg);padding:6px;min-width:190px;box-shadow:0 12px 40px rgba(0,0,0,.7);display:none;z-index:200}
 .av-drop.open{display:block;animation:slideUp .18s ease}
