@@ -727,6 +727,10 @@ function initNavLinks() {
 // URL hash is updated so mobile back button and bookmarks work.
 function goTo(page) {
   S.page = page;
+  // If the Car Spotting detail modal is open (e.g. user tapped a username
+  // inside it), close it and restore scrolling — otherwise the modal stays
+  // stuck over the new page with body scroll locked.
+  if (typeof closeSocialDetail === 'function') closeSocialDetail();
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const pg = el('page-'+page);
   if (pg) pg.classList.add('active');

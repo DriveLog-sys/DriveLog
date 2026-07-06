@@ -140,7 +140,10 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 .av-chip span{font-family:var(--cond);font-size:.85rem;font-weight:600}
 .av-drop{position:absolute;top:calc(100% + 8px);right:0;background:var(--raised);border:1px solid var(--mid);border-radius:var(--r-lg);padding:6px;min-width:190px;box-shadow:0 12px 40px rgba(0,0,0,.7);display:none;z-index:200}
 .av-drop.open{display:block;animation:slideUp .18s ease}
-.av-wrap:hover .av-drop,.av-drop.open{display:block}
+/* Hover-open only on devices that actually hover — on touch screens iOS
+   treats the first tap as :hover (showing the drop) and needs a second
+   tap to register click, which made the avatar need two taps on mobile */
+@media(hover:hover){.av-wrap:hover .av-drop{display:block}}
 .av-drop-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r-md);font-family:var(--cond);font-size:.88rem;font-weight:600;color:var(--sec);cursor:pointer;transition:all var(--tr)}
 .av-drop-item:hover{background:var(--hover);color:var(--text)}
 .av-drop-item.danger:hover{color:var(--accent);background:var(--accent-soft)}
@@ -1961,7 +1964,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 .social-grid-card:hover{transform:scale(1.01)}
 
 /* ═══ Detail modal — the full rich card, opened on tap ═══ */
-.social-detail-box{max-width:520px;padding:0;background:transparent;box-shadow:none}
+.social-detail-box{max-width:520px;padding:44px 0 0;background:transparent;box-shadow:none}
 .social-detail-box .social-post-card{max-width:none;margin:0}
 .soc-tab.active{background:var(--accent);color:#fff}
 
@@ -3849,10 +3852,12 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
   .story-bubble{width:60px}
   .story-bubble-ring{width:56px;height:56px}
   .story-bubble-name{max-width:60px;font-size:.68rem}
+  .story-bar-wrap{margin-top:0}
   .social-tags-strip{margin-bottom:12px}
   .social-feed-tabs{width:100%;justify-content:space-between}
   .soc-tab{flex:1;text-align:center;padding:5px 8px}
   .social-detail-box{max-width:100%}
+  .modal-overlay{padding:12px}
 }
 
 /* ─── PROFILE — MOBILE ────────────────────────────────────────── */
@@ -7399,21 +7404,30 @@ html, body { overflow-x: hidden; }
   .card:hover  { transform: none !important; box-shadow: none !important; }
   .card:active { transform: scale(.97) !important; }
 
-  /* Filter bar — horizontal scroll */
-  .filter-bar {
+  /* Filter bar (category pills) — hidden on mobile. Categories are still
+     fully available via the Filters drawer's multi-select, so nothing is
+     lost; the Filters+Sort row takes this spot instead. */
+  .filter-bar { display: none !important; }
+
+  /* Filters + Sort row — the top control strip on mobile. Sticky under the
+     header, horizontally scrollable so all controls stay reachable. */
+  .sort-row {
+    position: sticky !important;
+    top: 64px !important;
+    z-index: 90 !important;
+    background: var(--bg) !important;
+    margin: -10px -8px 12px !important;   /* bleed to feed-wrap edges */
+    padding: 10px 12px !important;
     overflow-x: auto !important;
     flex-wrap: nowrap !important;
-    padding: 8px 8px !important;
-    gap: 6px !important;
     scrollbar-width: none !important;
+    border-bottom: 1px solid var(--subtle) !important;
   }
-  .filter-bar::-webkit-scrollbar { display: none !important; }
-  .fpill {
-    flex-shrink: 0 !important;
-    padding: 5px 12px !important;
-    font-size: .72rem !important;
-    white-space: nowrap !important;
-  }
+  .sort-row::-webkit-scrollbar { display: none !important; }
+  .sort-row .sort-label, .sort-row .sort-divider { display: none !important; }
+  .sort-btn { flex-shrink: 0 !important; }
+  .filter-trigger-btn { flex-shrink: 0 !important; padding: 6px 14px !important; }
+
   .sort-btn  { font-size: .72rem !important; padding: 4px 10px !important; }
 
   /* ── BUILD / CAR PAGE ────────────────────────────────────── */
@@ -7699,6 +7713,18 @@ html, body { overflow-x: hidden; }
   #page-messages.active { padding-bottom: 0 !important; }
 }
 
+/* ── iOS input zoom fix ────────────────────────────────────────
+   iOS Safari force-zooms the whole page when a focused input has a
+   font-size under 16px. Every input on the site is smaller than that,
+   so on touch phones we bump inputs to exactly 16px to stop the jarring
+   zoom-in when tapping search, comments, messages, etc. */
+@media (max-width: 768px) {
+  input[type="text"], input[type="email"], input[type="password"],
+  input[type="search"], input[type="number"], textarea, select {
+    font-size: 16px !important;
+  }
+}
+
 /* ── Very small phones ≤390px ──────────────────────────────── */
 @media (max-width: 390px) {
   .card-grid { grid-template-columns: 1fr !important; }
@@ -7706,6 +7732,7 @@ html, body { overflow-x: hidden; }
   .header-inner { padding: 0 10px !important; }
   .mob-bottom-tab { font-size: .48rem !important; }
   .mob-bottom-tab i { font-size: 1rem !important; }
+  .header-search-wrap .header-search-trigger { min-width: 110px !important; padding: 0 12px !important; }
 }
 
 /* ── iOS safe area ─────────────────────────────────────────── */
