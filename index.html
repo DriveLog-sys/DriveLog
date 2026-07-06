@@ -14,7 +14,7 @@
 
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-  <link rel="stylesheet" href="main.min.css?v=202607062209"/>
+  <link rel="stylesheet" href="main.min.css?v=202607062320"/>
   <!-- Open Graph / Share meta tags -->
   <meta property="og:type"        content="website"/>
   <meta property="og:title"       content="DriveLog — The Car Community"/>
@@ -688,6 +688,17 @@
         <button class="gtab" data-gtab="shared"><i class="fas fa-share-alt"></i> Shared <span class="gtab-count" id="gcount-shared"></span></button>
         <button class="gtab" data-gtab="parts"><i class="fas fa-wrench"></i> Saved Parts <span class="gtab-count" id="gcount-parts"></span></button>
         <button class="gtab" data-gtab="socials"><i class="fab fa-instagram"></i> Saved Socials <span class="gtab-count" id="gcount-socials"></span></button>
+      </div>
+
+      <!-- Filter + Sort — only meaningful on Liked/Saved/Shared (build post
+           tabs); hidden automatically on Parts/Socials in renderGarage() -->
+      <div class="sort-row" id="garageSortRow">
+        <button class="filter-trigger-btn" id="openGarageFilterBtn"><i class="fas fa-sliders-h"></i> Filters <span class="filter-trigger-count" id="garageFilterTriggerCount" style="display:none"></span></button>
+        <div class="sort-divider"></div>
+        <span class="sort-label">Sort</span>
+        <button class="sort-btn active" data-gsort="newest">Newest</button>
+        <button class="sort-btn" data-gsort="popular">Most Liked</button>
+        <button class="sort-btn" data-gsort="discussed">Most Comments</button>
       </div>
       <div class="gpanel active" id="gpanel-liked">
         <div class="card-grid" id="likedGrid"></div>
@@ -1525,11 +1536,11 @@
       <div class="fs-group-label">Year Range</div>
       <div class="fs-range-row">
         <div class="fs-range-wrap">
-          <input type="range" id="fsYearMin" min="1900" max="2026" value="1900" step="1"/>
+          <input type="range" id="fsYearMin" min="1900" max="2027" value="1900" step="1"/>
           <div class="fs-range-labels"><span id="fsYearMinVal">Any</span><span>Min Year</span></div>
         </div>
         <div class="fs-range-wrap">
-          <input type="range" id="fsYearMax" min="1900" max="2026" value="2026" step="1"/>
+          <input type="range" id="fsYearMax" min="1900" max="2027" value="2027" step="1"/>
           <div class="fs-range-labels"><span id="fsYearMaxVal">Any</span><span>Max Year</span></div>
         </div>
       </div>
@@ -1559,25 +1570,95 @@
 
     <div class="fs-divider"></div>
 
-    <!-- Has Photos -->
+    <!-- Exterior Color -->
     <div class="fs-group">
-      <div class="fs-group-label">Media</div>
-      <div class="fs-pills">
-        <button class="fs-pill active" data-fmedia="">All Posts</button>
-        <button class="fs-pill" data-fmedia="photos">Has Photos</button>
-        <button class="fs-pill" data-fmedia="multi">Multiple Photos</button>
+      <div class="fs-group-label">Exterior Color <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
+      <div class="fs-pills" id="fsColorPills">
+        <button class="fs-pill" data-fcolor="Black">Black</button>
+        <button class="fs-pill" data-fcolor="White">White</button>
+        <button class="fs-pill" data-fcolor="Silver">Silver</button>
+        <button class="fs-pill" data-fcolor="Gray">Gray</button>
+        <button class="fs-pill" data-fcolor="Red">Red</button>
+        <button class="fs-pill" data-fcolor="Blue">Blue</button>
+        <button class="fs-pill" data-fcolor="Green">Green</button>
+        <button class="fs-pill" data-fcolor="Yellow">Yellow</button>
+        <button class="fs-pill" data-fcolor="Orange">Orange</button>
+        <button class="fs-pill" data-fcolor="Brown">Brown</button>
+        <button class="fs-pill" data-fcolor="Gold">Gold</button>
+        <button class="fs-pill" data-fcolor="Purple">Purple</button>
       </div>
     </div>
 
     <div class="fs-divider"></div>
 
-    <!-- Has Mods listed -->
+    <!-- Body Type -->
     <div class="fs-group">
-      <div class="fs-group-label">Build Type</div>
-      <div class="fs-pills">
-        <button class="fs-pill active" data-fbuild="">All</button>
-        <button class="fs-pill" data-fbuild="modified">Modified</button>
-        <button class="fs-pill" data-fbuild="stock">Stock / Collector</button>
+      <div class="fs-group-label">Body Type <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
+      <div class="fs-pills" id="fsBodyPills">
+        <button class="fs-pill" data-fbody="Sedan">Sedan</button>
+        <button class="fs-pill" data-fbody="Coupe">Coupe</button>
+        <button class="fs-pill" data-fbody="Hatchback">Hatchback</button>
+        <button class="fs-pill" data-fbody="SUV">SUV</button>
+        <button class="fs-pill" data-fbody="Truck">Truck</button>
+        <button class="fs-pill" data-fbody="Convertible">Convertible</button>
+        <button class="fs-pill" data-fbody="Wagon">Wagon</button>
+        <button class="fs-pill" data-fbody="Van/Minivan">Van/Minivan</button>
+      </div>
+    </div>
+
+    <div class="fs-divider"></div>
+
+    <!-- Engine -->
+    <div class="fs-group">
+      <div class="fs-group-label">Engine <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
+      <div class="fs-pills" id="fsEnginePills">
+        <button class="fs-pill" data-fengine="4-Cylinder">4-Cylinder</button>
+        <button class="fs-pill" data-fengine="V6">V6</button>
+        <button class="fs-pill" data-fengine="V8">V8</button>
+        <button class="fs-pill" data-fengine="V10">V10</button>
+        <button class="fs-pill" data-fengine="V12">V12</button>
+        <button class="fs-pill" data-fengine="Rotary">Rotary</button>
+        <button class="fs-pill" data-fengine="Electric">Electric</button>
+        <button class="fs-pill" data-fengine="Hybrid">Hybrid</button>
+      </div>
+    </div>
+
+    <div class="fs-divider"></div>
+
+    <!-- Drivetrain -->
+    <div class="fs-group">
+      <div class="fs-group-label">Drivetrain <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
+      <div class="fs-pills" id="fsDrivePills">
+        <button class="fs-pill" data-fdrive="FWD">FWD</button>
+        <button class="fs-pill" data-fdrive="RWD">RWD</button>
+        <button class="fs-pill" data-fdrive="AWD">AWD</button>
+        <button class="fs-pill" data-fdrive="4WD">4WD</button>
+      </div>
+    </div>
+
+    <div class="fs-divider"></div>
+
+    <!-- Transmission -->
+    <div class="fs-group">
+      <div class="fs-group-label">Transmission <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
+      <div class="fs-pills" id="fsTransPills">
+        <button class="fs-pill" data-ftrans="Automatic">Automatic</button>
+        <button class="fs-pill" data-ftrans="Manual">Manual</button>
+        <button class="fs-pill" data-ftrans="DCT">DCT</button>
+        <button class="fs-pill" data-ftrans="CVT">CVT</button>
+      </div>
+    </div>
+
+    <div class="fs-divider"></div>
+
+    <!-- Fuel Type -->
+    <div class="fs-group">
+      <div class="fs-group-label">Fuel Type <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
+      <div class="fs-pills" id="fsFuelPills">
+        <button class="fs-pill" data-ffuel="Gasoline">Gasoline</button>
+        <button class="fs-pill" data-ffuel="Diesel">Diesel</button>
+        <button class="fs-pill" data-ffuel="Electric">Electric</button>
+        <button class="fs-pill" data-ffuel="Hybrid">Hybrid</button>
       </div>
     </div>
 
@@ -1593,9 +1674,9 @@
      Moved from <head> to end of <body> so it no longer blocks first paint;
      load order is unchanged: supabase → data → db → app -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="data.min.js?v=202607062209"></script>
-<script src="db.min.js?v=202607062209"></script>
-<script src="app.min.js?v=202607062209"></script>
+<script src="data.min.js?v=202607062320"></script>
+<script src="db.min.js?v=202607062320"></script>
+<script src="app.min.js?v=202607062320"></script>
 <!-- Sign up nudge banner — shown to signed-out users -->
 <div class="signup-nudge" id="signupNudge" style="display:none">
   <div class="signup-nudge-inner">

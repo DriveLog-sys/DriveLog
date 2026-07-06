@@ -72,7 +72,7 @@ const S = {
   following: [],       // array of usernames the logged-in user follows
   blockedUsers: [],    // array of usernames the logged-in user has blocked
   notifs: [],          // notification objects for current user
-  filters: { categories:[], make:"", yearMin:1940, yearMax:2026, hp:0, likes:0, media:"", build:"" },
+  filters: { categories:[], make:"", yearMin:1900, yearMax:new Date().getFullYear()+1, hp:0, likes:0, colors:[], bodyTypes:[], engines:[], drivetrains:[], transmissions:[], fuelTypes:[] },
   dms: {},             // { otherUsername: [{from,text,ts},...] }
   openDm: null,        // username of active DM conversation
   openCarPost: null,   // post currently shown on the full car detail page
@@ -3142,22 +3142,33 @@ function applyFiltersToPost(p) {
   const yr = parseInt(p.year) || 0;
   if (yr && (yr < f.yearMin || yr > f.yearMax)) return false;
   if (f.hp > 0) {
-    const hpNum = parseInt((p.hp||'').replace(/[^0-9]/g,'')) || 0;
+    // Same first-number-only parsing as computeRanges() — see the note
+    // there about why a naive strip-all-non-digits regex is a real bug.
+    const hpNum = parseInt((p.hp||'').match(/\d+/)?.[0]||'0', 10);
     if (!hpNum || hpNum < f.hp) return false;
   }
   if (f.likes > 0  && p.likes < f.likes) return false;
-  if (f.media === 'photos' && (!p.images||!p.images.length))   return false;
-  if (f.media === 'multi'  && (!p.images||p.images.length < 2)) return false;
-  if (f.build === 'modified' && !p.mods)  return false;
-  if (f.build === 'stock'    &&  p.mods)  return false;
+
+  // CarGurus-style filters — these fields don't exist on posts yet (the
+  // upload form doesn't collect them), so these checks are no-ops until
+  // that's added; harmless in the meantime, ready to go once it is.
+  if (f.colors?.length        && !f.colors.includes(p.color))            return false;
+  if (f.bodyTypes?.length     && !f.bodyTypes.includes(p.bodyType))       return false;
+  if (f.engines?.length       && !f.engines.includes(p.engine))          return false;
+  if (f.drivetrains?.length   && !f.drivetrains.includes(p.drivetrain))  return false;
+  if (f.transmissions?.length && !f.transmissions.includes(p.transmission)) return false;
+  if (f.fuelTypes?.length     && !f.fuelTypes.includes(p.fuelType))      return false;
+
   return true;
 }
 
 function countActiveFilters() {
   const f = S.filters; let n = 0;
   if (f.categories.length > 0) n++; if (f.make) n++; if (f.hp > 0) n++;
-  if (f.likes > 0) n++; if (f.media) n++; if (f.build) n++;
-  if (f.yearMin > 1940 || f.yearMax < 2026) n++;
+  if (f.likes > 0) n++;
+  if (f.colors?.length) n++; if (f.bodyTypes?.length) n++; if (f.engines?.length) n++;
+  if (f.drivetrains?.length) n++; if (f.transmissions?.length) n++; if (f.fuelTypes?.length) n++;
+  if (f.yearMin > 1900 || f.yearMax < new Date().getFullYear()+1) n++;
   return n;
 }
 
@@ -3241,13 +3252,21 @@ function initFilterSidebar() {
     // Makes: sorted alphabetically, deduplicated
     const makes = [...new Set(posts.map(p=>p.make).filter(Boolean))].sort();
 
-    // Years: only posts that have a valid 4-digit year
-    const years = posts.map(p=>parseInt(p.year)).filter(y=>y>1900&&y<=2100);
-    const yearMin = years.length ? Math.min(...years) : 1940;
-    const yearMax = years.length ? Math.max(...years) : new Date().getFullYear();
+    // Years: floor is always 1900, ceiling is always at least next year
+    // (accommodates next model-year cars) — both extend further only if
+    // an actual post falls outside that range, per your spec.
+    const thisYear = new Date().getFullYear();
+    const defaultYearMin = 1900, defaultYearMax = thisYear + 1;
+    const years = posts.map(p=>parseInt(p.year)).filter(y=>y>1800&&y<=2200);
+    const yearMin = years.length ? Math.min(defaultYearMin, ...years) : defaultYearMin;
+    const yearMax = years.length ? Math.max(defaultYearMax, ...years) : defaultYearMax;
 
-    // HP: extract numeric part from strings like "450whp", "355hp", "900+"
-    const hps = posts.map(p=>parseInt((p.hp||'').replace(/[^0-9]/g,''))).filter(v=>v>0);
+    // HP: extract the FIRST number found, e.g. "450whp"→450, "355 hp"→355.
+    // Previously this stripped ALL non-digit characters before parsing,
+    // which meant a hyphenated value like "450-500hp" got concatenated
+    // into "450500" — a single bad post could blow the slider out to a
+    // huge, meaningless max. Matching the first digit run avoids that.
+    const hps = posts.map(p=>parseInt((p.hp||'').match(/\d+/)?.[0]||'0',10)).filter(v=>v>0&&v<=3000);
     const hpMax = hps.length ? Math.ceil(Math.max(...hps) / 50) * 50 : 500; // round up to nearest 50
 
     // Likes: highest like count across all posts
@@ -3277,7 +3296,7 @@ function initFilterSidebar() {
     if (+ymaxEl.value > r.yearMax || +ymaxEl.value === 1900) ymaxEl.value = r.yearMax;
     // Update default state if filters are at initial values
     if (S.filters.yearMin <= 1900) S.filters.yearMin = r.yearMin;
-    if (S.filters.yearMax >= 2100) S.filters.yearMax = r.yearMax;
+    if (S.filters.yearMax >= new Date().getFullYear()+1) S.filters.yearMax = r.yearMax;
 
     // HP slider
     const hpEl = el('fsHP');
@@ -3295,7 +3314,8 @@ function initFilterSidebar() {
     side._ranges = r;
   }
 
-  btn.addEventListener('click', openFilter);
+  btn.addEventListener('click', () => { side._context = 'feed'; openFilter(); });
+  el('openGarageFilterBtn')?.addEventListener('click', () => { side._context = 'garage'; openFilter(); });
   el('filterClose')?.addEventListener('click', closeFilter);
   over.addEventListener('click', closeFilter);
 
@@ -3310,23 +3330,35 @@ function initFilterSidebar() {
     document.body.style.overflow = '';
   }
 
-  // Category pills
+  // Category pills — multi-select (previously this replaced the .active
+  // class on ALL pills like a single-select, and wrote to S.filters.category
+  // — singular — which applyFiltersToPost() never actually read. The real
+  // field is the plural S.filters.categories array, so category filtering
+  // was silently doing nothing at all.
   side.querySelectorAll('.fs-pill[data-fc]').forEach(p=>p.addEventListener('click',()=>{
-    side.querySelectorAll('.fs-pill[data-fc]').forEach(x=>x.classList.remove('active'));
-    p.classList.add('active'); S.filters.category = p.dataset.fc;
+    p.classList.toggle('active');
+    const cat = p.dataset.fc, idx = S.filters.categories.indexOf(cat);
+    if (p.classList.contains('active')) { if (idx===-1) S.filters.categories.push(cat); }
+    else if (idx!==-1) S.filters.categories.splice(idx,1);
   }));
 
-  // Media pills
-  side.querySelectorAll('.fs-pill[data-fmedia]').forEach(p=>p.addEventListener('click',()=>{
-    side.querySelectorAll('.fs-pill[data-fmedia]').forEach(x=>x.classList.remove('active'));
-    p.classList.add('active'); S.filters.media = p.dataset.fmedia;
-  }));
-
-  // Build pills
-  side.querySelectorAll('.fs-pill[data-fbuild]').forEach(p=>p.addEventListener('click',()=>{
-    side.querySelectorAll('.fs-pill[data-fbuild]').forEach(x=>x.classList.remove('active'));
-    p.classList.add('active'); S.filters.build = p.dataset.fbuild;
-  }));
+  // Shared multi-select toggle helper for the 6 new filter groups below
+  function wireMultiSelectPills(selector, datasetKey, filterKey) {
+    side.querySelectorAll(selector).forEach(p=>p.addEventListener('click',()=>{
+      p.classList.toggle('active');
+      const val = p.dataset[datasetKey];
+      const arr = S.filters[filterKey];
+      const idx = arr.indexOf(val);
+      if (p.classList.contains('active')) { if (idx===-1) arr.push(val); }
+      else if (idx!==-1) arr.splice(idx,1);
+    }));
+  }
+  wireMultiSelectPills('.fs-pill[data-fcolor]', 'fcolor', 'colors');
+  wireMultiSelectPills('.fs-pill[data-fbody]',  'fbody',  'bodyTypes');
+  wireMultiSelectPills('.fs-pill[data-fengine]','fengine','engines');
+  wireMultiSelectPills('.fs-pill[data-fdrive]', 'fdrive', 'drivetrains');
+  wireMultiSelectPills('.fs-pill[data-ftrans]', 'ftrans', 'transmissions');
+  wireMultiSelectPills('.fs-pill[data-ffuel]',  'ffuel',  'fuelTypes');
 
   // Make select
   el('fsMake')?.addEventListener('change', ()=>{ S.filters.make = el('fsMake').value; });
@@ -3361,6 +3393,11 @@ function initFilterSidebar() {
 
   // Apply
   el('filterApply')?.addEventListener('click', ()=>{
+    if (side._context === 'garage') {
+      renderGarage();
+      closeFilter();
+      return;
+    }
     // sidebar categories take over, reset top pill to All
     S.filter = 'All';
     document.querySelectorAll('.fpill[data-cat]').forEach(p=>p.classList.toggle('active', p.dataset.cat==='All'));
@@ -3372,10 +3409,14 @@ function initFilterSidebar() {
   // Reset — resets to real data defaults (not hardcoded values)
   el('filterReset')?.addEventListener('click', ()=>{
     const r = side._ranges || computeRanges();
-    S.filters = { categories:[], make:'', yearMin:r.yearMin, yearMax:r.yearMax, hp:0, likes:0, media:'', build:'' };
-    S.filter = 'All';
+    S.filters = { categories:[], make:'', yearMin:r.yearMin, yearMax:r.yearMax, hp:0, likes:0, colors:[], bodyTypes:[], engines:[], drivetrains:[], transmissions:[], fuelTypes:[] };
     S.visibleCount = FEED_PAGE_SIZE;
     syncFilterUI();
+    if (side._context === 'garage') {
+      renderGarage();
+      return;
+    }
+    S.filter = 'All';
     document.querySelectorAll('.fpill[data-cat]').forEach(p=>p.classList.toggle('active',p.dataset.cat==='All'));
     renderFeed();
   });
@@ -3384,8 +3425,12 @@ function initFilterSidebar() {
   function syncFilterUI() {
     const f = S.filters;
     side.querySelectorAll('.fs-pill[data-fc]').forEach(p=>p.classList.toggle('active', (f.categories||[]).includes(p.dataset.fc)));
-    side.querySelectorAll('.fs-pill[data-fmedia]').forEach(p=>p.classList.toggle('active', p.dataset.fmedia===f.media));
-    side.querySelectorAll('.fs-pill[data-fbuild]').forEach(p=>p.classList.toggle('active', p.dataset.fbuild===f.build));
+    side.querySelectorAll('.fs-pill[data-fcolor]').forEach(p=>p.classList.toggle('active', (f.colors||[]).includes(p.dataset.fcolor)));
+    side.querySelectorAll('.fs-pill[data-fbody]').forEach(p=>p.classList.toggle('active', (f.bodyTypes||[]).includes(p.dataset.fbody)));
+    side.querySelectorAll('.fs-pill[data-fengine]').forEach(p=>p.classList.toggle('active', (f.engines||[]).includes(p.dataset.fengine)));
+    side.querySelectorAll('.fs-pill[data-fdrive]').forEach(p=>p.classList.toggle('active', (f.drivetrains||[]).includes(p.dataset.fdrive)));
+    side.querySelectorAll('.fs-pill[data-ftrans]').forEach(p=>p.classList.toggle('active', (f.transmissions||[]).includes(p.dataset.ftrans)));
+    side.querySelectorAll('.fs-pill[data-ffuel]').forEach(p=>p.classList.toggle('active', (f.fuelTypes||[]).includes(p.dataset.ffuel)));
     el('fsMake').value = f.make;
     const ymin = el('fsYearMin'), ymax = el('fsYearMax');
     ymin.value = f.yearMin; el('fsYearMinVal').textContent = f.yearMin;
@@ -4354,24 +4399,46 @@ function renderGarage() {
   const uname  = S.user.username;
   const uid    = S.user.id || '';
   const byDate = (a,b) => new Date(b.createdAt||b.date||0) - new Date(a.createdAt||a.date||0);
-  const liked  = S.posts.filter(p=>(p.likedBy||[]).includes(uname)||(p.likedBy||[]).includes(uid)).sort(byDate);
-  const saved  = S.posts.filter(p=>(p.savedBy||[]).includes(uname)||(p.savedBy||[]).includes(uid)).sort(byDate);
-  const shared = S.posts.filter(p=>p.user===uname).sort(byDate);
+  const likedAll  = S.posts.filter(p=>(p.likedBy||[]).includes(uname)||(p.likedBy||[]).includes(uid));
+  const savedAll  = S.posts.filter(p=>(p.savedBy||[]).includes(uname)||(p.savedBy||[]).includes(uid));
+  const sharedAll = S.posts.filter(p=>p.user===uname);
+  let liked  = likedAll.filter(applyFiltersToPost);
+  let saved  = savedAll.filter(applyFiltersToPost);
+  let shared = sharedAll.filter(applyFiltersToPost);
+
+  // Sort — same options as the home feed (Newest/Most Liked/Most Comments)
+  const gsort = S.garageSort || 'newest';
+  const sortFn = gsort==='popular'   ? (a,b)=>b.likes-a.likes
+               : gsort==='discussed'? (a,b)=>(b.comments||[]).length-(a.comments||[]).length
+               : byDate;
+  liked.sort(sortFn); saved.sort(sortFn); shared.sort(sortFn);
+
+  const filterActive = countActiveFilters() > 0;
+  const emptyMsg = (elx, hasAny) => {
+    if (!elx) return;
+    if (elx.dataset.origHtml === undefined) elx.dataset.origHtml = elx.innerHTML;
+    elx.innerHTML = (hasAny && filterActive)
+      ? '<i class="fas fa-filter"></i><h3>No matches</h3><p>Nothing here matches your current filters.</p>'
+      : elx.dataset.origHtml;
+  };
 
   // Liked
   el('likedGrid').innerHTML = liked.map((p,i)=>cardHTML(p,i)).join('');
   el('likedEmpty').style.display = liked.length ? 'none' : 'block';
+  emptyMsg(el('likedEmpty'), likedAll.length > 0);
   attachCardEvents(el('likedGrid'));
 
   // Saved
   el('savedGrid').innerHTML = saved.map((p,i)=>cardHTML(p,i)).join('');
   el('savedEmpty').style.display = saved.length ? 'none' : 'block';
+  emptyMsg(el('savedEmpty'), savedAll.length > 0);
   attachCardEvents(el('savedGrid'));
 
   // Shared (your builds)
   if (el('sharedGrid')) {
     el('sharedGrid').innerHTML = shared.map((p,i)=>cardHTML(p,i)).join('');
     el('sharedEmpty').style.display = shared.length ? 'none' : 'block';
+    emptyMsg(el('sharedEmpty'), sharedAll.length > 0);
     attachCardEvents(el('sharedGrid'));
   }
 
@@ -4379,15 +4446,48 @@ function renderGarage() {
   if (el('partsPanel'))   renderParts();
   if (el('socialsPanel')) renderSavedSocials();
 
-  // Tab counts
+  // Tab counts — total counts, unaffected by the active filter (like Gmail
+  // label counts not changing when you search)
   const parts   = JSON.parse(localStorage.getItem('dl_parts_'+uname)||'[]');
   const socials = getSavedSocials();
   const setCount = (id, n) => { const e = el(id); if (e) e.textContent = n > 0 ? n : ''; };
-  setCount('gcount-liked',  liked.length);
-  setCount('gcount-saved',  saved.length);
-  setCount('gcount-shared', shared.length);
+  setCount('gcount-liked',  likedAll.length);
+  setCount('gcount-saved',  savedAll.length);
+  setCount('gcount-shared', sharedAll.length);
   setCount('gcount-parts',  parts.length);
   setCount('gcount-socials',socials.length);
+
+  // Filter count badge on the garage Filters button
+  const gFilterCount = el('garageFilterTriggerCount');
+  if (gFilterCount) {
+    const n = countActiveFilters();
+    gFilterCount.textContent = n > 0 ? n : '';
+    gFilterCount.style.display = n > 0 ? '' : 'none';
+  }
+
+  // Sort+filter row only makes sense on the build-post tabs (Liked/Saved/
+  // Shared) — Parts and Socials aren't build posts, so year/HP/category
+  // filtering doesn't apply to them.
+  const BUILD_TABS = ['liked','saved','shared'];
+  function updateSortRowVisibility() {
+    const activeTab = document.querySelector('.gtab.active')?.dataset.gtab || 'liked';
+    const row = el('garageSortRow');
+    if (row) row.style.display = BUILD_TABS.includes(activeTab) ? '' : 'none';
+  }
+  updateSortRowVisibility();
+
+  // Wire sort buttons once
+  if (!S._garageSortWired) {
+    S._garageSortWired = true;
+    document.querySelectorAll('.sort-btn[data-gsort]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.sort-btn[data-gsort]').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        S.garageSort = btn.dataset.gsort;
+        renderGarage();
+      });
+    });
+  }
 
   // Wire tabs — single wiring point (onclick replaces, never stacks)
   document.querySelectorAll('.gtab').forEach(t => {
@@ -4399,6 +4499,7 @@ function renderGarage() {
       if (panel) panel.classList.add('active');
       if (t.dataset.gtab === 'socials') renderSavedSocials();
       if (t.dataset.gtab === 'parts')   renderParts();
+      updateSortRowVisibility();
     };
   });
 }
