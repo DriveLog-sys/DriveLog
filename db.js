@@ -790,6 +790,21 @@ const DB = {
     return data || [];
   },
 
+  // Lightweight — just enough to know WHO has an active (<24hr) Car
+  // Spotting post, for the story ring shown across the whole site. Avoids
+  // pulling full post data (images/captions/comments) just to answer that.
+  async getRecentSpotters() {
+    if (!_sbOk()) return [];
+    const cutoffIso = new Date(Date.now() - 24*60*60*1000).toISOString();
+    const { data, error } = await _sb
+      .from('social_posts')
+      .select('username,created_at')
+      .gte('created_at', cutoffIso)
+      .order('created_at', { ascending: false });
+    if (error) { console.error('getRecentSpotters error:', error.message); return []; }
+    return data || [];
+  },
+
   async createSocialPost(userId, username, postData) {
     if (!_sbOk()) return { error: { message: 'Not connected.' } };
     const { data, error } = await _sb

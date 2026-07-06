@@ -1318,7 +1318,7 @@
     status.textContent = val + ' is available'; status.className = 'username-status ok';
   });
 
-  document.getElementById('saveUsername').addEventListener('click', () => {
+  document.getElementById('saveUsername').addEventListener('click', async () => {
     const u = getUser(); if (!u) { toast('Not signed in', 'err'); return; }
     const newUsername = document.getElementById('fNewUsername').value.trim();
 
@@ -1332,32 +1332,58 @@
     const check = canChangeUsername(u);
     if (!check.ok) { toast(`Wait ${check.daysLeft} more day${check.daysLeft===1?'':'s'}`, 'err'); return; }
 
-    // Check uniqueness
-    const users = getUsers();
-    if (users.some(x => x.username.toLowerCase() === newUsername.toLowerCase())) {
-      toast('Username already taken', 'err'); return;
+    const sb = getSettingsSb();
+    if (!sb || !u.id) { toast('Unable to connect — try again', 'err'); return; }
+
+    const btn = document.getElementById('saveUsername');
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving…';
+
+    try {
+      // Supabase is the real uniqueness check — a local-only check (like
+      // the old getUsers() scan below) can miss usernames taken by anyone
+      // this device hasn't cached yet.
+      const { error: profileErr } = await sb.from('profiles')
+        .update({ username: newUsername })
+        .eq('id', u.id);
+      if (profileErr) {
+        if (profileErr.code === '23505') toast('Username already taken', 'err');
+        else toast(profileErr.message || 'Failed to change username', 'err');
+        return;
+      }
+      // Keep auth metadata in sync too — this is what session refresh
+      // reads on the main site. A mismatch here is exactly what caused
+      // profile changes to silently revert after leaving Settings.
+      const { error: authErr } = await sb.auth.updateUser({ data: { username: newUsername } });
+      if (authErr) console.warn('Auth metadata username update failed:', authErr);
+
+      // Update all references
+      const oldUsername = u.username;
+      u.username = newUsername;
+      u.lastUsernameChange = new Date().toISOString();
+      saveUser(u);
+      document.getElementById('fDisplayName').value = newUsername;
+      document.getElementById('acctUsername').textContent = newUsername;
+
+      // Update in users array
+      const users = getUsers();
+      const idx = users.findIndex(x => x.username === oldUsername);
+      if (idx >= 0) {
+        users[idx] = { ...users[idx], username: newUsername, lastUsernameChange: u.lastUsernameChange };
+        saveUsers(users);
+      }
+
+      // Hide form, show cooldown message
+      document.getElementById('usernameChangeForm').style.display = 'none';
+      const cooldownMsg = document.getElementById('usernameCooldownMsg');
+      cooldownMsg.style.display = 'block';
+      cooldownMsg.innerHTML = `<i class="fas fa-clock"></i> Username changed successfully. You can change it again in <b>30 days</b>.`;
+      toast('Username updated ✓', 'ok');
+    } catch(e) {
+      toast('Something went wrong — try again', 'err');
+    } finally {
+      btn.disabled = false; btn.innerHTML = originalHTML;
     }
-
-    // Update all references
-    const oldUsername = u.username;
-    u.username = newUsername;
-    u.lastUsernameChange = new Date().toISOString();
-    saveUser(u);
-    document.getElementById('fDisplayName').value = newUsername;
-    document.getElementById('acctUsername').textContent = newUsername;
-
-    // Update in users array
-    const idx = users.findIndex(x => x.username === oldUsername);
-    if (idx >= 0) {
-      users[idx] = { ...users[idx], username: newUsername, lastUsernameChange: u.lastUsernameChange };
-      saveUsers(users);
-    }
-
-    // Hide form, show cooldown message
-    document.getElementById('usernameChangeForm').style.display = 'none';
-    const cooldownMsg = document.getElementById('usernameCooldownMsg');
-    cooldownMsg.style.display = 'block';
-    cooldownMsg.innerHTML = `<i class="fas fa-clock"></i> Username changed successfully. You can change it again in <b>30 days</b>.`;
     const changeBtn = document.getElementById('enableUsernameEdit');
     changeBtn.disabled = true; changeBtn.style.opacity = '0.4'; changeBtn.style.cursor = 'not-allowed';
 

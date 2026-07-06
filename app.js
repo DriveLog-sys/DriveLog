@@ -393,9 +393,14 @@ async function loadStorage() {
 
   // Process session
   if (sessionResult.value) {
-    // Supabase confirmed a live session — use it, merge with cache
+    // Supabase confirmed a live session — use it, merge with cache.
+    // Matching by id (not username) — id is the one thing that can't
+    // legitimately change, whereas username is exactly the field a sync
+    // bug (or any future one like it) could leave mismatched, which used
+    // to cause the entire local profile (bio, socials, etc.) to be
+    // silently discarded and reverted.
     const authUser = dbUserToApp(sessionResult.value);
-    S.user = (cachedUser?.username === authUser.username)
+    S.user = (cachedUser?.id && cachedUser.id === authUser.id)
       ? { ...authUser, ...cachedUser, id: authUser.id }
       : authUser;
     localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
@@ -460,7 +465,16 @@ async function loadStorage() {
     (S.user?.id && !S.following.length) ? DB.getFollowing(S.user.id).catch(() => []) : Promise.resolve(null),
     S.user?.id ? DB.getNotifications(S.user.id).catch(() => []) : Promise.resolve([]),
     S.user?.id ? DB.getBlockedUsers(S.user.id).catch(() => []) : Promise.resolve([]),
-  ]).then(([profiles, evts, following, notifs, blocked]) => {
+    DB.getRecentSpotters().catch(() => []),
+  ]).then(([profiles, evts, following, notifs, blocked, spotters]) => {
+    // Story ring data — independent of the profiles-cache-is-fresh skip
+    // below, since this needs to work on every page, not just when the
+    // profile cache happens to be stale.
+    S._activeSpotters = new Set((spotters||[]).map(s => s.username).filter(Boolean));
+    document.querySelectorAll('[data-user]').forEach(node => {
+      const uname = node.dataset.user;
+      if (uname) node.classList.toggle('has-story-ring', S._activeSpotters.has(uname));
+    });
     if (profiles === null) return; // cache is fresh — skip profile processing
     // Profiles + avatars
     if (profiles?.length) {
@@ -7391,6 +7405,8 @@ async function submitSocialPost() {
     dbSocialToApp({ ...postData, username: S.user.username, user_id: S.user.id, ts: Date.now() }),
     ...(S._socialPosts||[]),
   ].filter(Boolean);
+  if (!S._activeSpotters) S._activeSpotters = new Set();
+  S._activeSpotters.add(S.user.username);
 
   if (progBar) { progBar.value=100; setTimeout(()=>{ progBar.style.display='none'; progBar.value=0; },400); }
   _socialPendingFiles = []; _blurredDataURLs = [];
@@ -7431,6 +7447,11 @@ const SPOT_STORY_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours, same convention a
 // site, not just while looking at a particular feed tab.
 function hasActiveSpotStory(username) {
   if (!username) return false;
+  // Preferred source — fetched at boot, works on every page immediately,
+  // not just after visiting Car Spotting.
+  if (S._activeSpotters) return S._activeSpotters.has(username);
+  // Fallback for the brief window before that boot fetch resolves, or if
+  // it failed — uses whatever social post data we already have in memory.
   const posts = S._socialPosts?.length
     ? S._socialPosts
     : JSON.parse(localStorage.getItem('dl_social_posts')||'[]').map(dbSocialToApp).filter(Boolean);

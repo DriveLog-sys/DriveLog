@@ -1978,7 +1978,15 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 .social-grid-card:hover{transform:scale(1.01)}
 
 /* ═══ Detail modal — the full rich card, opened on tap ═══ */
-.social-detail-box{max-width:520px;padding:44px 0 0;background:transparent;box-shadow:none}
+.social-detail-box{
+  max-width:520px;padding:44px 0 40px;background:transparent;
+  box-shadow:none;border:none;border-radius:0;
+  max-height:none;overflow:visible;
+}
+/* Let the overlay itself scroll for tall posts, instead of the box having
+   its own inner scrollbar — no visible scrollbar chrome, just natural
+   page scroll if the post is taller than the screen. */
+#socialDetailModal{align-items:flex-start;overflow-y:auto}
 .social-detail-box .social-post-card{max-width:none;margin:0}
 .soc-tab.active{background:var(--accent);color:#fff}
 
