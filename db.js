@@ -222,21 +222,25 @@ const DB = {
   },
 
   // getAllProfiles() — fetches ALL user profiles for the members page,
-  // avatar display, and search. Called in background ~10 min after last fetch.
+  // Loads full profile data (bio, banner, socials, privacy, awards, etc.)
+  // for every user, not just avatars — previously this used a minimal
+  // column set to save payload size, but that broke correctness: it
+  // assumed missing fields would be loaded on demand the moment someone
+  // opened a specific profile, but that on-demand path only fired when the
+  // user wasn't already in the cached list — which, in practice, was
+  // almost never true once someone had been on the site a bit, since
+  // everyone ends up in this bulk-fetched list. The result: banner photos,
+  // bios, and socials looked like they'd silently reset on a new device or
+  // fresh session, even though the data was correctly saved server-side —
+  // it just was never being read back in. Trading a larger payload for
+  // actual correctness here.
   //
-  // We deliberately select MINIMAL columns here (not select('*')) because:
-  //   - bio, awards, socials, location etc. are heavy and not needed for avatars
-  //   - With many users, select('*') can return a huge payload and slow down load
-  //   - Full profile data loads on demand via getProfile() when someone opens
-  //     a specific user's profile page
-  //
-  // Cache TTL: 10 minutes (checked in loadStorage via dl_profile_cache_ts).
-  // This means profiles aren't re-fetched on every page load, only when stale.
+  // Cache TTL: 90 seconds (checked in loadStorage via dl_profile_cache_ts).
   async getAllProfiles() {
     if (!_sbOk()) return [];
     const { data, error } = await _sb
       .from('profiles')
-      .select('id,username,avatar_url,is_featured,is_admin,joined_at,posts_count')
+      .select('*')
       .order('joined_at', { ascending: true });
     if (error) console.error('DriveLog getAllProfiles error:', error.message, error.code);
     return data || [];
@@ -942,6 +946,7 @@ function dbUserToApp(row) {
     isAdmin:     row.is_admin || false,
     isFeatured:  row.is_featured || false,
     avatarUrl:   row.avatar_url || null,
+    bannerUrl:   row.banner_url || null,
     posts:       0,
     totalLikes:  row.total_likes || 0,
     joined:      (row.joined_at || row.created_at || '').slice(0, 7),

@@ -1326,11 +1326,20 @@
     if (!newUsername) { toast('Enter a new username', 'err'); return; }
     if (newUsername.length < 3) { toast('Must be at least 3 characters', 'err'); return; }
     if (!/^[a-zA-Z0-9_]+$/.test(newUsername)) { toast('Letters, numbers, and underscores only', 'err'); return; }
-    if (newUsername.toLowerCase() === u.username.toLowerCase()) { toast('That is already your username', 'err'); return; }
 
-    // Check cooldown
-    const check = canChangeUsername(u);
-    if (!check.ok) { toast(`Wait ${check.daysLeft} more day${check.daysLeft===1?'':'s'}`, 'err'); return; }
+    // Re-entering your CURRENT username is treated as a resync, not a
+    // change — bypasses the cooldown and uniqueness check entirely. This
+    // matters because a username-sync bug that existed before this fix
+    // could leave your account's server-side data mismatched from what
+    // you actually see locally, and without this, you could be locked out
+    // for up to 30 days with no way to repair it yourself.
+    const isResync = newUsername.toLowerCase() === u.username.toLowerCase();
+
+    // Check cooldown (skipped for a resync)
+    if (!isResync) {
+      const check = canChangeUsername(u);
+      if (!check.ok) { toast(`Wait ${check.daysLeft} more day${check.daysLeft===1?'':'s'}`, 'err'); return; }
+    }
 
     const sb = getSettingsSb();
     if (!sb || !u.id) { toast('Unable to connect — try again', 'err'); return; }
@@ -1360,7 +1369,7 @@
       // Update all references
       const oldUsername = u.username;
       u.username = newUsername;
-      u.lastUsernameChange = new Date().toISOString();
+      if (!isResync) u.lastUsernameChange = new Date().toISOString();
       saveUser(u);
       document.getElementById('fDisplayName').value = newUsername;
       document.getElementById('acctUsername').textContent = newUsername;
@@ -1373,21 +1382,19 @@
         saveUsers(users);
       }
 
-      // Hide form, show cooldown message
+      // Hide form, show status message
       document.getElementById('usernameChangeForm').style.display = 'none';
       const cooldownMsg = document.getElementById('usernameCooldownMsg');
       cooldownMsg.style.display = 'block';
-      cooldownMsg.innerHTML = `<i class="fas fa-clock"></i> Username changed successfully. You can change it again in <b>30 days</b>.`;
-      toast('Username updated ✓', 'ok');
+      cooldownMsg.innerHTML = isResync
+        ? `<i class="fas fa-check-circle"></i> Your account is now back in sync.`
+        : `<i class="fas fa-clock"></i> Username changed successfully. You can change it again in <b>30 days</b>.`;
+      toast(isResync ? 'Account re-synced ✓' : ('Username changed to ' + newUsername + ' ✓'), 'ok');
     } catch(e) {
       toast('Something went wrong — try again', 'err');
     } finally {
       btn.disabled = false; btn.innerHTML = originalHTML;
     }
-    const changeBtn = document.getElementById('enableUsernameEdit');
-    changeBtn.disabled = true; changeBtn.style.opacity = '0.4'; changeBtn.style.cursor = 'not-allowed';
-
-    toast('Username changed to ' + newUsername, 'ok');
   });
 
 })();

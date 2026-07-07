@@ -473,7 +473,10 @@ async function loadStorage() {
     S._activeSpotters = new Set((spotters||[]).map(s => s.username).filter(Boolean));
     document.querySelectorAll('[data-user]').forEach(node => {
       const uname = node.dataset.user;
-      if (uname) node.classList.toggle('has-story-ring', S._activeSpotters.has(uname));
+      if (!uname) return;
+      const active = S._activeSpotters.has(uname);
+      node.classList.toggle('has-story-ring', active);
+      node.style.overflow = active ? 'visible' : '';
     });
     if (profiles === null) return; // cache is fresh — skip profile processing
     // Profiles + avatars
@@ -494,8 +497,10 @@ async function loadStorage() {
         const fresh = S.users.find(u => u.username === S.user.username);
         if (fresh) {
           const localAvatar = localStorage.getItem('dl_avatar_url') || S.user.avatarUrl || null;
+          const localBanner = localStorage.getItem('dl_banner_'+S.user.username) || S.user.bannerUrl || null;
           S.user = { ...fresh, ...S.user,
             avatarUrl: localAvatar || fresh.avatarUrl || null,
+            bannerUrl: localBanner || fresh.bannerUrl || null,
             bio: S.user.bio || fresh.bio || '',
             instagram: S.user.instagram || fresh.instagram || '',
             tiktok: S.user.tiktok || fresh.tiktok || '',
@@ -1021,7 +1026,13 @@ function renderAv(username, size, extraClass) {
   const inner = url
     ? `<div class="has-photo" style="width:100%;height:100%;border-radius:50%;overflow:hidden"><img src="${url}" alt="" class="av-photo" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
     : `<div style="width:100%;height:100%;border-radius:50%;overflow:hidden;background:transparent">${_defaultAvSVG()}</div>`;
-  return `<div class="${cls}${ringClass}" style="width:${s}px;height:${s}px;flex-shrink:0;position:relative">${inner}</div>`;
+  // overflow:visible is forced here (not left to CSS) because some callers'
+  // classes — msg-conv-av, msg-bubble-av — define their own overflow:hidden
+  // elsewhere in the stylesheet, which would silently clip the ring off
+  // entirely. The inner div above still clips the photo/SVG into a circle
+  // on its own, so relaxing overflow on this outer wrapper is safe.
+  const outerOverflow = ringClass ? ';overflow:visible' : '';
+  return `<div class="${cls}${ringClass}" style="width:${s}px;height:${s}px;flex-shrink:0;position:relative${outerOverflow}">${inner}</div>`;
 }
 
 function updateAuthUI() {
@@ -1147,7 +1158,7 @@ function renderFeaturedMembers() {
       ? `<img src="${url}" alt="" class="av-photo"/>`
       : _defaultAvSVG();
     const ring = hasActiveSpotStory(u.username) ? ' has-story-ring' : '';
-    return `<div class="fm-av clickable-user${ring}" data-user="${u.username}" title="${esc(u.username)}" style="background:${bg}">${img}</div>`;
+    return `<div class="fm-av clickable-user${ring}" data-user="${u.username}" title="${esc(u.username)}" style="background:${bg}${ring?';overflow:visible':''}">${img}</div>`;
   }).join('') + (extra > 0
     ? `<div class="fm-av fm-av-more" onclick="goTo('members')">+${Math.min(extra,9)}${extra>=9?'+':''}</div>`
     : '');
@@ -1530,7 +1541,7 @@ async function runInlineSearch(q) {
       const url = getAvatarUrl(u.username);
       const ring = hasActiveSpotStory(u.username) ? ' has-story-ring' : '';
       return `<div class="hsr-item hsr-user" data-user="${esc(u.username)}">
-        ${url?`<img src="${url}" class="hsr-av${ring}" alt=""/>`:`<div class="hsr-av${ring}">${avSVG}</div>`}
+        ${url?`<img src="${url}" class="hsr-av${ring}" alt="" style="${ring?'overflow:visible':''}"/>`:`<div class="hsr-av${ring}" style="${ring?'overflow:visible':''}">${avSVG}</div>`}
         <div class="hsr-info"><div class="hsr-name">${esc(u.username)}</div><div class="hsr-sub">${u.posts||0} builds</div></div>
       </div>`; }).join('')}` : '',
     postMatches.length ? `<div class="hsr-section">${userMatches.length?'Builds':'Results'}</div>${postMatches.map(p => {
@@ -4081,6 +4092,25 @@ function renderMembers() {
   grid.querySelectorAll('.member-view-btn').forEach(b=>b.addEventListener('click',()=>viewMemberProfile(b.dataset.un)));
 }
 
+// Minimal page-switch used by viewMemberProfile() — shows the profile page
+// section without goTo()'s "page===profile → always render as ME" hook,
+// and without goTo() deleting the ?user= URL param viewMemberProfile just
+// set. Using the full goTo('profile') here was the cause of a serious bug:
+// clicking ANY other user's profile (story bar, members grid, search,
+// notifications — anywhere) would render YOUR OWN profile instead, because
+// goTo() always calls updateProfilePage() (which renders S.user, not
+// whoever was actually requested) the instant the page becomes 'profile'.
+function switchToProfilePageSection() {
+  S.page = 'profile';
+  if (typeof closeSocialDetail === 'function') closeSocialDetail();
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const pg = el('page-profile');
+  if (pg) pg.classList.add('active');
+  document.querySelectorAll('.nav-link,.mob-link').forEach(a => a.classList.toggle('active', a.dataset.page==='profile'));
+  window.scrollTo({top:0, behavior:'auto'});
+  closeMobNav();
+}
+
 async function viewMemberProfile(username) {
   S._editingPostId = null;
   if (!username) return;
@@ -4103,7 +4133,7 @@ async function viewMemberProfile(username) {
   }
 
   if (!u) {
-    goTo('profile');
+    switchToProfilePageSection();
     const noMsg = el('noLoginMsg');
     if (noMsg) {
       noMsg.style.display = 'block';
@@ -4123,7 +4153,7 @@ async function viewMemberProfile(username) {
 
   const isOwnProfile = S.user?.username === username;
   if (u.privacyPublic === false && !isOwnProfile && !S.user?.isAdmin) {
-    goTo('profile');
+    switchToProfilePageSection();
     const privMsg = el('noLoginMsg');
     if (privMsg) {
       privMsg.style.display = 'block';
@@ -4141,7 +4171,7 @@ async function viewMemberProfile(username) {
     return;
   }
 
-  goTo('profile');
+  switchToProfilePageSection();
 
   // Get posts — from local cache + fetch any missing ones from Supabase
   let posts = S.posts.filter(p => p.user === username);
@@ -7566,7 +7596,15 @@ function hasActiveSpotStory(username) {
 // DOM-update path gets this automatically, site-wide.
 function setStoryRing(domEl, username) {
   if (!domEl) return;
-  domEl.classList.toggle('has-story-ring', hasActiveSpotStory(username));
+  const active = hasActiveSpotStory(username);
+  domEl.classList.toggle('has-story-ring', active);
+  // The ring extends outside the avatar's own box, but avatar elements
+  // have overflow:hidden (to clip photos into a circle) — which silently
+  // clipped the ring off entirely. The photo/SVG inside clips itself to a
+  // circle independently (the <img> has its own border-radius, the
+  // fallback SVG draws its own circle), so relaxing overflow here doesn't
+  // risk a square photo peeking out.
+  domEl.style.overflow = active ? 'visible' : '';
 }
 
 function getSocialPosts() {
@@ -8031,45 +8069,52 @@ function renderSocialCard(p) {
   </div>` : '';
 
   const comments = p.comments || [];
-  const commentsHTML = `
-    <div class="soc-comments" id="soc-comments-${p.id}" style="display:none">
-      <div class="soc-comments-list" id="scl-${p.id}">${comments.length
-        ? comments.map(c => socialCommentHTML(c)).join('')
-        : '<p class="social-no-comments">No comments yet — be the first.</p>'}</div>
+  const commentsListHTML = comments.length
+    ? comments.map(c => socialCommentHTML(c)).join('')
+    : '<p class="social-no-comments">No comments yet — be the first.</p>';
+
+  return `<article class="social-post-card soc-detail-layout" data-id="${p.id}">
+    <div class="soc-detail-media">
+      ${mediaHTML}
+    </div>
+    <div class="soc-detail-info">
+      <div class="soc-post-head">
+        ${avHTML}
+        <div class="soc-post-head-info">
+          <span class="soc-post-user clickable-user" data-user="${p.user}">${esc(p.user)}</span>
+          <span class="soc-post-time">${timeAgo(p.ts)}</span>
+        </div>
+        ${cats}
+        ${menu}
+      </div>
+      <div class="soc-detail-scroll">
+        ${p.caption ? `<div class="soc-caption-row">
+          ${avHTML}
+          <div class="soc-caption-text"><span class="soc-post-user clickable-user" data-user="${p.user}">${esc(p.user)}</span> ${socialCaptionHTML(p.caption)}</div>
+        </div>` : ''}
+        <div class="soc-comments-list" id="scl-${p.id}">${commentsListHTML}</div>
+      </div>
+      <div class="soc-post-actions">
+        <button class="soc-like-btn${(p.likedBy||[]).includes(S.user?.username)?' active':''}" data-id="${p.id}">
+          <i class="fas fa-heart"></i> <span>${(p.likedBy||[]).length}</span>
+        </button>
+        <button class="soc-comment-btn" data-id="${p.id}"><i class="fas fa-comment"></i> <span>${comments.length}</span></button>
+      </div>
       ${S.user ? `<div class="soc-comment-input-row">
         ${renderAv(S.user.username, 28, 'soc-comment-my-av')}
         <input type="text" class="soc-comment-input" data-id="${p.id}" maxlength="300" placeholder="Add a comment…"/>
         <button class="soc-comment-send" data-id="${p.id}" title="Post comment"><i class="fas fa-paper-plane"></i></button>
       </div>` : '<p class="soc-comment-signin">Sign in to comment</p>'}
-    </div>`;
-
-  return `<article class="social-post-card" data-id="${p.id}">
-    <div class="soc-post-head">
-      ${avHTML}
-      <div class="soc-post-head-info">
-        <span class="soc-post-user clickable-user" data-user="${p.user}">${esc(p.user)}</span>
-        <span class="soc-post-time">${timeAgo(p.ts)}</span>
-      </div>
-      ${cats}
-      ${menu}
     </div>
-    ${mediaHTML}
-    ${p.caption ? `<p class="soc-post-caption">${socialCaptionHTML(p.caption)}</p>` : ''}
-    <div class="soc-post-actions">
-      <button class="soc-like-btn${(p.likedBy||[]).includes(S.user?.username)?' active':''}" data-id="${p.id}">
-        <i class="fas fa-heart"></i> <span>${(p.likedBy||[]).length}</span>
-      </button>
-      <button class="soc-comment-btn" data-id="${p.id}"><i class="fas fa-comment"></i> <span>${comments.length}</span></button>
-    </div>
-    ${commentsHTML}
   </article>`;
 }
 
 function socialCommentHTML(c) {
   const avUrl = getAvatarUrl(c.user);
+  const ring = hasActiveSpotStory(c.user) ? ' has-story-ring' : '';
   const av = avUrl
-    ? `<span class="social-comment-av has-photo clickable-user" data-user="${c.user}"><img src="${avUrl}" alt="" class="av-photo"/></span>`
-    : `<span class="social-comment-av clickable-user" data-user="${c.user}" style="background:${avColor(c.user)}">${(c.user||'?')[0].toUpperCase()}</span>`;
+    ? `<span class="social-comment-av has-photo clickable-user${ring}" data-user="${c.user}"><img src="${avUrl}" alt="" class="av-photo"/></span>`
+    : `<span class="social-comment-av clickable-user${ring}" data-user="${c.user}" style="background:${avColor(c.user)}">${(c.user||'?')[0].toUpperCase()}</span>`;
   return `<div class="social-comment-item">
     ${av}
     <div class="social-comment-body"><b class="clickable-user" data-user="${c.user}">${esc(c.user)}</b> ${esc(c.text)}</div>
@@ -8121,14 +8166,10 @@ function bindSocialCardEvents(wrap) {
     });
   });
 
-  // ── Comments: toggle panel ──
+  // ── Comments: focus the input (comments are always visible now) ──
   wrap.querySelectorAll('.soc-comment-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const panel = el('soc-comments-'+btn.dataset.id);
-      if (!panel) return;
-      const open = panel.style.display !== 'none';
-      panel.style.display = open ? 'none' : 'block';
-      if (!open) panel.querySelector('.soc-comment-input')?.focus();
+      wrap.querySelector(`.soc-comment-input[data-id="${btn.dataset.id}"]`)?.focus();
     });
   });
 
