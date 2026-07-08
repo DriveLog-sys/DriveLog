@@ -14,7 +14,7 @@
 
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-  <link rel="stylesheet" href="main.min.css?v=202607072349"/>
+  <link rel="stylesheet" href="main.min.css?v=202607080534"/>
   <!-- Open Graph / Share meta tags -->
   <meta property="og:type"        content="website"/>
   <meta property="og:title"       content="DriveLog — The Car Community"/>
@@ -606,6 +606,7 @@
   <!-- MEMBERS -->
   <!-- SOCIAL FEED PAGE (replaces members in nav) -->
   <section class="page" id="page-social">
+    <div class="social-page-layout">
     <div class="social-discover-wrap">
       <!-- Story bar: horizontal-scrolling profile bubbles, Snapchat-style -->
       <div class="story-bar-wrap">
@@ -634,13 +635,51 @@
       <div class="social-load-sentinel" id="socialSentinel"></div>
     </div>
 
-    <!-- Detail view — opened when a discover-grid card is tapped -->
+    <!-- Sidebar: Spotting Map teaser + Instagram ad -->
+    <div class="social-sidebar-col">
+      <div class="widget spot-map-teaser" id="spotMapTeaserBtn">
+        <div class="spot-map-teaser-preview">
+          <svg viewBox="0 0 1000 500" class="spot-map-mini-svg" id="spotMapMiniSvg" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+        <div class="widget-title"><i class="fas fa-map-marked-alt widget-icon"></i> Spotting Map</div>
+        <p class="spot-map-teaser-sub">See where every Car Spotting post was taken, all over the world.</p>
+        <button class="btn-primary small full" id="spotMapOpenBtn"><i class="fas fa-globe-americas"></i> View Map</button>
+      </div>
+
+      <div class="widget ig-ad-widget">
+        <a href="https://instagram.com/drivelogofficial" target="_blank" rel="noopener" class="ig-ad-link" title="Follow DriveLog on Instagram">
+          <img src="instagram-banner.jpg" alt="Follow DriveLog on Instagram — @drivelogofficial" class="ig-ad-img" loading="lazy"/>
+        </a>
+      </div>
+    </div>
+    </div>
+
+    <!-- Detail view — opened when a discover-grid card is tapped. Close
+         button now renders inside the post header itself (see
+         renderSocialCard), not here — it used to float outside the
+         visible card since this outer box is intentionally transparent. -->
     <div class="modal-overlay" id="socialDetailModal">
       <div class="modal-box social-detail-box">
-        <button class="modal-close" id="socialDetailClose"><i class="fas fa-times"></i></button>
         <div id="socialDetailContent"></div>
       </div>
     </div>
+
+    <!-- Spotting Map — full world map of every located Car Spotting post -->
+    <div class="modal-overlay" id="spotMapModal">
+      <div class="modal-box spot-map-box">
+        <button class="modal-close" id="spotMapClose"><i class="fas fa-times"></i></button>
+        <div class="spot-map-header">
+          <h2><i class="fas fa-map-marked-alt"></i> Car Spotting Map</h2>
+          <p id="spotMapCount">Loading…</p>
+        </div>
+        <div class="spot-map-wrap">
+          <svg viewBox="0 0 1000 500" class="spot-map-svg" id="spotMapSvg" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="spot-map-popup" id="spotMapPopup" style="display:none"></div>
+        </div>
+        <p class="spot-map-hint"><i class="fas fa-info-circle"></i> Only posts with a location attached (and shared with permission) appear on the map.</p>
+      </div>
+    </div>
+
   </section>
 
   <!-- SPOT POST PAGE — full-page Car Spotting composer -->
@@ -720,6 +759,10 @@
             <i class="fas fa-map-marker-alt"></i>
             <input type="text" class="finput" id="spotLocation" maxlength="80" placeholder="Where did you spot it? (optional — e.g. Cars &amp; Coffee, Denver CO)" style="margin-bottom:0"/>
           </div>
+          <label class="spot-map-optin">
+            <input type="checkbox" id="spotShareMapLocation"/>
+            <span><i class="fas fa-globe-americas"></i> Add this spot to the Spotting Map (uses your device's precise location — you'll be asked to allow it)</span>
+          </label>
           <div class="social-upload-tags" id="socialUploadTags">
             <div class="post-cat-label" style="margin-bottom:7px;margin-top:12px">Tag a category <span class="post-cat-hint">Optional</span></div>
             <div class="social-tag-pills" id="socialTagPills"></div>
@@ -736,6 +779,32 @@
   <!-- MEMBERS PAGE (kept for internal use, search from DMs etc) -->
   <section class="page" id="page-members" style="display:none">
     <div class="page-head"><h1>Members</h1><p>Browse the DriveLog community.</p></div>
+
+    <!-- Community stats -->
+    <div class="mem-stats-bar" id="memStatsBar"></div>
+
+    <!-- Build of the Month -->
+    <div class="lb-standalone-section" id="memBotmSection">
+      <div class="lb-standalone-head">
+        <div class="lb-standalone-icon"><i class="fas fa-calendar-star"></i></div>
+        <div>
+          <div class="lb-standalone-title">Build of the Month</div>
+          <div class="lb-standalone-sub" id="memBotmSub">Voted on by the community, first-through-25th each month</div>
+        </div>
+      </div>
+      <div id="memBotmWinner"></div>
+
+      <div class="mem-botm-nominate">
+        <div class="mem-nominate-head">
+          <span class="mem-nominate-title"><i class="fas fa-crown"></i> Nominate a Build</span>
+          <span class="mem-nominate-sub">Vote for next month's winner — one vote per month, change it anytime before the 25th</span>
+        </div>
+        <div class="mem-botm-candidates" id="memBotmCandidates"></div>
+      </div>
+    </div>
+
+    <div class="mem-section-divider"></div>
+
     <div class="members-top">
       <div class="members-search-wrap">
         <i class="fas fa-search"></i>
@@ -1754,9 +1823,9 @@
      Moved from <head> to end of <body> so it no longer blocks first paint;
      load order is unchanged: supabase → data → db → app -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="data.min.js?v=202607072349"></script>
-<script src="db.min.js?v=202607072349"></script>
-<script src="app.min.js?v=202607072349"></script>
+<script src="data.min.js?v=202607080534"></script>
+<script src="db.min.js?v=202607080534"></script>
+<script src="app.min.js?v=202607080534"></script>
 <!-- Sign up nudge banner — shown to signed-out users -->
 <div class="signup-nudge" id="signupNudge" style="display:none">
   <div class="signup-nudge-inner">

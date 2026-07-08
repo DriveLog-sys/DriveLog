@@ -794,6 +794,16 @@ const DB = {
     return data || [];
   },
 
+  // Fetches one full post by id — used when opening a post from somewhere
+  // that only had lightweight data (like a Spotting Map pin), so it works
+  // even if that post isn't already sitting in the loaded feed.
+  async getSocialPostById(id) {
+    if (!_sbOk()) return null;
+    const { data, error } = await _sb.from('social_posts').select('*').eq('id', id).single();
+    if (error) return null;
+    return data;
+  },
+
   // Lightweight — just enough to know WHO has an active (<24hr) Car
   // Spotting post, for the story ring shown across the whole site. Avoids
   // pulling full post data (images/captions/comments) just to answer that.
@@ -809,6 +819,22 @@ const DB = {
     return data || [];
   },
 
+  // Lightweight — just enough to plot a pin on the Spotting Map, not full
+  // post data (media/caption/comments). Requires the lat/lng columns from
+  // spotting_locations_migration.sql.
+  async getSpottingLocations() {
+    if (!_sbOk()) return [];
+    const { data, error } = await _sb
+      .from('social_posts')
+      .select('id,username,lat,lng,location_name,media')
+      .not('lat', 'is', null)
+      .not('lng', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(500);
+    if (error) { console.error('getSpottingLocations error:', error.message); return []; }
+    return data || [];
+  },
+
   async createSocialPost(userId, username, postData) {
     if (!_sbOk()) return { error: { message: 'Not connected.' } };
     const { data, error } = await _sb
@@ -817,6 +843,91 @@ const DB = {
       .select()
       .single();
     return { data, error };
+  },
+
+  // ─── DISCUSSIONS (Reddit-style board) ───────────────────────
+  async getDiscussions({ limit = 30, offset = 0 } = {}) {
+    if (!_sbOk()) return [];
+    const { data, error } = await _sb
+      .from('discussions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (error) console.error('getDiscussions error:', error.message);
+    return data || [];
+  },
+
+  async createDiscussion(userId, username, discussionData) {
+    if (!_sbOk()) return { error: { message: 'Not connected.' } };
+    const { data, error } = await _sb
+      .from('discussions')
+      .insert({ user_id: userId, username, ...discussionData })
+      .select()
+      .single();
+    return { data, error };
+  },
+
+  async toggleDiscussionVote(discussionId, username, direction) {
+    if (!_sbOk()) return;
+    const { data: d } = await _sb.from('discussions').select('upvotes,downvotes').eq('id', discussionId).single();
+    if (!d) return;
+    let up = d.upvotes || [], down = d.downvotes || [];
+    if (direction === 'up') {
+      down = down.filter(u => u !== username);
+      up = up.includes(username) ? up.filter(u => u !== username) : [...up, username];
+    } else {
+      up = up.filter(u => u !== username);
+      down = down.includes(username) ? down.filter(u => u !== username) : [...down, username];
+    }
+    return _sb.from('discussions').update({ upvotes: up, downvotes: down }).eq('id', discussionId);
+  },
+
+  async deleteDiscussion(discussionId, userId) {
+    if (!_sbOk()) return;
+    return _sb.from('discussions').delete().eq('id', discussionId).eq('user_id', userId);
+  },
+
+  async adminDeleteDiscussion(discussionId) {
+    if (!_sbOk()) return;
+    return _sb.from('discussions').delete().eq('id', discussionId);
+  },
+
+  // Comments (and their replies + votes) live in the `comments` jsonb
+  // column, same pattern as social_posts — comment shape:
+  // { id, user, text, ts, upvotes:[], downvotes:[], parentId (or null) }
+  async addDiscussionComment(discussionId, comment) {
+    if (!_sbOk()) return;
+    const { data: d } = await _sb.from('discussions').select('comments').eq('id', discussionId).single();
+    if (!d) return;
+    const comments = [...(d.comments || []), comment];
+    return _sb.from('discussions').update({ comments }).eq('id', discussionId);
+  },
+
+  async toggleDiscussionCommentVote(discussionId, commentId, username, direction) {
+    if (!_sbOk()) return;
+    const { data: d } = await _sb.from('discussions').select('comments').eq('id', discussionId).single();
+    if (!d) return;
+    const comments = (d.comments || []).map(c => {
+      if (c.id !== commentId) return c;
+      let up = c.upvotes || [], down = c.downvotes || [];
+      if (direction === 'up') {
+        down = down.filter(u => u !== username);
+        up = up.includes(username) ? up.filter(u => u !== username) : [...up, username];
+      } else {
+        up = up.filter(u => u !== username);
+        down = down.includes(username) ? down.filter(u => u !== username) : [...down, username];
+      }
+      return { ...c, upvotes: up, downvotes: down };
+    });
+    return _sb.from('discussions').update({ comments }).eq('id', discussionId);
+  },
+
+  // Overwrites the full comments array — used for deleting a comment
+  // (and any replies to it), which requires writing back the modified
+  // array rather than appending like addDiscussionComment does.
+  async setDiscussionComments(discussionId, comments) {
+    if (!_sbOk()) return;
+    return _sb.from('discussions').update({ comments }).eq('id', discussionId);
   },
 
   async toggleSocialLike(postId, username) {
