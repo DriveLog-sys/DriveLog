@@ -2074,10 +2074,10 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 }
 
 .social-page-layout{max-width:1240px;margin:0 auto;padding:28px 24px 80px;display:grid;grid-template-columns:1fr 295px;gap:28px;align-items:start}
-.social-discover-wrap{min-width:0;max-width:640px}
+.social-discover-wrap{min-width:0;max-width:640px;margin:0 auto}
 
 /* ═══ Sidebar: Spotting Map teaser + Instagram ad ═══ */
-.social-sidebar-col{display:flex;flex-direction:column;gap:20px;position:sticky;top:80px}
+.social-sidebar-col{display:flex;flex-direction:column;gap:20px;position:sticky;top:80px;margin-top:190px}
 
 .spot-map-teaser{padding:0;overflow:hidden}
 .spot-map-teaser-preview{
