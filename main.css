@@ -4167,7 +4167,75 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
   .soc-tab{flex:1;text-align:center;padding:5px 8px}
   .social-detail-box{max-width:100%}
   .modal-overlay{padding:12px}
+
+  /* Sidebar — the 900px breakpoint puts these two panels side by side
+     (fine on a tablet), but neither can shrink below ~260px, so on an
+     actual phone that overflows. Stack them back to full-width instead. */
+  .social-sidebar-col{flex-direction:column!important;margin-top:20px!important}
+  .spot-map-teaser,.ig-ad-widget{min-width:0!important;flex:none!important}
+
+  /* Spotting Map modal */
+  .spot-map-box{padding:16px;width:100vw;max-width:100vw;max-height:100dvh;border-radius:0}
+  .spot-map-header{gap:8px}
+  .spot-map-header h2{font-size:1.15rem}
+  .spot-map-svg{max-height:50vh}
+  .spot-map-popup{width:140px}
+  .spot-map-hint{font-size:.72rem}
 }
+
+@media(max-width:390px){
+  .disc-detail-box, .spot-map-box{padding:14px}
+}
+
+/* ─── DISCUSSIONS — MOBILE ────────────────────────────────────── */
+@media(max-width:768px){
+  .disc-wrap{padding:16px 14px 90px}
+  .disc-header{flex-wrap:wrap;gap:10px}
+  .disc-title{font-size:1.4rem}
+  .disc-subtitle{font-size:.78rem}
+  #newDiscussionBtn{width:100%;justify-content:center}
+
+  /* Category pills — horizontal scroll instead of wrapping into several
+     rows, which was eating a lot of vertical space before scrolling to
+     any actual discussions */
+  .disc-cat-pills{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;margin-bottom:12px}
+  .disc-cat-pills::-webkit-scrollbar{display:none}
+  .disc-cat-pill{flex-shrink:0}
+
+  .disc-controls-row{flex-wrap:wrap;gap:8px}
+  .disc-sort-tabs{width:100%;justify-content:space-between}
+  .disc-sort-tabs .sort-btn{flex:1;justify-content:center;padding:6px 4px;font-size:.72rem}
+  .disc-search-bar{width:100%}
+
+  .disc-item{padding:12px;gap:8px}
+  .disc-vote-col{width:30px}
+  .disc-row-title{font-size:1rem}
+  .disc-row-preview{font-size:.82rem}
+  .disc-row-meta{gap:6px}
+  .disc-row-footer{gap:10px}
+
+  /* Detail modal */
+  .disc-detail-box{max-width:100%;width:100%;padding:18px}
+  .disc-detail-title{font-size:1.3rem}
+  .disc-detail-header{flex-wrap:wrap;gap:8px}
+  .disc-detail-time{margin-left:0}
+  .disc-detail-body{font-size:.88rem}
+  .disc-detail-votes{width:100%;justify-content:center}
+
+  .disc-comment-composer{flex-direction:column}
+  .disc-comment-composer-av{display:none} /* redundant with your own avatar context on a narrow screen */
+  .disc-comment-submit{align-self:flex-end}
+
+  /* Nested replies — 16px indent per level adds up fast on a narrow
+     screen with a few levels of back-and-forth; tighten it */
+  .disc-replies{padding-left:10px;margin-top:10px;gap:10px}
+  .disc-comment{gap:8px}
+  .disc-comment-text{font-size:.84rem}
+
+  /* Composer modal */
+  #discComposerModal .modal-box{padding:20px;max-width:100%;width:100%}
+}
+
 
 /* ─── PROFILE — MOBILE ────────────────────────────────────────── */
 @media(max-width:768px){

@@ -7078,17 +7078,25 @@ function showSpotMapPopup(loc, pinEl) {
       ${loc.location_name ? `<div class="spot-map-popup-loc"><i class="fas fa-map-marker-alt"></i> ${esc(loc.location_name)}</div>` : ''}
     </div>`;
 
-  // Position the popup relative to the map wrap, anchored above the pin
+  popup.style.display = 'block'; // must be visible before offsetWidth/Height can be measured below
+
+  // Position the popup relative to the map wrap, anchored above the pin —
+  // clamped so it can't render off the left/right/top edge of the map,
+  // which a fixed-width popup near the map's border would otherwise do
+  // (especially visible on narrow phone screens).
   const svg = el('spotMapSvg');
   const svgRect = svg.getBoundingClientRect();
   const wrapRect = (wrap||svg.parentElement).getBoundingClientRect();
   const { x, y } = projectLatLng(loc.lat, loc.lng);
   const scaleX = svgRect.width / 1000, scaleY = svgRect.height / 500;
-  const left = (svgRect.left - wrapRect.left) + x*scaleX;
-  const top  = (svgRect.top  - wrapRect.top)  + y*scaleY;
+  let left = (svgRect.left - wrapRect.left) + x*scaleX;
+  let top  = (svgRect.top  - wrapRect.top)  + y*scaleY;
+  const popupHalfWidth = (popup.offsetWidth || 160) / 2;
+  const popupHeight = popup.offsetHeight || 220;
+  left = Math.max(popupHalfWidth + 4, Math.min(left, wrapRect.width - popupHalfWidth - 4));
+  top  = Math.max(popupHeight + 4, top); // keep it from going above the map's top edge
   popup.style.left = left + 'px';
   popup.style.top  = top + 'px';
-  popup.style.display = 'block';
 
   popup.querySelector('.spot-map-popup-close').addEventListener('click', e => { e.stopPropagation(); hideSpotMapPopup(); });
   popup.onclick = async () => {
