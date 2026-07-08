@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initPostModal, initCarModal, initLightbox, initGarage, initEvents,
     initMembers, initNavLinks, initFilterSidebar, initMessages, initCarPage,
     initReactions, initReport, initCompare, initInfiniteScroll,
-    initSocialPage, initThemeToggle];
+    initSocialPage, initThemeToggle, initDiscussions];
   for (const fn of inits) {
     try { fn(); } catch(e) { console.warn('Init failed:', fn.name, e); }
   }
@@ -775,6 +775,7 @@ function goTo(page) {
   if (page==='events')      renderEventsGrid();
   if (page==='members')     renderMembers();
   if (page==='social')      { renderSocialFeed(true); renderTrendingTags(); }
+  if (page==='discussions') renderDiscussions(true);
   if (page==='spotpost') {
     if (!S.user) { toast('Sign in to post','err'); el('authModal').classList.add('open'); goTo('social'); return; }
     resetSpotComposer();
@@ -6308,6 +6309,514 @@ function initInfiniteScroll() {
 // ═══════════════════════════════════════════════════════════════
 // ─── COMPARE BUILDS ────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// ─── DISCUSSIONS (Reddit-style board) ──────────────────────────
+// The HTML/CSS/DB-layer/migration for this were already fully built —
+// this is the missing piece that actually renders and wires it up.
+// ═══════════════════════════════════════════════════════════════
+const DISC_PAGE_SIZE = 15;
+let discPage = 0;
+let discCategory = '';   // '' = All
+let discSort = 'hot';
+let discSearchQ = '';
+
+function dbDiscussionToApp(row) {
+  if (!row) return null;
+  return {
+    id:        row.id,
+    user:      row.username || '',
+    user_id:   row.user_id  || null,
+    title:     row.title    || '',
+    body:      row.body     || '',
+    category:  row.category || 'General',
+    imageUrl:  row.image_url|| null,
+    upvotes:   row.upvotes  || [],
+    downvotes: row.downvotes|| [],
+    comments:  row.comments || [],
+    pinned:    row.pinned   || false,
+    ts:        row.ts || (row.created_at ? new Date(row.created_at).getTime() : Date.now()),
+  };
+}
+
+// Merges Supabase discussions with any local-only fallbacks, then applies
+// the active category/search/sort — same resilience pattern as Car Spotting.
+function getDiscussions() {
+  const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]').map(dbDiscussionToApp).filter(Boolean);
+  const source = S._discussions?.length ? S._discussions : local;
+  let all = [...source];
+  if (discCategory) all = all.filter(d => d.category === discCategory);
+  if (discSearchQ) {
+    const q = discSearchQ.toLowerCase();
+    all = all.filter(d => d.title.toLowerCase().includes(q) || d.body.toLowerCase().includes(q));
+  }
+  return all.sort((a,b) => {
+    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1; // pinned always first
+    const scoreA = (a.upvotes||[]).length - (a.downvotes||[]).length;
+    const scoreB = (b.upvotes||[]).length - (b.downvotes||[]).length;
+    if (discSort === 'new') return b.ts - a.ts;
+    if (discSort === 'top') return scoreB - scoreA;
+    // "Hot" — classic Reddit-style decay: score matters less as a post ages
+    const hoursA = (Date.now()-a.ts)/3600000, hoursB = (Date.now()-b.ts)/3600000;
+    return (scoreB / Math.pow(hoursB+2, 1.5)) - (scoreA / Math.pow(hoursA+2, 1.5));
+  });
+}
+
+function initDiscussions() {
+  const newBtn = el('newDiscussionBtn');
+  newBtn?.addEventListener('click', () => {
+    if (!S.user) { toast('Sign in to start a discussion','err'); el('authModal').classList.add('open'); return; }
+    el('discComposerModal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    el('discTitleInput')?.focus();
+  });
+  el('discComposerClose')?.addEventListener('click', closeDiscComposer);
+  el('discComposerModal')?.addEventListener('click', e => { if (e.target === el('discComposerModal')) closeDiscComposer(); });
+  el('discTitleInput')?.addEventListener('input', e => { el('discTitleCount').textContent = e.target.value.length + ' / 150'; });
+  el('discBodyInput')?.addEventListener('input', e => { el('discBodyCount').textContent = e.target.value.length + ' / 5000'; });
+  el('discSubmitBtn')?.addEventListener('click', submitDiscussion);
+
+  // Category pills — single-select, like a subreddit switcher
+  document.querySelectorAll('.disc-cat-pill').forEach(p => p.addEventListener('click', () => {
+    document.querySelectorAll('.disc-cat-pill').forEach(x=>x.classList.remove('active'));
+    p.classList.add('active');
+    discCategory = p.dataset.dcat;
+    renderDiscussions(true);
+  }));
+
+  // Sort tabs
+  document.querySelectorAll('.disc-sort-tabs .sort-btn[data-dsort]').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.disc-sort-tabs .sort-btn[data-dsort]').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    discSort = b.dataset.dsort;
+    renderDiscussions(true);
+  }));
+
+  // Search (debounced)
+  let discSearchTimer;
+  el('discSearchInput')?.addEventListener('input', e => {
+    clearTimeout(discSearchTimer);
+    discSearchTimer = setTimeout(() => { discSearchQ = e.target.value.trim(); renderDiscussions(true); }, 250);
+  });
+
+  // Detail modal close
+  el('discDetailClose')?.addEventListener('click', closeDiscDetail);
+  el('discDetailModal')?.addEventListener('click', e => { if (e.target === el('discDetailModal')) closeDiscDetail(); });
+
+  // Infinite scroll
+  const sentinel = el('discSentinel');
+  if (sentinel) {
+    const obs = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) { discPage++; renderDiscussions(); }
+    }, { rootMargin: '200px' });
+    obs.observe(sentinel);
+  }
+}
+
+function closeDiscComposer() {
+  el('discComposerModal').classList.remove('open');
+  document.body.style.overflow = '';
+  el('discTitleInput').value = ''; el('discBodyInput').value = '';
+  el('discTitleCount').textContent = '0 / 150'; el('discBodyCount').textContent = '0 / 5000';
+}
+function closeDiscDetail() {
+  el('discDetailModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function renderDiscussions(reset) {
+  if (reset) discPage = 0;
+  const wrap = el('discList'); if (!wrap) return;
+
+  // Paint whatever's already in memory instantly
+  const cached = getDiscussions();
+  if (cached.length) {
+    wrap.innerHTML = cached.slice(0, (discPage+1)*DISC_PAGE_SIZE).map(discussionRowHTML).join('');
+    bindDiscussionListEvents(wrap);
+  } else if (reset) {
+    wrap.innerHTML = '';
+  }
+
+  DB.getDiscussions({ limit: DISC_PAGE_SIZE*(discPage+1)+1 }).then(rows => {
+    const sbDiscussions = (rows||[]).map(dbDiscussionToApp).filter(Boolean);
+    const localOnly = JSON.parse(localStorage.getItem('dl_discussions')||'[]').map(dbDiscussionToApp).filter(Boolean);
+    const merged = [...sbDiscussions];
+    localOnly.forEach(ld => { if (!merged.find(sd => sd.id === ld.id)) merged.push(ld); });
+    S._discussions = merged;
+
+    if (!merged.length) {
+      wrap.innerHTML = `<div class="disc-empty">
+        <i class="fas fa-comments"></i>
+        <h3>No discussions yet</h3>
+        <p>${S.user ? 'Be the first to start one.' : 'Sign in to start one.'}</p>
+        ${S.user ? '<button class="btn-primary" onclick="document.getElementById(\'newDiscussionBtn\').click()"><i class="fas fa-plus"></i> New Discussion</button>' : ''}
+      </div>`;
+      return;
+    }
+    const visible = getDiscussions().slice(0, (discPage+1)*DISC_PAGE_SIZE);
+    if (!visible.length) {
+      wrap.innerHTML = `<div class="disc-empty"><i class="fas fa-filter"></i><h3>No matches</h3><p>Nothing here matches your filters yet.</p></div>`;
+      return;
+    }
+    wrap.innerHTML = visible.map(discussionRowHTML).join('');
+    bindDiscussionListEvents(wrap);
+  }).catch(err => {
+    console.warn('Discussions fetch failed (table may not exist yet):', err?.message||err);
+    if (!cached.length) {
+      wrap.innerHTML = `<div class="disc-empty">
+        <i class="fas fa-comments"></i>
+        <h3>Discussions</h3>
+        <p>Run <b>discussions_migration.sql</b> in Supabase to enable cross-device discussions.</p>
+        ${S.user ? '<button class="btn-primary" onclick="document.getElementById(\'newDiscussionBtn\').click()"><i class="fas fa-plus"></i> Post Locally</button>' : ''}
+      </div>`;
+    }
+  });
+}
+
+function discAvatarHTML(username, cls, size) {
+  const url = getAvatarUrl(username);
+  const ring = hasActiveSpotStory(username) ? ' has-story-ring' : '';
+  const sizeStyle = size ? `width:${size}px;height:${size}px;` : '';
+  return url
+    ? `<img src="${url}" class="${cls}${ring} clickable-user" data-user="${esc(username)}" alt="" style="${sizeStyle}overflow:${ring?'visible':'hidden'}"/>`
+    : `<div class="${cls}${ring} clickable-user" data-user="${esc(username)}" style="${sizeStyle}background:${avColor(username)};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;overflow:${ring?'visible':'hidden'}">${(username||'?')[0].toUpperCase()}</div>`;
+}
+
+function discussionRowHTML(d) {
+  const myVote = S.user && (d.upvotes||[]).includes(S.user.username) ? 'up' : (S.user && (d.downvotes||[]).includes(S.user.username) ? 'down' : '');
+  const score = (d.upvotes||[]).length - (d.downvotes||[]).length;
+  const preview = (d.body||'').length > 180 ? d.body.slice(0,180)+'…' : (d.body||'');
+  return `<div class="disc-item" data-id="${d.id}">
+    <div class="disc-vote-col">
+      <button class="disc-vote-btn disc-up${myVote==='up'?' active':''}" data-id="${d.id}" data-dir="up"><i class="fas fa-arrow-up"></i></button>
+      <span class="disc-vote-count">${score}</span>
+      <button class="disc-vote-btn disc-down${myVote==='down'?' active':''}" data-id="${d.id}" data-dir="down"><i class="fas fa-arrow-down"></i></button>
+    </div>
+    <div class="disc-row-content">
+      <div class="disc-row-meta">
+        <span class="disc-cat-badge">${esc(d.category)}</span>
+        ${discAvatarHTML(d.user, 'disc-row-meta-av')}
+        <span class="disc-row-meta-user clickable-user" data-user="${esc(d.user)}">${esc(d.user)}</span>
+        <span class="disc-row-meta-time">${timeAgo(d.ts)}</span>
+      </div>
+      <h3 class="disc-row-title">${esc(d.title)}</h3>
+      ${preview ? `<p class="disc-row-preview">${esc(preview)}</p>` : ''}
+      <div class="disc-row-footer">
+        <span class="disc-comment-count"><i class="fas fa-comment"></i> ${(d.comments||[]).length}</span>
+        ${d.pinned ? '<span class="disc-pin-badge"><i class="fas fa-thumbtack"></i> Pinned</span>' : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function bindDiscussionListEvents(wrap) {
+  wrap.querySelectorAll('.disc-vote-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (!S.user) { toast('Sign in to vote','err'); el('authModal').classList.add('open'); return; }
+      toggleDiscussionVote(btn.dataset.id, btn.dataset.dir);
+    });
+  });
+  wrap.querySelectorAll('.disc-item').forEach(item => {
+    item.addEventListener('click', () => openDiscussionDetail(item.dataset.id));
+  });
+  wrap.querySelectorAll('.clickable-user').forEach(el2 => {
+    el2.addEventListener('click', e => { e.stopPropagation(); viewPublicProfile(el2.dataset.user); });
+  });
+}
+
+function findDiscussion(id) {
+  return (S._discussions||[]).find(x=>x.id===id) || getDiscussions().find(x=>x.id===id);
+}
+
+function toggleDiscussionVote(id, dir) {
+  const d = findDiscussion(id); if (!d) return;
+  const uname = S.user.username;
+  let up = d.upvotes||[], down = d.downvotes||[];
+  if (dir==='up') { down = down.filter(u=>u!==uname); up = up.includes(uname) ? up.filter(u=>u!==uname) : [...up, uname]; }
+  else            { up   = up.filter(u=>u!==uname);   down = down.includes(uname) ? down.filter(u=>u!==uname) : [...down, uname]; }
+  d.upvotes = up; d.downvotes = down;
+  if (S._discussions) { const sd = S._discussions.find(x=>x.id===id); if (sd) { sd.upvotes=up; sd.downvotes=down; } }
+  const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]');
+  const li = local.findIndex(x=>x.id===id);
+  if (li>=0) { local[li].upvotes=up; local[li].downvotes=down; localStorage.setItem('dl_discussions', JSON.stringify(local)); }
+  DB.toggleDiscussionVote(id, uname, dir).catch(()=>{});
+  refreshVoteUI(id, up, down, uname);
+}
+
+function refreshVoteUI(id, up, down, uname) {
+  const score = up.length - down.length;
+  document.querySelectorAll(`.disc-item[data-id="${id}"] .disc-vote-count, .disc-detail-votes[data-id="${id}"] .disc-vote-count`)
+    .forEach(node => node.textContent = score);
+  document.querySelectorAll(`.disc-vote-btn[data-id="${id}"]`).forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.dir==='up' ? up.includes(uname) : down.includes(uname));
+  });
+}
+
+function openDiscussionDetail(id) {
+  const d = findDiscussion(id); if (!d) return;
+  const content = el('discDetailContent');
+  const modal = el('discDetailModal');
+  if (!content || !modal) return;
+  content.innerHTML = discussionDetailHTML(d);
+  bindDiscussionDetailEvents(content, d);
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function discussionDetailHTML(d) {
+  const isOwn = S.user && (d.user === S.user.username || (d.user_id && d.user_id === S.user.id));
+  const canDelete = isOwn || S.user?.isAdmin;
+  const myVote = S.user && (d.upvotes||[]).includes(S.user.username) ? 'up' : (S.user && (d.downvotes||[]).includes(S.user.username) ? 'down' : '');
+  const score = (d.upvotes||[]).length - (d.downvotes||[]).length;
+  const commentCount = (d.comments||[]).length;
+
+  return `
+    <div class="disc-detail-header">
+      <span class="disc-cat-badge">${esc(d.category)}</span>
+      <span class="disc-detail-time">${timeAgo(d.ts)}</span>
+      ${canDelete ? `<button class="disc-detail-del" data-id="${d.id}"><i class="fas fa-trash-alt"></i> Delete</button>` : ''}
+    </div>
+    <h2 class="disc-detail-title">${esc(d.title)}</h2>
+    <div class="disc-detail-author">
+      ${discAvatarHTML(d.user, 'disc-detail-author-av')}
+      <span class="disc-detail-author-name clickable-user" data-user="${esc(d.user)}">${esc(d.user)}</span>
+    </div>
+    ${d.body ? `<div class="disc-detail-body">${esc(d.body)}</div>` : ''}
+    <div class="disc-detail-votes" data-id="${d.id}">
+      <button class="disc-vote-btn disc-up${myVote==='up'?' active':''}" data-id="${d.id}" data-dir="up"><i class="fas fa-arrow-up"></i></button>
+      <span class="disc-vote-count">${score}</span>
+      <button class="disc-vote-btn disc-down${myVote==='down'?' active':''}" data-id="${d.id}" data-dir="down"><i class="fas fa-arrow-down"></i></button>
+    </div>
+    ${S.user ? `<div class="disc-comment-composer">
+      ${renderAv(S.user.username, 32, 'disc-comment-composer-av')}
+      <div class="disc-comment-composer-body">
+        <textarea rows="2" placeholder="What are your thoughts?" id="discNewCommentInput" maxlength="2000"></textarea>
+        <button class="disc-comment-submit" id="discNewCommentSubmit">Comment</button>
+      </div>
+    </div>` : `<p class="disc-comment-signin">Sign in to comment</p>`}
+    <div class="disc-comments-heading">${commentCount} Comment${commentCount===1?'':'s'}</div>
+    <div class="disc-comments-list" id="discCommentsList-${d.id}">${renderCommentTree(d.comments||[], null)}</div>
+  `;
+}
+
+// Recursively renders a comment thread — comments reference their parent
+// via parentId, so arbitrary reply depth "just works" the same way
+// Reddit's does, each level nesting inside .disc-replies.
+function renderCommentTree(comments, parentId) {
+  const children = comments.filter(c => (c.parentId||null) === parentId);
+  if (!children.length) return parentId === null ? '<p class="disc-no-comments">No comments yet — start the conversation.</p>' : '';
+  return children.map(c => commentHTML(c, comments)).join('');
+}
+
+function commentHTML(c, allComments) {
+  const myVote = S.user && (c.upvotes||[]).includes(S.user.username) ? 'up' : (S.user && (c.downvotes||[]).includes(S.user.username) ? 'down' : '');
+  const score = (c.upvotes||[]).length - (c.downvotes||[]).length;
+  const canDelete = S.user && (S.user.username===c.user || S.user.isAdmin) && c.user !== '[deleted]';
+  const childrenHTML = renderCommentTree(allComments, c.id);
+  return `<div class="disc-comment" data-cid="${c.id}">
+    <div class="disc-comment-vote">
+      <button class="disc-vote-btn disc-up${myVote==='up'?' active':''}" data-cid="${c.id}" data-dir="up"><i class="fas fa-arrow-up"></i></button>
+      <span class="disc-vote-count">${score}</span>
+      <button class="disc-vote-btn disc-down${myVote==='down'?' active':''}" data-cid="${c.id}" data-dir="down"><i class="fas fa-arrow-down"></i></button>
+    </div>
+    <div class="disc-comment-body-wrap">
+      <div class="disc-comment-meta">
+        ${discAvatarHTML(c.user, 'disc-comment-av')}
+        <span class="disc-comment-author clickable-user" data-user="${esc(c.user)}">${esc(c.user)}</span>
+        <span class="disc-comment-time">${timeAgo(c.ts)}</span>
+      </div>
+      <div class="disc-comment-text">${esc(c.text)}</div>
+      <div class="disc-comment-actions">
+        ${S.user && c.user !== '[deleted]' ? `<button class="disc-reply-btn" data-cid="${c.id}">Reply</button>` : ''}
+        ${canDelete ? `<button class="disc-comment-del-btn" data-cid="${c.id}">Delete</button>` : ''}
+      </div>
+      ${S.user ? `<div class="disc-reply-composer" id="discReplyComposer-${c.id}">
+        ${renderAv(S.user.username, 24, '')}
+        <input type="text" placeholder="Reply…" data-parent="${c.id}" maxlength="2000"/>
+        <button class="disc-reply-send" data-parent="${c.id}"><i class="fas fa-paper-plane"></i></button>
+      </div>` : ''}
+      ${childrenHTML ? `<div class="disc-replies">${childrenHTML}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function bindDiscussionDetailEvents(content, d) {
+  content.querySelectorAll('.disc-vote-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!S.user) { toast('Sign in to vote','err'); el('authModal').classList.add('open'); return; }
+      if (btn.dataset.id) toggleDiscussionVote(btn.dataset.id, btn.dataset.dir);
+      else if (btn.dataset.cid) toggleCommentVote(d.id, btn.dataset.cid, btn.dataset.dir, content);
+    });
+  });
+  content.querySelectorAll('.disc-reply-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const composer = el('discReplyComposer-'+btn.dataset.cid);
+      composer?.classList.toggle('open');
+      if (composer?.classList.contains('open')) composer.querySelector('input')?.focus();
+    });
+  });
+  content.querySelectorAll('.disc-reply-send').forEach(btn => {
+    btn.addEventListener('click', () => sendDiscussionReply(d.id, btn.dataset.parent, content));
+  });
+  content.querySelectorAll('.disc-reply-composer input').forEach(input => {
+    input.addEventListener('keydown', e => { if (e.key==='Enter') sendDiscussionReply(d.id, input.dataset.parent, content); });
+  });
+  el('discNewCommentSubmit')?.addEventListener('click', () => sendDiscussionComment(d.id, content));
+  el('discNewCommentInput')?.addEventListener('keydown', e => {
+    if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendDiscussionComment(d.id, content); }
+  });
+  content.querySelectorAll('.disc-comment-del-btn').forEach(btn => {
+    btn.addEventListener('click', () => deleteDiscussionComment(d.id, btn.dataset.cid, content));
+  });
+  content.querySelector('.disc-detail-del')?.addEventListener('click', () => deleteDiscussionFromDetail(d.id));
+  content.querySelectorAll('.clickable-user').forEach(el2 => {
+    el2.addEventListener('click', () => viewPublicProfile(el2.dataset.user));
+  });
+}
+
+function addDiscussionCommentToStores(discussionId, comment) {
+  const d = findDiscussion(discussionId);
+  if (d) d.comments = [...(d.comments||[]), comment];
+  if (S._discussions) {
+    const sd = S._discussions.find(x=>x.id===discussionId);
+    if (sd) sd.comments = [...(sd.comments||[]), comment];
+  }
+  const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]');
+  const li = local.findIndex(x=>x.id===discussionId);
+  if (li>=0) { local[li].comments = [...(local[li].comments||[]), comment]; localStorage.setItem('dl_discussions', JSON.stringify(local)); }
+  DB.addDiscussionComment(discussionId, comment).catch(()=>{});
+}
+
+function refreshDiscussionCommentsUI(discussionId, content) {
+  const d = findDiscussion(discussionId); if (!d) return;
+  const listEl = content.querySelector(`#discCommentsList-${discussionId}`);
+  if (listEl) listEl.innerHTML = renderCommentTree(d.comments||[], null);
+  const heading = content.querySelector('.disc-comments-heading');
+  if (heading) heading.textContent = `${(d.comments||[]).length} Comment${(d.comments||[]).length===1?'':'s'}`;
+  bindDiscussionDetailEvents(content, d);
+  document.querySelectorAll(`.disc-item[data-id="${discussionId}"] .disc-comment-count`).forEach(node => {
+    node.innerHTML = `<i class="fas fa-comment"></i> ${(d.comments||[]).length}`;
+  });
+}
+
+function notifyDiscussionOwner(discussionId, comment, isReply) {
+  const d = findDiscussion(discussionId);
+  if (!d || !d.user_id || d.user === S.user.username) return;
+  const preview = comment.text.length > 40 ? comment.text.slice(0,40)+'…' : comment.text;
+  DB.pushNotification(d.user_id, 'comment', S.user.username, (isReply?'replied: "':'commented: "')+preview+'"', 'page:discussions').catch(()=>{});
+}
+
+function sendDiscussionComment(discussionId, content) {
+  const input = el('discNewCommentInput');
+  const text = input.value.trim();
+  if (!text) return;
+  if (!S.user) { toast('Sign in to comment','err'); return; }
+  const comment = { id:'c'+Date.now()+Math.random().toString(36).slice(2,7), user:S.user.username, text, ts:Date.now(), upvotes:[], downvotes:[], parentId:null };
+  input.value = '';
+  addDiscussionCommentToStores(discussionId, comment);
+  refreshDiscussionCommentsUI(discussionId, content);
+  notifyDiscussionOwner(discussionId, comment, false);
+}
+
+function sendDiscussionReply(discussionId, parentId, content) {
+  const input = content.querySelector(`.disc-reply-composer input[data-parent="${parentId}"]`);
+  if (!input) return;
+  const text = input.value.trim();
+  if (!text) return;
+  if (!S.user) { toast('Sign in to reply','err'); return; }
+  const comment = { id:'c'+Date.now()+Math.random().toString(36).slice(2,7), user:S.user.username, text, ts:Date.now(), upvotes:[], downvotes:[], parentId };
+  input.value = '';
+  addDiscussionCommentToStores(discussionId, comment);
+  refreshDiscussionCommentsUI(discussionId, content);
+  notifyDiscussionOwner(discussionId, comment, true);
+}
+
+function toggleCommentVote(discussionId, commentId, dir, content) {
+  const d = findDiscussion(discussionId); if (!d) return;
+  const uname = S.user.username;
+  const applyVote = c => {
+    if (c.id !== commentId) return c;
+    let up = c.upvotes||[], down = c.downvotes||[];
+    if (dir==='up') { down = down.filter(u=>u!==uname); up = up.includes(uname)?up.filter(u=>u!==uname):[...up,uname]; }
+    else            { up   = up.filter(u=>u!==uname);   down = down.includes(uname)?down.filter(u=>u!==uname):[...down,uname]; }
+    return { ...c, upvotes:up, downvotes:down };
+  };
+  d.comments = (d.comments||[]).map(applyVote);
+  if (S._discussions) { const sd = S._discussions.find(x=>x.id===discussionId); if (sd) sd.comments = (sd.comments||[]).map(applyVote); }
+  const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]');
+  const li = local.findIndex(x=>x.id===discussionId);
+  if (li>=0) { local[li].comments = d.comments; localStorage.setItem('dl_discussions', JSON.stringify(local)); }
+  DB.toggleDiscussionCommentVote(discussionId, commentId, uname, dir).catch(()=>{});
+  refreshDiscussionCommentsUI(discussionId, content);
+}
+
+function deleteDiscussionComment(discussionId, commentId, content) {
+  if (!confirm('Delete this comment? Replies to it will remain.')) return;
+  const d = findDiscussion(discussionId); if (!d) return;
+  // Soft-delete — keeps the node so any replies underneath don't orphan,
+  // same "[deleted]" convention Reddit itself uses.
+  const softDelete = c => c.id===commentId ? { ...c, text:'[deleted]', user:'[deleted]' } : c;
+  d.comments = (d.comments||[]).map(softDelete);
+  if (S._discussions) { const sd = S._discussions.find(x=>x.id===discussionId); if (sd) sd.comments = (sd.comments||[]).map(softDelete); }
+  const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]');
+  const li = local.findIndex(x=>x.id===discussionId);
+  if (li>=0) { local[li].comments = d.comments; localStorage.setItem('dl_discussions', JSON.stringify(local)); }
+  DB.setDiscussionComments(discussionId, d.comments).catch(()=>{});
+  refreshDiscussionCommentsUI(discussionId, content);
+  toast('Comment deleted','ok');
+}
+
+function deleteDiscussionFromDetail(id) {
+  if (!confirm('Delete this discussion? This cannot be undone.')) return;
+  const d = findDiscussion(id);
+  const isMine = d && S.user && (d.user===S.user.username || d.user_id===S.user.id);
+  Promise.resolve((!isMine && S.user?.isAdmin) ? DB.adminDeleteDiscussion(id) : DB.deleteDiscussion(id, S.user?.id))
+    .catch(()=>{})
+    .finally(() => {
+      S._discussions = (S._discussions||[]).filter(x=>x.id!==id);
+      const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]').filter(x=>x.id!==id);
+      localStorage.setItem('dl_discussions', JSON.stringify(local));
+      closeDiscDetail();
+      toast('Discussion deleted','ok');
+      renderDiscussions(true);
+    });
+}
+
+async function submitDiscussion() {
+  if (!S.user) { toast('Sign in to post','err'); return; }
+  const category = el('discCatSelect')?.value || 'General';
+  const title = el('discTitleInput')?.value.trim() || '';
+  const body  = el('discBodyInput')?.value.trim() || '';
+  if (!title) { toast('Give your discussion a title','err'); return; }
+
+  const btn = el('discSubmitBtn');
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Posting…';
+
+  let finalId = 'd'+Date.now(), finalTs = Date.now();
+  try {
+    const { data, error } = await DB.createDiscussion(S.user.id, S.user.username, { title, body, category });
+    if (error) throw error;
+    if (data) { finalId = data.id; finalTs = data.created_at ? new Date(data.created_at).getTime() : Date.now(); }
+  } catch(e) {
+    console.warn('Discussion create failed, saving locally:', e?.message||e);
+    const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]');
+    local.unshift({ id:finalId, username:S.user.username, user_id:S.user.id, title, body, category, upvotes:[], downvotes:[], comments:[], pinned:false, created_at:new Date().toISOString() });
+    localStorage.setItem('dl_discussions', JSON.stringify(local));
+  }
+
+  S._discussions = [dbDiscussionToApp({ id:finalId, username:S.user.username, user_id:S.user.id, title, body, category, upvotes:[], downvotes:[], comments:[], pinned:false, ts:finalTs }), ...(S._discussions||[])];
+
+  btn.disabled = false; btn.innerHTML = originalHTML;
+  closeDiscComposer();
+  toast('Discussion posted ✓','ok');
+  discCategory=''; discSort='hot'; discSearchQ='';
+  const searchInput = el('discSearchInput'); if (searchInput) searchInput.value = '';
+  document.querySelectorAll('.disc-cat-pill').forEach(p=>p.classList.toggle('active', p.dataset.dcat===''));
+  document.querySelectorAll('.disc-sort-tabs .sort-btn[data-dsort]').forEach(p=>p.classList.toggle('active', p.dataset.dsort==='hot'));
+  renderDiscussions(true);
+}
+
 function initCompare() {
   [1, 2].forEach(slot => {
     const inp = el(`compareSearch${slot}`);

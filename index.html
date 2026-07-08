@@ -14,7 +14,7 @@
 
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-  <link rel="stylesheet" href="main.min.css?v=202607072258"/>
+  <link rel="stylesheet" href="main.min.css?v=202607072349"/>
   <!-- Open Graph / Share meta tags -->
   <meta property="og:type"        content="website"/>
   <meta property="og:title"       content="DriveLog — The Car Community"/>
@@ -48,8 +48,8 @@
   <nav class="mob-links">
     <a class="mob-link active" data-page="home"><i class="fas fa-home"></i> Feed</a>
     <a class="mob-link" data-page="social"><i class="fas fa-camera"></i> Car Spotting</a>
+    <a class="mob-link" data-page="discussions"><i class="fas fa-comments"></i> Discussions</a>
     <a class="mob-link" data-page="members"><i class="fas fa-users"></i> Members</a>
-    <a class="mob-link" data-page="leaderboard"><i class="fas fa-trophy"></i> Leaderboard</a>
     <a class="mob-link" data-page="garage"><i class="fas fa-warehouse"></i> Garage</a>
     <a class="mob-link" data-page="messages"><i class="fas fa-envelope"></i> Messages <span class="nav-dm-badge" id="mobDmBadge" style="display:none"></span></a>
     <a class="mob-link" data-page="explore"><i class="fas fa-compass"></i> More</a>
@@ -221,8 +221,8 @@
     <nav class="main-nav">
       <a class="nav-link active" data-page="home">Feed</a>
       <a class="nav-link" data-page="social">Car Spotting</a>
+      <a class="nav-link" data-page="discussions">Discussions</a>
       <a class="nav-link" data-page="members">Members</a>
-      <a class="nav-link" data-page="leaderboard">Leaderboard</a>
       <a class="nav-link" data-page="garage">Garage</a>
       <a class="nav-link" data-page="messages">Messages <span class="nav-dm-badge" id="navDmBadge" style="display:none"></span></a>
       <a class="nav-link" data-page="explore">More..</a>
@@ -479,6 +479,86 @@
       <div id="lbAtg"></div>
     </div>
   </section>
+
+  <!-- DISCUSSIONS — Reddit-style community board -->
+  <section class="page" id="page-discussions">
+    <div class="disc-wrap">
+      <div class="disc-header">
+        <div>
+          <h1 class="disc-title">Discussions</h1>
+          <p class="disc-subtitle">Start a thread, ask a question, talk builds with the community.</p>
+        </div>
+        <button class="btn-primary" id="newDiscussionBtn"><i class="fas fa-plus"></i> New Discussion</button>
+      </div>
+
+      <div class="disc-cat-pills" id="discCatPills">
+        <button class="disc-cat-pill active" data-dcat="">All</button>
+        <button class="disc-cat-pill" data-dcat="General"><i class="fas fa-comment-dots"></i> General</button>
+        <button class="disc-cat-pill" data-dcat="Build Advice"><i class="fas fa-wrench"></i> Build Advice</button>
+        <button class="disc-cat-pill" data-dcat="Buy/Sell/Trade"><i class="fas fa-tags"></i> Buy/Sell/Trade</button>
+        <button class="disc-cat-pill" data-dcat="Events &amp; Meets"><i class="fas fa-calendar-alt"></i> Events &amp; Meets</button>
+        <button class="disc-cat-pill" data-dcat="Off-Topic"><i class="fas fa-comments"></i> Off-Topic</button>
+        <button class="disc-cat-pill" data-dcat="Introductions"><i class="fas fa-hand-sparkles"></i> Introductions</button>
+      </div>
+
+      <div class="disc-controls-row">
+        <div class="disc-sort-tabs">
+          <button class="sort-btn active" data-dsort="hot"><i class="fas fa-fire"></i> Hot</button>
+          <button class="sort-btn" data-dsort="new"><i class="fas fa-clock"></i> New</button>
+          <button class="sort-btn" data-dsort="top"><i class="fas fa-arrow-up"></i> Top</button>
+        </div>
+        <div class="disc-search-bar">
+          <i class="fas fa-search"></i>
+          <input type="text" id="discSearchInput" placeholder="Search discussions…"/>
+        </div>
+      </div>
+
+      <div class="disc-list" id="discList"></div>
+      <div class="disc-load-sentinel" id="discSentinel"></div>
+    </div>
+
+    <!-- New Discussion composer -->
+    <div class="modal-overlay" id="discComposerModal">
+      <div class="modal-box" style="max-width:600px">
+        <button class="modal-close" id="discComposerClose"><i class="fas fa-times"></i></button>
+        <h2 class="disc-composer-title"><i class="fas fa-comments"></i> Start a Discussion</h2>
+
+        <div class="s-field">
+          <label class="s-label">Category</label>
+          <div class="fs-select-wrap"><i class="fas fa-chevron-down fs-select-icon"></i>
+            <select class="fs-select" id="discCatSelect">
+              <option>General</option>
+              <option>Build Advice</option>
+              <option>Buy/Sell/Trade</option>
+              <option>Events &amp; Meets</option>
+              <option>Off-Topic</option>
+              <option>Introductions</option>
+            </select>
+          </div>
+        </div>
+        <div class="s-field">
+          <label class="s-label">Title</label>
+          <input class="finput" id="discTitleInput" maxlength="150" placeholder="What do you want to discuss?"/>
+          <div class="disc-char-count" id="discTitleCount">0 / 150</div>
+        </div>
+        <div class="s-field">
+          <label class="s-label">Details</label>
+          <textarea class="finput" id="discBodyInput" rows="7" maxlength="5000" placeholder="Share more details, ask your question, start the conversation…"></textarea>
+          <div class="disc-char-count" id="discBodyCount">0 / 5000</div>
+        </div>
+        <button class="btn-primary full" id="discSubmitBtn"><i class="fas fa-paper-plane"></i> Post Discussion</button>
+      </div>
+    </div>
+
+    <!-- Discussion detail view -->
+    <div class="modal-overlay" id="discDetailModal">
+      <div class="modal-box disc-detail-box">
+        <button class="modal-close" id="discDetailClose"><i class="fas fa-times"></i></button>
+        <div id="discDetailContent"></div>
+      </div>
+    </div>
+  </section>
+
 
   <!-- EVENTS -->
   <section class="page" id="page-events">
@@ -1674,9 +1754,9 @@
      Moved from <head> to end of <body> so it no longer blocks first paint;
      load order is unchanged: supabase → data → db → app -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="data.min.js?v=202607072258"></script>
-<script src="db.min.js?v=202607072258"></script>
-<script src="app.min.js?v=202607072258"></script>
+<script src="data.min.js?v=202607072349"></script>
+<script src="db.min.js?v=202607072349"></script>
+<script src="app.min.js?v=202607072349"></script>
 <!-- Sign up nudge banner — shown to signed-out users -->
 <div class="signup-nudge" id="signupNudge" style="display:none">
   <div class="signup-nudge-inner">
