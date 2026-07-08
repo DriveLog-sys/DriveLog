@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initPostModal, initCarModal, initLightbox, initGarage, initEvents,
     initMembers, initNavLinks, initFilterSidebar, initMessages, initCarPage,
     initReactions, initReport, initCompare, initInfiniteScroll,
-    initSocialPage, initThemeToggle, initDiscussions];
+    initSocialPage, initThemeToggle, initDiscussions, initSpotMap];
   for (const fn of inits) {
     try { fn(); } catch(e) { console.warn('Init failed:', fn.name, e); }
   }
@@ -773,7 +773,7 @@ function goTo(page) {
   if (page==='leaderboard') renderLeaderboard();
   if (page==='garage')      renderGarage();
   if (page==='events')      renderEventsGrid();
-  if (page==='members')     renderMembers();
+  if (page==='members')     { renderMembers(); renderMembersStatsBar(); renderMembersBotm(); }
   if (page==='social')      { renderSocialFeed(true); renderTrendingTags(); }
   if (page==='discussions') renderDiscussions(true);
   if (page==='spotpost') {
@@ -3820,6 +3820,13 @@ function getBotmVoteKey() {
   return `dl_botm_votes_${now.getFullYear()}_${now.getMonth()}`;
 }
 
+// The Supabase-side vote key format (year_month, zero-padded) — shared by
+// castBotmVote() and the tally/winner logic so they can never drift apart.
+function getBotmSupabaseVoteKey() {
+  const now = new Date();
+  return `botm_${now.getFullYear()}_${String(now.getMonth()+1).padStart(2,'0')}`;
+}
+
 function getUserBotmVote() {
   try { return JSON.parse(localStorage.getItem(getBotmVoteKey()) || 'null'); } catch(_) { return null; }
 }
@@ -3827,26 +3834,24 @@ function getUserBotmVote() {
 async function castBotmVote(postId) {
   if (!S.user) { toast('Sign in to vote for BOTM','err'); el('authModal')?.classList.add('open'); return; }
   const now = new Date();
-  if (now.getDate() > 25) { toast(`Voting closed on the 25th — check the Leaderboard for this month's winner`,''); return; }
+  if (now.getDate() > 25) { toast(`Voting closed on the 25th — check back for this month's winner`,''); return; }
   const existing = getUserBotmVote();
-  if (existing === postId) { toast('You already voted for this build this month! ✓','err'); return; }
-  if (existing && existing !== postId) {
-    const votedPost = S.posts.find(p=>p.id===existing);
-    toast(`You already voted for "${votedPost?.title||'another build'}" this month. You can only vote once.`,'err');
-    return;
-  }
-  const voteKey = `botm_${now.getFullYear()}_${String(now.getMonth()+1).padStart(2,'0')}`;
+  if (existing === postId) { toast('Already your nomination this month ✓','ok'); return; }
+  const voteKey = getBotmSupabaseVoteKey();
   // Save locally first for instant feedback
   localStorage.setItem(getBotmVoteKey(), postId);
   renderBotmVoteBtn(postId);
-  // Persist to Supabase
+  // Persist to Supabase — upsert means this also correctly REPLACES an
+  // existing vote from earlier in the month, so people can change their mind
   const { error } = await DB.castBotmVote(postId, S.user.id, voteKey);
   if (error) {
     console.warn('BOTM vote save failed:', error);
     toast('Vote counted locally — will sync when connection is restored','');
   } else {
-    toast('Your vote has been cast! 🏆 Check back on the 26th.','ok');
+    toast(existing ? 'Nomination changed 🏆' : 'Your vote has been cast! 🏆','ok');
   }
+  // Refresh the live tally on the Members page, if it's rendered
+  if (el('memBotmCandidates')) renderMembersBotm();
 }
 
 function renderBotmVoteBtn(postId) {
@@ -3860,13 +3865,144 @@ function renderBotmVoteBtn(postId) {
   });
 }
 
-// Get current month's BOTM winner from votes
-function getBotmWinner() {
-  // Admin override still possible
+// Tallies community votes for the current month into { postId: count },
+// sorted descending. This is the piece that was missing — DB.getBotmVotes()
+// already existed to fetch the raw vote rows, but nothing ever called it or
+// counted them, so there was no way to actually determine a winner from
+// community votes at all (only a manual admin pick).
+async function getBotmTally() {
+  const voteKey = getBotmSupabaseVoteKey();
+  const votes = await DB.getBotmVotes(voteKey).catch(() => []);
+  const counts = {};
+  votes.forEach(v => { counts[v.post_id] = (counts[v.post_id]||0) + 1; });
+  return Object.entries(counts).sort((a,b) => b[1]-a[1]).map(([postId,count]) => ({ postId, count }));
+}
+
+// Get current month's BOTM winner — admin override takes priority (if set),
+// otherwise the community's most-voted build wins automatically.
+async function getBotmWinner() {
   const adminPick = JSON.parse(localStorage.getItem('dl_botm') || 'null');
-  if (adminPick?.postId) return S.posts.find(p => p.id === adminPick.postId) || null;
-  // Otherwise use community votes (stored locally for demo)
-  return null; // Real voting requires Supabase aggregation
+  if (adminPick?.postId) {
+    const post = S.posts.find(p => p.id === adminPick.postId);
+    if (post) return { post, isAdminPick: true, voteCount: null };
+  }
+  const tally = await getBotmTally();
+  if (!tally.length) return null;
+  const post = S.posts.find(p => p.id === tally[0].postId);
+  if (!post) return null;
+  return { post, isAdminPick: false, voteCount: tally[0].count };
+}
+
+// Community stats bar at the top of the Members page
+function renderMembersStatsBar() {
+  const wrap = el('memStatsBar'); if (!wrap) return;
+  const totalMembers = S.users.length;
+  const totalBuilds = S.posts.length;
+  const totalLikes = S.posts.reduce((sum,p) => sum + (p.likes||0), 0);
+  wrap.innerHTML = `
+    <div class="mem-stat-card"><span class="mem-stat-num">${totalMembers.toLocaleString()}</span><span class="mem-stat-label">Members</span></div>
+    <div class="mem-stat-card"><span class="mem-stat-num">${totalBuilds.toLocaleString()}</span><span class="mem-stat-label">Builds Posted</span></div>
+    <div class="mem-stat-card"><span class="mem-stat-num">${totalLikes.toLocaleString()}</span><span class="mem-stat-label">Total Likes</span></div>
+  `;
+}
+
+// Full Build of the Month section on the Members page — winner cinematic
+// (auto-determined from community votes, or admin override) plus a live
+// nomination panel so people can actually cast/change their vote here.
+async function renderMembersBotm() {
+  const winnerWrap = el('memBotmWinner');
+  const candWrap = el('memBotmCandidates');
+  const subEl = el('memBotmSub');
+  if (!winnerWrap || !candWrap) return;
+
+  const [winnerResult, tally] = await Promise.all([getBotmWinner(), getBotmTally()]);
+
+  // Winner cinematic
+  if (!winnerResult) {
+    winnerWrap.innerHTML = `<div class="lb-special-empty">
+      <i class="fas fa-calendar-star"></i>
+      <p>No votes yet this month — nominate a build below to get things started.</p>
+    </div>`;
+  } else {
+    const { post, isAdminPick, voteCount } = winnerResult;
+    const cfg = catCfg(post.category);
+    winnerWrap.innerHTML = `
+      <div class="botm-cinematic" data-id="${post.id}">
+        <div class="botm-cinematic-img">
+          ${post.images?.[0]
+            ? `<img src="${post.images[0]}" alt="${esc(post.title)}"/>`
+            : `<div class="botm-cinematic-ph" style="background:${phBg(post.id)}"></div>`}
+          <div class="botm-cinematic-grad"></div>
+        </div>
+        <div class="botm-cinematic-info">
+          <div class="botm-cinematic-badge"><i class="fas fa-calendar-star"></i> Build of the Month${isAdminPick ? '' : ' — Community Pick'}</div>
+          <h2 class="botm-cinematic-title">${esc(post.title)}</h2>
+          <div class="botm-cinematic-meta">
+            <span class="cat-badge ${cfg.badge}" style="position:static">${post.category}</span>
+            <span>by <b>${esc(post.user)}</b></span>
+            ${post.year ? `<span>${post.year}</span>` : ''}
+            ${post.hp   ? `<span>${esc(post.hp)}</span>` : ''}
+            <span>♥ ${post.likes.toLocaleString()} likes</span>
+            ${!isAdminPick && voteCount ? `<span><i class="fas fa-crown" style="color:#d97706"></i> ${voteCount} vote${voteCount===1?'':'s'}</span>` : ''}
+          </div>
+          ${post.desc ? `<p class="botm-cinematic-desc">${esc(post.desc.slice(0,220))}${post.desc.length>220?'…':''}</p>` : ''}
+          <button class="btn-primary botm-cinematic-btn"><i class="fas fa-eye"></i> View Full Build</button>
+        </div>
+      </div>`;
+    const card = winnerWrap.querySelector('.botm-cinematic');
+    winnerWrap.querySelector('.botm-cinematic-btn').addEventListener('click', e => { e.stopPropagation(); openCarPage(post); });
+    card.addEventListener('click', () => openCarPage(post));
+  }
+
+  if (subEl) {
+    const now = new Date();
+    subEl.textContent = now.getDate() <= 25
+      ? `Vote now through the 25th — ${now.toLocaleString('default',{month:'long'})}'s winner is decided by the community`
+      : `Voting closed on the 25th — this is ${now.toLocaleString('default',{month:'long'})}'s winner`;
+  }
+
+  // Nomination candidates — top 6 most-liked builds posted this calendar
+  // month (falls back to top 6 overall if nothing's been posted yet this
+  // month), each showing its live vote count.
+  const now = new Date();
+  const thisMonthPosts = S.posts.filter(p => {
+    const d = new Date(p.createdAt || p.date || 0);
+    return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
+  });
+  const pool = (thisMonthPosts.length ? thisMonthPosts : S.posts);
+  const candidates = [...pool].sort((a,b)=>b.likes-a.likes).slice(0,6);
+  const tallyMap = Object.fromEntries(tally.map(t => [t.postId, t.count]));
+  const myVote = getUserBotmVote();
+
+  if (!candidates.length) {
+    candWrap.innerHTML = '<div class="mem-botm-empty">No builds to nominate yet — post one to get the ball rolling.</div>';
+    return;
+  }
+  candWrap.innerHTML = candidates.map(p => {
+    const count = tallyMap[p.id] || 0;
+    const voted = myVote === p.id;
+    return `<div class="mem-botm-candidate" data-open-id="${p.id}">
+      <div class="mem-botm-cand-img">${p.images?.[0] ? `<img src="${p.images[0]}" alt="" loading="lazy"/>` : `<div style="width:100%;height:100%;background:${phBg(p.id)}"></div>`}</div>
+      <div class="mem-botm-cand-body">
+        <div class="mem-botm-cand-title">${esc(p.title)}</div>
+        <div class="mem-botm-cand-user">by ${esc(p.user)}</div>
+        <div class="mem-botm-cand-footer">
+          <span class="mem-botm-vote-count"><i class="fas fa-crown"></i> ${count}</span>
+          <button class="botm-vote-btn${voted?' voted':''}" data-id="${p.id}">${voted?'<i class="fas fa-check"></i> Voted':'<i class="fas fa-crown"></i> Nominate'}</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  candWrap.querySelectorAll('.botm-vote-btn').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); castBotmVote(btn.dataset.id); });
+  });
+  candWrap.querySelectorAll('.mem-botm-candidate').forEach(card => {
+    card.addEventListener('click', () => {
+      const post = S.posts.find(p => p.id === card.dataset.openId);
+      if (post) openCarPage(post);
+    });
+  });
 }
 
 // ─── BUILD OF THE MONTH ────────────────────────────────────────
@@ -6817,6 +6953,162 @@ async function submitDiscussion() {
   renderDiscussions(true);
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ─── SPOTTING MAP — world map of Car Spotting post locations ───
+// Original, self-contained SVG world map (simplified continent
+// silhouettes, not precise cartography) — avoids depending on any
+// external mapping API or paid service. Pins are placed using real
+// equirectangular projection math against each post's actual lat/lng,
+// captured opt-in at post time via the browser's Geolocation API.
+// ═══════════════════════════════════════════════════════════════
+
+// Converts real coordinates to x/y in the map's 1000×500 viewBox.
+function projectLatLng(lat, lng) {
+  return { x: (lng+180)/360*1000, y: (90-lat)/180*500 };
+}
+
+// Static background — ocean, graticule (lat/long grid), and simplified
+// continent shapes. Shared by the sidebar teaser and the full map modal.
+function worldMapStaticSvg() {
+  const graticule = [];
+  for (let lng=-180; lng<=180; lng+=30) { const x=(lng+180)/360*1000; graticule.push(`<line class="wm-grat" x1="${x}" y1="0" x2="${x}" y2="500"/>`); }
+  for (let lat=-60; lat<=60; lat+=30) { const y=(90-lat)/180*500; graticule.push(`<line class="wm-grat" x1="0" y1="${y}" x2="1000" y2="${y}"/>`); }
+  return `<rect class="wm-ocean" x="0" y="0" width="1000" height="500"/>
+    ${graticule.join('')}
+    <polygon class="wm-land" data-continent="north-america" points="41.7,61.1 111.1,55.6 166.7,50.0 236.1,61.1 277.8,69.4 319.4,83.3 347.2,111.1 333.3,125.0 305.6,133.3 291.7,152.8 277.8,180.6 263.9,194.4 250.0,208.3 236.1,211.1 222.2,205.6 208.3,194.4 194.4,180.6 180.6,166.7 166.7,152.8 155.6,138.9 152.8,116.7 138.9,97.2 111.1,88.9 69.4,83.3 41.7,69.4"/>
+    <polygon class="wm-land" data-continent="south-america" points="277.8,222.2 291.7,236.1 305.6,250.0 305.6,277.8 305.6,300.0 300.0,319.4 305.6,347.2 319.4,375.0 311.1,394.4 300.0,400.0 311.1,388.9 327.8,361.1 338.9,347.2 347.2,319.4 366.7,305.6 388.9,277.8 402.8,263.9 388.9,250.0 361.1,236.1 333.3,227.8 305.6,222.2 277.8,222.2"/>
+    <polygon class="wm-land" data-continent="europe" points="472.2,130.6 477.8,116.7 486.1,105.6 500.0,108.3 513.9,105.6 527.8,100.0 541.7,97.2 555.6,94.4 569.4,88.9 583.3,83.3 597.2,77.8 611.1,83.3 611.1,111.1 597.2,125.0 583.3,133.3 569.4,138.9 555.6,138.9 541.7,144.4 527.8,144.4 513.9,138.9 500.0,133.3 486.1,130.6 472.2,130.6"/>
+    <polygon class="wm-land" data-continent="africa" points="452.8,208.3 458.3,194.4 466.7,180.6 486.1,166.7 500.0,161.1 527.8,158.3 555.6,161.1 583.3,163.9 591.7,180.6 597.2,208.3 611.1,222.2 625.0,236.1 633.3,250.0 625.0,277.8 611.1,305.6 597.2,327.8 583.3,338.9 569.4,341.7 555.6,338.9 550.0,327.8 541.7,311.1 533.3,291.7 527.8,263.9 522.2,236.1 486.1,227.8 472.2,222.2 458.3,216.7 452.8,208.3"/>
+    <polygon class="wm-land" data-continent="asia" points="597.2,133.3 611.1,125.0 638.9,116.7 666.7,105.6 694.4,97.2 722.2,88.9 750.0,83.3 777.8,77.8 805.6,83.3 833.3,97.2 861.1,111.1 875.0,125.0 888.9,125.0 894.4,138.9 888.9,152.8 861.1,161.1 838.9,166.7 827.8,180.6 805.6,194.4 791.7,222.2 777.8,236.1 763.9,250.0 772.2,236.1 783.3,222.2 791.7,208.3 763.9,194.4 750.0,188.9 736.1,194.4 722.2,208.3 708.3,222.2 694.4,227.8 680.6,222.2 666.7,208.3 661.1,194.4 652.8,180.6 638.9,172.2 625.0,166.7 611.1,152.8 597.2,144.4 583.3,152.8 577.8,144.4 588.9,138.9 597.2,133.3"/>
+    <polygon class="wm-land" data-continent="australia" points="813.9,311.1 819.4,305.6 833.3,300.0 847.2,291.7 861.1,283.3 875.0,283.3 888.9,291.7 902.8,294.4 911.1,305.6 916.7,319.4 925.0,327.8 916.7,341.7 911.1,355.6 902.8,355.6 888.9,355.6 883.3,347.2 875.0,338.9 861.1,338.9 847.2,341.7 833.3,344.4 819.4,338.9 813.9,327.8 813.9,311.1"/>`;
+}
+
+function initSpotMap() {
+  const svg = el('spotMapSvg');
+  if (svg) svg.innerHTML = worldMapStaticSvg();
+  const mini = el('spotMapMiniSvg');
+  if (mini) mini.innerHTML = worldMapStaticSvg();
+
+  el('spotMapOpenBtn')?.addEventListener('click', openSpotMap);
+  el('spotMapTeaserBtn')?.addEventListener('click', e => {
+    // Clicking anywhere on the teaser card opens the map, not just the button
+    if (!e.target.closest('a')) openSpotMap();
+  });
+  el('spotMapClose')?.addEventListener('click', closeSpotMap);
+  el('spotMapModal')?.addEventListener('click', e => { if (e.target === el('spotMapModal')) closeSpotMap(); });
+
+  renderSpotMapMiniPins();
+}
+
+function openSpotMap() {
+  el('spotMapModal')?.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  renderSpotMapFull();
+}
+function closeSpotMap() {
+  el('spotMapModal')?.classList.remove('open');
+  document.body.style.overflow = '';
+  hideSpotMapPopup();
+}
+
+// Small, non-interactive pin dots on the sidebar teaser — just enough to
+// look alive without needing full click/popup wiring for a tiny preview.
+async function renderSpotMapMiniPins() {
+  const svg = el('spotMapMiniSvg'); if (!svg) return;
+  const locations = await DB.getSpottingLocations().catch(() => []);
+  if (!locations.length) return;
+  const pinsHTML = locations.slice(0, 60).map(loc => {
+    const { x, y } = projectLatLng(loc.lat, loc.lng);
+    return `<circle class="wm-mini-pin" cx="${x}" cy="${y}" r="3.5"/>`;
+  }).join('');
+  svg.insertAdjacentHTML('beforeend', pinsHTML);
+}
+
+// Full interactive map — real pins from every located post, click for a
+// popup with the post's photo + spotter, click the popup to open the post.
+let _spotMapLocations = [];
+async function renderSpotMapFull() {
+  const svg = el('spotMapSvg');
+  const countEl = el('spotMapCount');
+  if (!svg) return;
+
+  // Repaint the static base (clears any previously-rendered pins) then add fresh ones
+  svg.innerHTML = worldMapStaticSvg();
+
+  const locations = await DB.getSpottingLocations().catch(() => null);
+  if (locations === null) {
+    if (countEl) countEl.textContent = 'Run spotting_locations_migration.sql in Supabase to enable the map.';
+    return;
+  }
+  _spotMapLocations = locations;
+  if (countEl) {
+    countEl.textContent = locations.length
+      ? `${locations.length} spot${locations.length===1?'':'s'} located on the map`
+      : 'No located spots yet — be the first to share your location when posting.';
+  }
+  if (!locations.length) return;
+
+  const pinsHTML = locations.map((loc, i) => {
+    const { x, y } = projectLatLng(loc.lat, loc.lng);
+    return `<g class="wm-pin" data-idx="${i}" transform="translate(${x},${y})">
+      <circle class="wm-pin-pulse" r="5"/>
+      <circle class="wm-pin-dot" r="5"/>
+    </g>`;
+  }).join('');
+  svg.insertAdjacentHTML('beforeend', pinsHTML);
+
+  svg.querySelectorAll('.wm-pin').forEach(pin => {
+    pin.addEventListener('click', e => {
+      e.stopPropagation();
+      showSpotMapPopup(_spotMapLocations[pin.dataset.idx], pin);
+    });
+  });
+}
+
+function showSpotMapPopup(loc, pinEl) {
+  const popup = el('spotMapPopup');
+  const wrap = pinEl.closest('.spot-map-wrap');
+  if (!popup || !loc) return;
+  const img = loc.media?.[0]?.url;
+  popup.innerHTML = `
+    <div class="spot-map-popup-close"><i class="fas fa-times"></i></div>
+    ${img ? `<img src="${img}" class="spot-map-popup-img" alt=""/>` : `<div class="spot-map-popup-img" style="background:${phBg(loc.id)}"></div>`}
+    <div class="spot-map-popup-body">
+      <div class="spot-map-popup-user">${esc(loc.username)}</div>
+      ${loc.location_name ? `<div class="spot-map-popup-loc"><i class="fas fa-map-marker-alt"></i> ${esc(loc.location_name)}</div>` : ''}
+    </div>`;
+
+  // Position the popup relative to the map wrap, anchored above the pin
+  const svg = el('spotMapSvg');
+  const svgRect = svg.getBoundingClientRect();
+  const wrapRect = (wrap||svg.parentElement).getBoundingClientRect();
+  const { x, y } = projectLatLng(loc.lat, loc.lng);
+  const scaleX = svgRect.width / 1000, scaleY = svgRect.height / 500;
+  const left = (svgRect.left - wrapRect.left) + x*scaleX;
+  const top  = (svgRect.top  - wrapRect.top)  + y*scaleY;
+  popup.style.left = left + 'px';
+  popup.style.top  = top + 'px';
+  popup.style.display = 'block';
+
+  popup.querySelector('.spot-map-popup-close').addEventListener('click', e => { e.stopPropagation(); hideSpotMapPopup(); });
+  popup.onclick = async () => {
+    const cached = findSocialPost(loc.id);
+    if (cached) { closeSpotMap(); openSocialDetail(loc.id); return; }
+    // Not already loaded in the feed — fetch it directly so the click
+    // doesn't silently do nothing.
+    const row = await DB.getSocialPostById(loc.id).catch(() => null);
+    const post = dbSocialToApp(row);
+    if (!post) { toast('Could not load that post','err'); return; }
+    S._socialPosts = [post, ...(S._socialPosts||[])];
+    closeSpotMap();
+    openSocialDetail(loc.id);
+  };
+}
+function hideSpotMapPopup() {
+  const popup = el('spotMapPopup');
+  if (popup) popup.style.display = 'none';
+}
+
 function initCompare() {
   [1, 2].forEach(slot => {
     const inp = el(`compareSearch${slot}`);
@@ -7676,6 +7968,7 @@ function setSpotStep(n) {
 function resetSpotComposer() {
   const cap = el('socialCaption'); if (cap) cap.value = '';
   const loc = el('spotLocation'); if (loc) loc.value = '';
+  const mapOptin = el('spotShareMapLocation'); if (mapOptin) mapOptin.checked = false;
   const prev = el('socialUploadPreview'); if (prev) prev.innerHTML = '';
   _socialPendingFiles = []; _blurredDataURLs = [];
   _blurImages = []; _blurBoxes = []; _blurImgIdx = 0;
@@ -7995,6 +8288,22 @@ async function submitSocialPost() {
   // (no new column needed) and renders naturally on the card.
   const spotLoc = el('spotLocation')?.value.trim() || '';
   if (spotLoc) caption = caption ? caption + '\n📍 ' + spotLoc : '📍 ' + spotLoc;
+
+  // Precise GPS coordinates for the Spotting Map — strictly opt-in via the
+  // checkbox, never captured silently. Best-effort: if permission is
+  // denied, times out, or isn't supported, we just skip it and post
+  // normally rather than blocking on it.
+  let mapCoords = null;
+  if (el('spotShareMapLocation')?.checked && navigator.geolocation) {
+    mapCoords = await new Promise(resolve => {
+      navigator.geolocation.getCurrentPosition(
+        pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve(null),
+        { timeout: 8000, maximumAge: 300000 }
+      );
+    });
+  }
+
   const hasContent = caption.length > 0 || _blurredDataURLs.length > 0;
   if (!hasContent) { toast('Add a caption or photo to share','err'); return; }
   const btn     = el('socialSubmitBtn');
@@ -8028,6 +8337,9 @@ async function submitSocialPost() {
     media: mediaItems,
     liked_by: [], likes: 0,
     comments: [], reactions: {},
+    lat: mapCoords?.lat ?? null,
+    lng: mapCoords?.lng ?? null,
+    location_name: spotLoc || null,
   };
 
   // Save to Supabase
@@ -8074,6 +8386,9 @@ function dbSocialToApp(row) {
     reactions:row.reactions|| {},
     ts:       row.ts || (row.created_at ? new Date(row.created_at).getTime() : Date.now()),
     date:     row.date || (row.created_at||'').slice(0,10),
+    lat:          row.lat          ?? null,
+    lng:          row.lng          ?? null,
+    locationName: row.location_name || '',
   };
 }
 
@@ -8463,14 +8778,14 @@ function renderStoryBar() {
     posters.push(p.user);
   });
 
-  const ownBubble = S.user ? `
-    <div class="story-bubble story-bubble-own${ownHasPost ? ' has-story' : ''}" id="storyBubbleOwn">
+  const ownBubble = `
+    <div class="story-bubble story-bubble-own${(S.user && ownHasPost) ? ' has-story' : ''}" id="storyBubbleOwn">
       <div class="story-bubble-ring">
-        ${renderAv(S.user.username, 64, 'story-bubble-av-inner')}
+        ${S.user ? renderAv(S.user.username, 64, 'story-bubble-av-inner') : `<div style="width:100%;height:100%;border-radius:50%;overflow:hidden;background:transparent">${_defaultAvSVG()}</div>`}
         <div class="story-bubble-own-plus"><i class="fas fa-plus"></i></div>
       </div>
-      <span class="story-bubble-name">You</span>
-    </div>` : '';
+      <span class="story-bubble-name">${S.user ? 'You' : 'Post'}</span>
+    </div>`;
 
   const otherBubbles = posters.slice(0, 20).map(u => `
     <div class="story-bubble clickable-user" data-user="${esc(u)}">
@@ -8478,10 +8793,6 @@ function renderStoryBar() {
       <span class="story-bubble-name">${esc(u)}</span>
     </div>`).join('');
 
-  if (!ownBubble && !otherBubbles) {
-    bar.innerHTML = '<p class="story-bar-empty">No spotters yet — be the first to post!</p>';
-    return;
-  }
   bar.innerHTML = ownBubble + otherBubbles;
 
   const ownEl = el('storyBubbleOwn');
@@ -8557,8 +8868,9 @@ function renderSocialCard(p) {
   const cats = (p.tag && p.tag !== 'All') ? `<span class="cat-badge ${catCfg(p.tag).badge}" style="position:static">${p.tag}</span>` : '';
   const isOwn = S.user && (p.user === S.user.username || (p.user_id && p.user_id === S.user.id));
   const canDelete = isOwn || S.user?.isAdmin;
-  const menu = canDelete
-    ? `<button class="soc-post-del" data-id="${p.id}" title="Delete post"><i class="fas fa-trash-alt"></i></button>` : '';
+  const menu = (canDelete
+    ? `<button class="soc-post-del" data-id="${p.id}" title="Delete post"><i class="fas fa-trash-alt"></i></button>` : '')
+    + `<button class="soc-post-close" id="socDetailCloseBtn" title="Close"><i class="fas fa-times"></i></button>`;
 
   // Media: uniform 4:5 frame (1080x1350 — Instagram post format).
   // Multiple photos become a swipeable carousel with arrows + dots.
@@ -8639,6 +8951,10 @@ function findSocialPost(id) {
 
 function bindSocialCardEvents(wrap) {
   if (!wrap) return;
+
+  // ── Close (now lives inside the header row itself, to the right of
+  // the trash icon — used to float outside the card entirely) ──
+  wrap.querySelector('#socDetailCloseBtn')?.addEventListener('click', closeSocialDetail);
 
   // ── Likes (optimistic) ──
   wrap.querySelectorAll('.soc-like-btn').forEach(btn => {
