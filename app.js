@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initPostModal, initCarModal, initLightbox, initGarage, initEvents,
     initMembers, initNavLinks, initFilterSidebar, initMessages, initCarPage,
     initReactions, initReport, initCompare, initInfiniteScroll,
-    initSocialPage, initThemeToggle, initDiscussions, initSpotMap];
+    initSocialPage, initThemeToggle, initDiscussions, initSpotMap, initFollowListModal];
   for (const fn of inits) {
     try { fn(); } catch(e) { console.warn('Init failed:', fn.name, e); }
   }
@@ -447,6 +447,7 @@ async function loadStorage() {
   updateAuthUI(); updateNotifBadge();
   // Wire realtime now that we have confirmed session
   if (S.user?.id) setupRealtimeSubscriptions();
+  setupPublicRealtimeSubscriptions(); // new posts/spots/discussions — works signed in or out
 
   // ── Fire non-critical in background without blocking ──────────
   // Profiles: only re-fetch if cache is stale. Was 10 minutes — that's why
@@ -675,6 +676,45 @@ function setupRealtimeSubscriptions() {
     }
   });
   _realtimeSubs.push(msgSub, notifSub);
+}
+
+// Public content (new builds, spotting posts, discussions) — runs once at
+// boot regardless of sign-in state, unlike setupRealtimeSubscriptions()
+// above which only covers private content (messages/notifications) and
+// only for signed-in users. Without this, new content posted from another
+// device or by another user never appeared until you manually reloaded —
+// this is what makes it show up live instead.
+let _publicRealtimeSubs = [];
+function setupPublicRealtimeSubscriptions() {
+  if (_publicRealtimeSubs.length) return; // already wired, don't double-subscribe
+  if (!_sbOk()) return;
+
+  const postsSub = DB.subscribeToNewPosts(payload => {
+    if (!payload.new) return;
+    const post = dbPostToApp(payload.new);
+    if (!post || S.posts.find(p => p.id === post.id)) return; // skip our own optimistic add
+    S.posts.unshift(post);
+    if (S.page === 'home') { renderFeed(); renderSidebar(); }
+  });
+
+  const socialSub = DB.subscribeToNewSocialPosts(payload => {
+    if (!payload.new) return;
+    const post = dbSocialToApp(payload.new);
+    if (!post || (S._socialPosts||[]).find(p => p.id === post.id)) return;
+    S._socialPosts = [post, ...(S._socialPosts||[])];
+    if (S.page === 'social') { renderSocialFeed(); }
+    renderStoryBar(); // keep story bubbles live everywhere, not just on the Spotting page
+  });
+
+  const discSub = DB.subscribeToNewDiscussions(payload => {
+    if (!payload.new) return;
+    const d = dbDiscussionToApp(payload.new);
+    if (!d || (S._discussions||[]).find(x => x.id === d.id)) return;
+    S._discussions = [d, ...(S._discussions||[])];
+    if (S.page === 'discussions') renderDiscussions();
+  });
+
+  _publicRealtimeSubs.push(postsSub, socialSub, discSub);
 }
 
 // ─── PUSH NOTIFICATION TOAST ──────────────────────────────────
@@ -3134,7 +3174,7 @@ function toggleFollow(username) {
 }
 function updateFollowBtn(username) {
   const fb=el('followBtn'); if(!fb)return;
-  if(!S.user||username===S.user.username){fb.style.display='none';return;}
+  if(!S.user||username?.trim().toLowerCase()===S.user.username?.trim().toLowerCase()){fb.style.display='none';return;}
   fb.style.display='inline-flex';
   const f=isFollowing(username);
   fb.textContent=f?'Following ✓':'Follow'; fb.className=f?'btn-ghost small':'btn-primary small';
@@ -4200,7 +4240,7 @@ function renderMembers() {
     const posts=S.posts.filter(p=>p.user===u.username);
     const topPost=[...posts].sort((a,b)=>b.likes-a.likes)[0];
     const img=topPost?.images?.[0], following=isFollowing(u.username);
-    const isSelf=S.user?.username===u.username, followers=Math.floor((u.totalLikes||0)/80);
+    const isSelf=S.user?.username===u.username;
     return `<div class="member-card">
       <div class="member-cover" style="background:${phBg(u.username)}">
         ${img?`<img src="${img}" alt="" loading="lazy"/>`:''}<div class="member-cover-ov"></div>
@@ -4213,7 +4253,7 @@ function renderMembers() {
         <div class="member-info">
           <div class="member-name">${esc(u.username)}</div>
           <div class="member-bio">${u.bio?(u.bio.length>60?u.bio.slice(0,60)+'…':u.bio):'DriveLog member'}</div>
-          <div class="member-stats"><span><b>${u.posts||0}</b> builds</span><span><b>${(u.totalLikes||0).toLocaleString()}</b> likes</span><span><b>${followers}</b> followers</span></div>
+          <div class="member-stats"><span><b>${u.posts||0}</b> builds</span><span><b>${(u.totalLikes||0).toLocaleString()}</b> likes</span></div>
           ${(u.instagram||u.tiktok||u.youtube)?`<div class="member-socials">
             ${u.instagram?`<a class="msoc ig" href="https://instagram.com/${u.instagram}" target="_blank" rel="noopener"><i class="fab fa-instagram"></i></a>`:''}
             ${u.tiktok?`<a class="msoc tt" href="https://tiktok.com/@${u.tiktok}" target="_blank" rel="noopener"><i class="fab fa-tiktok"></i></a>`:''}
@@ -4339,7 +4379,7 @@ async function viewMemberProfile(username) {
     }
   }
 
-  const followingCount = username === S.user?.username ? S.following.length : '—';
+  const followingCount = await DB.getFollowingCount(u.id).catch(() => 0);
 
   // Banner
   const savedBanner = localStorage.getItem('dl_banner_'+username) || u.bannerUrl || null;
@@ -4389,9 +4429,11 @@ async function viewMemberProfile(username) {
   if (stEl) stEl.innerHTML = `
     <div class="pstat"><span class="pstat-n">${posts.length}</span><span class="pstat-l">Builds</span></div>
     <div class="pstat"><span class="pstat-n">${likes.toLocaleString()}</span><span class="pstat-l">Likes</span></div>
-    <div class="pstat"><span class="pstat-n">${followers.toLocaleString()}</span><span class="pstat-l">Followers</span></div>
-    <div class="pstat"><span class="pstat-n">${followingCount}</span><span class="pstat-l">Following</span></div>
+    <div class="pstat clickable" id="profileFollowersStat"><span class="pstat-n">${followers.toLocaleString()}</span><span class="pstat-l">Followers</span></div>
+    <div class="pstat clickable" id="profileFollowingStat"><span class="pstat-n">${followingCount.toLocaleString()}</span><span class="pstat-l">Following</span></div>
   `;
+  el('profileFollowersStat')?.addEventListener('click', () => openFollowList(u.id, 'followers'));
+  el('profileFollowingStat')?.addEventListener('click', () => openFollowList(u.id, 'following'));
 
   // Action buttons
   el('profileActions').style.display = 'flex';
@@ -4399,7 +4441,7 @@ async function viewMemberProfile(username) {
   el('profilePostsWrap').style.display = 'block';
   el('profileBuildsLabel').textContent = `${u.username}'s Builds`;
 
-  const isOwn = S.user?.username === username;
+  const isOwn = S.user?.username?.trim().toLowerCase() === username?.trim().toLowerCase();
   const editProfBtn = el('editProfileBtn');
   const profDmBtn   = el('profileDmBtn');
   const shareBtn    = el('profileShareBtn');
@@ -4824,7 +4866,7 @@ function renderParts() {
 }
 
 // ─── PROFILE (own) ────────────────────────────────────────────
-function updateProfilePage() {
+async function updateProfilePage() {
   // Wire banner upload button
   const bannerUploadBtn = el('profileBannerUploadBtn');
   const bannerInput     = el('profileBannerInput');
@@ -4915,7 +4957,13 @@ function updateProfilePage() {
   // age gate notice
   const notice=el('profileAgeNotice'); if(notice) notice.style.display='none';
 
-  const ownStEl=el('profileStats'); if(ownStEl) ownStEl.innerHTML=`<div class="pstat"><span class="pstat-n">${posts.length}</span><span class="pstat-l">Builds</span></div><div class="pstat"><span class="pstat-n">${likes.toLocaleString()}</span><span class="pstat-l">Likes</span></div><div class="pstat"><span class="pstat-n">${posts.reduce((a,p)=>a+(p.comments||[]).length,0)}</span><span class="pstat-l">Comments</span></div>`;
+  const [ownFollowerCount, ownFollowingCount] = await Promise.all([
+    DB.getFollowerCount(S.user.id).catch(() => 0),
+    DB.getFollowingCount(S.user.id).catch(() => S.following.length),
+  ]);
+  const ownStEl=el('profileStats'); if(ownStEl) ownStEl.innerHTML=`<div class="pstat"><span class="pstat-n">${posts.length}</span><span class="pstat-l">Builds</span></div><div class="pstat"><span class="pstat-n">${likes.toLocaleString()}</span><span class="pstat-l">Likes</span></div><div class="pstat clickable" id="profileFollowersStat"><span class="pstat-n">${ownFollowerCount.toLocaleString()}</span><span class="pstat-l">Followers</span></div><div class="pstat clickable" id="profileFollowingStat"><span class="pstat-n">${ownFollowingCount.toLocaleString()}</span><span class="pstat-l">Following</span></div>`;
+  el('profileFollowersStat')?.addEventListener('click', () => openFollowList(S.user.id, 'followers'));
+  el('profileFollowingStat')?.addEventListener('click', () => openFollowList(S.user.id, 'following'));
   el('followBtn').style.display='none';
   el('profileBuildsLabel').textContent='Your Builds';
   const ownEditBtn = el('editProfileBtn');
@@ -6234,6 +6282,45 @@ function toggleReaction(post, rkey, containerId) {
 // ═══════════════════════════════════════════════════════════════
 let _reportTarget = { type: null, id: null };
 
+// ─── FOLLOWERS / FOLLOWING LIST ─────────────────────────────────
+function initFollowListModal() {
+  el('followListClose')?.addEventListener('click', closeFollowList);
+  el('followListModal')?.addEventListener('click', e => { if (e.target === el('followListModal')) closeFollowList(); });
+}
+function closeFollowList() {
+  el('followListModal')?.classList.remove('open');
+  document.body.style.overflow = '';
+}
+async function openFollowList(userId, type) {
+  const modal = el('followListModal');
+  const body = el('followListBody');
+  const title = el('followListTitle');
+  if (!modal || !body) return;
+  title.textContent = type === 'followers' ? 'Followers' : 'Following';
+  body.innerHTML = '<div class="follow-list-empty"><i class="fas fa-spinner fa-spin"></i><br>Loading…</div>';
+  modal.classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  const list = type === 'followers'
+    ? await DB.getFollowersList(userId).catch(() => [])
+    : await DB.getFollowingList(userId).catch(() => []);
+
+  if (!list.length) {
+    body.innerHTML = `<div class="follow-list-empty"><i class="fas fa-user-friends"></i>${type === 'followers' ? 'No followers yet.' : 'Not following anyone yet.'}</div>`;
+    return;
+  }
+  body.innerHTML = list.map(u => `
+    <div class="follow-list-item" data-user="${esc(u.username)}">
+      ${u.avatarUrl
+        ? `<img src="${u.avatarUrl}" class="follow-list-av" alt=""/>`
+        : `<div class="follow-list-av" style="background:${avColor(u.username)}">${u.username[0].toUpperCase()}</div>`}
+      <div class="follow-list-info"><div class="follow-list-name">${esc(u.username)}</div></div>
+    </div>`).join('');
+  body.querySelectorAll('.follow-list-item').forEach(item => {
+    item.addEventListener('click', () => { closeFollowList(); viewPublicProfile(item.dataset.user); });
+  });
+}
+
 function initReport() {
   const closeBtn = el('reportClose');
   const submitBtn = el('submitReport');
@@ -6583,8 +6670,7 @@ function renderDiscussions(reset) {
       wrap.innerHTML = `<div class="disc-empty">
         <i class="fas fa-comments"></i>
         <h3>No discussions yet</h3>
-        <p>${S.user ? 'Be the first to start one.' : 'Sign in to start one.'}</p>
-        ${S.user ? '<button class="btn-primary" onclick="document.getElementById(\'newDiscussionBtn\').click()"><i class="fas fa-plus"></i> New Discussion</button>' : ''}
+        <p>${S.user ? 'Be the first to start one — use the button up top.' : 'Sign in to start one.'}</p>
       </div>`;
       return;
     }
@@ -6602,7 +6688,6 @@ function renderDiscussions(reset) {
         <i class="fas fa-comments"></i>
         <h3>Discussions</h3>
         <p>Run <b>discussions_migration.sql</b> in Supabase to enable cross-device discussions.</p>
-        ${S.user ? '<button class="btn-primary" onclick="document.getElementById(\'newDiscussionBtn\').click()"><i class="fas fa-plus"></i> Post Locally</button>' : ''}
       </div>`;
     }
   });

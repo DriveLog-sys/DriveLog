@@ -579,6 +579,29 @@ const DB = {
     return (data || []).map(f => f.profiles?.username).filter(Boolean);
   },
 
+  // ── Followers/Following counts + lists, with avatars, for the
+  // followers/following system on profile pages ──
+  async getFollowerCount(userId) {
+    if (!_sbOk() || !userId) return 0;
+    const { count } = await _sb.from('follows').select('id', { count:'exact', head:true }).eq('following_id', userId);
+    return count || 0;
+  },
+  async getFollowingCount(userId) {
+    if (!_sbOk() || !userId) return 0;
+    const { count } = await _sb.from('follows').select('id', { count:'exact', head:true }).eq('follower_id', userId);
+    return count || 0;
+  },
+  async getFollowersList(userId) {
+    if (!_sbOk() || !userId) return [];
+    const { data } = await _sb.from('follows').select('follower_id, profiles!follower_id(username,avatar_url)').eq('following_id', userId);
+    return (data || []).map(r => ({ id:r.follower_id, username:r.profiles?.username, avatarUrl:r.profiles?.avatar_url||null })).filter(x=>x.username);
+  },
+  async getFollowingList(userId) {
+    if (!_sbOk() || !userId) return [];
+    const { data } = await _sb.from('follows').select('following_id, profiles!following_id(username,avatar_url)').eq('follower_id', userId);
+    return (data || []).map(r => ({ id:r.following_id, username:r.profiles?.username, avatarUrl:r.profiles?.avatar_url||null })).filter(x=>x.username);
+  },
+
   async toggleFollow(followerId, followingId) {
     const { data } = await _sb.from('follows').select('*').eq('follower_id', followerId).eq('following_id', followingId).single();
     if (data) {
@@ -757,6 +780,31 @@ const DB = {
   subscribeToNotifications(userId, callback) {
     return _sb.channel(`notifs:${userId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, callback)
+      .subscribe();
+  },
+
+  // ─── Public-content realtime (new builds/spots/discussions) ────
+  // Unlike messages/notifications, these aren't gated by sign-in — a new
+  // build posted from someone's phone should show up live for anyone
+  // already browsing the feed, signed in or not. No filter needed since
+  // this is public content, not addressed to a specific user.
+  //
+  // REQUIRES: Realtime enabled for these tables in the Supabase dashboard
+  // — Database → Replication → toggle posts / social_posts / discussions
+  // ON. Without that, new content still appears, just only on refresh.
+  subscribeToNewPosts(callback) {
+    return _sb.channel('posts:new')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, callback)
+      .subscribe();
+  },
+  subscribeToNewSocialPosts(callback) {
+    return _sb.channel('social_posts:new')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'social_posts' }, callback)
+      .subscribe();
+  },
+  subscribeToNewDiscussions(callback) {
+    return _sb.channel('discussions:new')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'discussions' }, callback)
       .subscribe();
   },
 
