@@ -28,7 +28,8 @@
       --accent:#3b82f6; --accent-soft:rgba(59,130,246,.09); --accent-glow:rgba(59,130,246,.20);
       --text:#111827; --sec:#4b5563; --muted:#9ca3af;
       --disp:'Bebas Neue',sans-serif; --cond:'Barlow Condensed',sans-serif; --body:'Barlow',sans-serif;
-      --r-sm:4px; --r-md:8px; --r-lg:14px; --r-xl:22px;
+      /* Radius tokens match main.css's modern polish scale */
+      --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:22px;
       --tr:.22s cubic-bezier(.4,0,.2,1);
     }
     body.dark, html.dark-pending body {
@@ -76,8 +77,8 @@
     /* ── FORM ELEMENTS ── */
     .s-field{margin-bottom:18px}
     .s-label{font-family:var(--cond);font-size:.78rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:7px;display:block}
-    .s-input{width:100%;background:var(--raised);border:1px solid var(--border);border-radius:var(--r-sm);padding:11px 14px;color:var(--text);font-size:.9rem;outline:none;transition:border-color var(--tr)}
-    .s-input:focus{border-color:var(--accent)}
+    .s-input{width:100%;background:var(--raised);border:1px solid var(--border);border-radius:var(--r-sm);padding:11px 14px;color:var(--text);font-size:.9rem;outline:none;transition:border-color var(--tr),box-shadow var(--tr)}
+    .s-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
     .s-input::placeholder{color:var(--muted)}
     textarea.s-input{resize:vertical;min-height:80px}
     .s-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -88,7 +89,7 @@
     .btn-save:hover{background:linear-gradient(135deg,#16a34a 0%,#15803d 100%);transform:translateY(-1px);box-shadow:0 6px 20px rgba(34,197,94,.35)}
     .btn-ghost-s{background:transparent;color:var(--sec);padding:10px 22px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.88rem;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;border:1px solid var(--mid);transition:all var(--tr)}
     .btn-ghost-s:hover{border-color:#555;color:var(--text)}
-    .btn-danger{background:rgba(232,57,42,.1);color:var(--accent);padding:10px 22px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.88rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;border:1px solid rgba(232,57,42,.35);transition:all var(--tr)}
+    .btn-danger{background:rgba(232,57,42,.1);color:#ef4444;padding:10px 22px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.88rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;border:1px solid rgba(232,57,42,.35);transition:all var(--tr)}
     .btn-danger:hover{background:rgba(232,57,42,.2)}
     .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
 
@@ -116,7 +117,7 @@
     /* Theme options */
     .theme-opts{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px}
     .theme-opt{padding:8px 18px;border-radius:var(--r-md);font-family:var(--cond);font-size:.82rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--raised);border:1px solid var(--border);cursor:pointer;transition:all var(--tr)}
-    .theme-opt.selected{color:var(--accent);border-color:rgba(232,57,42,.4);background:var(--accent-soft)}
+    .theme-opt.selected{color:var(--accent);border-color:rgba(59,130,246,.4);background:var(--accent-soft)}
 
     /* Font size slider */
     .slider-wrap{display:flex;align-items:center;gap:12px}
@@ -136,7 +137,7 @@
     .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--raised);border:1px solid var(--mid);border-radius:30px;padding:9px 22px;font-family:var(--cond);font-size:.86rem;font-weight:700;color:var(--text);z-index:9999;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap}
     .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
     .toast.ok{border-color:#16a34a;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;box-shadow:0 4px 16px rgba(34,197,94,.35)}
-    .toast.err{border-color:rgba(232,57,42,.4);background:var(--accent-soft);color:var(--accent)}
+    .toast.err{border-color:transparent;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 4px 16px rgba(239,68,68,.35)}
 
     /* Avatar upload row layout — was previously undefined entirely,
        which is why the photo and Change Photo button sat cramped together */
@@ -157,13 +158,13 @@
     /* Crop modal */
     .avatar-crop-modal{
       position:fixed;inset:0;z-index:9999;
-      background:rgba(0,0,0,.8);backdrop-filter:blur(8px);
+      background:rgba(0,0,0,.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
       display:flex;align-items:center;justify-content:center;
     }
     .avatar-crop-box{
       background:var(--surface);border:1px solid var(--border);
-      border-radius:16px;width:360px;max-width:95vw;
-      overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,.5);
+      border-radius:var(--r-xl);width:360px;max-width:95vw;
+      overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.2),0 32px 90px rgba(0,0,0,.35);
     }
     .avatar-crop-head{
       display:flex;align-items:center;justify-content:space-between;
