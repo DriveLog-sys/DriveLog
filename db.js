@@ -819,15 +819,6 @@ const DB = {
     return data || [];
   },
 
-  async searchUsers(query) {
-    const { data } = await _sb
-      .from('profiles')
-      .select('*')
-      .or(`username.ilike.%${query}%,bio.ilike.%${query}%`)
-      .limit(5);
-    return data || [];
-  },
-
   // ─── SOCIAL POSTS (Car Spotting) ──────────────────────────
   // Stored in social_posts table — separate from main build posts.
   // Media URLs point to Supabase Storage (never store raw base64).
@@ -1029,6 +1020,79 @@ const DB = {
     } catch(e) { return { error: e }; }
   },
 
+  // ─── BUILD OF THE MONTH VOTING ────────────────────────────
+  // BOTM votes use a voteKey like "botm_2025_05" (year_month format)
+  // so votes automatically reset each calendar month without any
+  // cron job or cleanup needed.
+  //
+  // The botm_votes table has a unique constraint on (user_id, vote_key)
+  // so upsert replaces an existing vote for the same month — meaning
+  // a user CAN change their vote within the month.
+  // To check if a user has voted this month, app.js checks for a row
+  // with the current voteKey and the user's id.
+  //
+  // Supabase table needed: botm_votes (user_id, vote_key, post_id, created_at)
+  // RLS: SELECT public, INSERT for authenticated users only.
+  async castBotmVote(postId, userId, voteKey) {
+    if (!_sbOk()) return { error: 'not connected' };
+    // Upsert replaces an existing vote for this user+month
+    const { data, error } = await _sb
+      .from('botm_votes')
+      .upsert({ user_id: userId, vote_key: voteKey, post_id: postId, created_at: new Date().toISOString() },
+               { onConflict: 'user_id,vote_key' });
+    return { data, error };
+  },
+
+  async getBotmVotes(voteKey) {
+    if (!_sbOk()) return [];
+    const { data } = await _sb
+      .from('botm_votes')
+      .select('post_id, user_id')
+      .eq('vote_key', voteKey);
+    return data || [];
+  },
+
+  // ─── FULL TEXT SEARCH ─────────────────────────────────────
+  // searchPostsFTS() tries Supabase's native full-text search (websearch mode)
+  // which supports quoted phrases, AND/OR operators, and stemming.
+  // If FTS returns no results (e.g. FTS index not set up on the table),
+  // falls back to ILIKE pattern matching on title and description.
+  //
+  // To set up FTS in Supabase: add a tsvector column or use the
+  // textSearch() method which Supabase handles server-side.
+  // For now the ILIKE fallback is reliable enough for a small community.
+  async searchPostsFTS(query, limit = 30) {
+    if (!_sbOk() || !query?.trim()) return [];
+    const { data, error } = await _sb
+      .from('posts')
+      .select('*')
+      .textSearch('title', query, { type: 'websearch', config: 'english' })
+      .limit(limit);
+    if (!error && data?.length) return data;
+    // Fallback: ilike on title and caption
+    const q = `%${query}%`;
+    const { data: d2 } = await _sb
+      .from('posts')
+      .select('*')
+      .or(`title.ilike.${q},description.ilike.${q}`)
+      .limit(limit);
+    return d2 || [];
+  },
+
+  // Matches on username OR bio, with a caller-configurable result limit.
+  // (Two versions of this existed before — one hardcoded to limit(5) and
+  // username-only, one with a configurable limit but no bio match. Merged
+  // so every call site's limit argument is actually honored.)
+  async searchUsers(query, limit = 20) {
+    if (!_sbOk() || !query?.trim()) return [];
+    const { data } = await _sb
+      .from('profiles')
+      .select('*')
+      .or(`username.ilike.%${query}%,bio.ilike.%${query}%`)
+      .limit(limit);
+    return data || [];
+  },
+
 };
 
 // ─── DATA FORMAT CONVERTERS ───────────────────────────────────
@@ -1146,75 +1210,5 @@ function appPostToDb(post) {
     liked_by:     post.likedBy     || [],
     saved_by:     post.savedBy     || [],
     reactions:    post.reactions   || {},
-  
-  // ─── BUILD OF THE MONTH VOTING ────────────────────────────
-  // BOTM votes use a voteKey like "botm_2025_05" (year_month format)
-  // so votes automatically reset each calendar month without any
-  // cron job or cleanup needed.
-  //
-  // The botm_votes table has a unique constraint on (user_id, vote_key)
-  // so upsert replaces an existing vote for the same month — meaning
-  // a user CAN change their vote within the month.
-  // To check if a user has voted this month, app.js checks for a row
-  // with the current voteKey and the user's id.
-  //
-  // Supabase table needed: botm_votes (user_id, vote_key, post_id, created_at)
-  // RLS: SELECT public, INSERT for authenticated users only.
-  async castBotmVote(postId, userId, voteKey) {
-    if (!_sbOk()) return { error: 'not connected' };
-    // Upsert replaces an existing vote for this user+month
-    const { data, error } = await _sb
-      .from('botm_votes')
-      .upsert({ user_id: userId, vote_key: voteKey, post_id: postId, created_at: new Date().toISOString() },
-               { onConflict: 'user_id,vote_key' });
-    return { data, error };
-  },
-
-  async getBotmVotes(voteKey) {
-    if (!_sbOk()) return [];
-    const { data } = await _sb
-      .from('botm_votes')
-      .select('post_id, user_id')
-      .eq('vote_key', voteKey);
-    return data || [];
-  },
-
-  // ─── FULL TEXT SEARCH ─────────────────────────────────────
-  // searchPostsFTS() tries Supabase's native full-text search (websearch mode)
-  // which supports quoted phrases, AND/OR operators, and stemming.
-  // If FTS returns no results (e.g. FTS index not set up on the table),
-  // falls back to ILIKE pattern matching on title and description.
-  //
-  // To set up FTS in Supabase: add a tsvector column or use the
-  // textSearch() method which Supabase handles server-side.
-  // For now the ILIKE fallback is reliable enough for a small community.
-  async searchPostsFTS(query, limit = 30) {
-    if (!_sbOk() || !query?.trim()) return [];
-    const { data, error } = await _sb
-      .from('posts')
-      .select('*')
-      .textSearch('title', query, { type: 'websearch', config: 'english' })
-      .limit(limit);
-    if (!error && data?.length) return data;
-    // Fallback: ilike on title and caption
-    const q = `%${query}%`;
-    const { data: d2 } = await _sb
-      .from('posts')
-      .select('*')
-      .or(`title.ilike.${q},description.ilike.${q}`)
-      .limit(limit);
-    return d2 || [];
-  },
-
-  async searchUsers(query, limit = 20) {
-    if (!_sbOk() || !query?.trim()) return [];
-    const { data } = await _sb
-      .from('profiles')
-      .select('*')
-      .ilike('username', `%${query}%`)
-      .limit(limit);
-    return data || [];
-  },
-
-};
+  };
 }
