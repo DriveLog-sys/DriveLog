@@ -3962,10 +3962,12 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
   position:fixed;top:0;left:-100%;width:80%;max-width:300px;
   height:100dvh;background:var(--surface);
   border-right:1px solid var(--border);
-  z-index:1000;transition:left .28s cubic-bezier(.4,0,.2,1);
+  border-radius:0 22px 22px 0;
+  z-index:1000;transition:left .28s cubic-bezier(.4,0,.2,1),box-shadow .28s ease;
   display:flex;flex-direction:column;overflow-y:auto;
 }
-.mob-nav.open{left:0}
+.mob-nav.open{left:0;box-shadow:8px 0 24px rgba(0,0,0,.12),24px 0 80px rgba(0,0,0,.18)}
+body.dark .mob-nav.open{box-shadow:8px 0 24px rgba(0,0,0,.4),24px 0 80px rgba(0,0,0,.5)}
 .mob-overlay{
   position:fixed;inset:0;background:rgba(0,0,0,.55);
   z-index:999;display:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
@@ -7821,18 +7823,24 @@ html, body { overflow-x: hidden; }
   .filter-bar { display: none !important; }
 
   /* Filters + Sort row — the top control strip on mobile. Sticky under the
-     header, horizontally scrollable so all controls stay reachable. */
+     header, horizontally scrollable so all controls stay reachable.
+     Frosted like the header so feed content scrolls beneath it. */
   .sort-row {
     position: sticky !important;
     top: 64px !important;
     z-index: 90 !important;
-    background: var(--bg) !important;
+    background: rgba(234,236,241,.82) !important;
+    backdrop-filter: blur(16px) saturate(1.6) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(1.6) !important;
     margin: -10px -8px 12px !important;   /* bleed to feed-wrap edges */
     padding: 10px 12px !important;
     overflow-x: auto !important;
     flex-wrap: nowrap !important;
     scrollbar-width: none !important;
     border-bottom: 1px solid var(--subtle) !important;
+  }
+  body.dark .sort-row {
+    background: rgba(20,20,20,.82) !important;
   }
   .sort-row::-webkit-scrollbar { display: none !important; }
   .sort-row .sort-label, .sort-row .sort-divider { display: none !important; }
@@ -7948,18 +7956,36 @@ html, body { overflow-x: hidden; }
   .social-feed-tabs { flex: 0 0 100% !important; display: flex !important; }
   .soc-tab { flex: 1 !important; text-align: center !important; font-size: .73rem !important; padding: 7px 4px !important; }
   .social-posts-wrap { padding: 0 10px 80px !important; }
-  .social-post-card { border-radius: 10px !important; margin-bottom: 10px !important; }
+  .social-post-card { border-radius: 16px !important; margin-bottom: 10px !important; }
 
   /* ── MODALS ──────────────────────────────────────────────── */
+  /* Modern bottom-sheet treatment: rounder top corners matching --r-xl,
+     plus a CSS-only drag-handle pill (standard iOS/Android sheet
+     affordance). Pure ::before — no HTML or JS changes needed. */
   .modal-overlay { align-items: flex-end !important; padding: 0 !important; }
   .modal-box {
     width: 100% !important;
-    border-radius: 16px 16px 0 0 !important;
+    border-radius: 22px 22px 0 0 !important;
     max-height: 94dvh !important;
     overflow-y: auto !important;
-    padding: 20px 16px 28px !important;
+    padding: 26px 16px 28px !important;
     margin: 0 !important;
   }
+  .modal-box::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 9px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 36px !important;
+    height: 4px !important;
+    border-radius: 4px !important;
+    background: var(--mid) !important;
+    pointer-events: none !important;
+  }
+  /* xlarge modals manage their own padding — keep the handle off them */
+  .modal-box.xlarge { padding: 0 !important; }
+  .modal-box.xlarge::before { display: none !important; }
 
   /* ── SEARCH OVERLAY ──────────────────────────────────────── */
   .search-overlay { padding: 64px 12px 20px !important; }
@@ -7976,11 +8002,14 @@ html, body { overflow-x: hidden; }
   .toast.show { transform: translateX(-50%) translateY(-4px) !important; }
 
   /* ── SIGNUP NUDGE ────────────────────────────────────────── */
+  /* Floats as a rounded banner just above the pill bottom nav —
+     the old full-bleed square edges clashed with the floating pill. */
   .signup-nudge {
     bottom: 78px !important;
-    left: 0 !important;
-    right: 0 !important;
-    border-radius: 0 !important;
+    left: 12px !important;
+    right: 12px !important;
+    border-radius: 16px !important;
+    border: 1px solid rgba(96,150,246,.35) !important;
     padding: 10px 14px !important;
   }
   .signup-nudge-sub { display: none !important; }
@@ -8012,7 +8041,7 @@ html, body { overflow-x: hidden; }
     width: calc(100% - 24px) !important;
     max-width: 420px !important;
     height: 56px !important;
-    border-radius: 20px !important;
+    border-radius: 22px !important;
     /* Dark mode frosted glass */
     background: rgba(18, 18, 22, 0.78) !important;
     backdrop-filter: blur(20px) !important;
@@ -8158,6 +8187,13 @@ html, body { overflow-x: hidden; }
     #page-messages.active { padding-bottom: 0 !important; }
   }
 
+  /* FIX: everything below was labeled "(mobile)" but sat inside @supports
+     with NO @media wrapper — so these rules were silently applying on
+     desktop too (forcing mobile media heights, 36px avatars, and killing
+     the intended 560px IG-style spotting column on desktop). Wrapped in
+     the media query they were always meant for. */
+  @media (max-width: 768px) {
+
   /* ── Spot composer page (mobile) ── */
   .spotpost-wrap { padding: 16px 14px 60px !important; }
   .spotpost-title { font-size: 1.8rem !important; }
@@ -8191,4 +8227,6 @@ html, body { overflow-x: hidden; }
   .social-post-card { max-width: 100% !important; }
   .soc-car-arrow { width: 28px !important; height: 28px !important; }
   .signup-nudge-signin { padding: 9px 14px !important; }
+
+  }
 }
