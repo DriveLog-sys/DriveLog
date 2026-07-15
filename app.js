@@ -1,84 +1,27 @@
 /* ============================================================
-   DRIVELOG — APP.JS
-   ─────────────────────────────────────────────────────────────
-   Main application file. All UI logic lives here.
-   Load order in index.html: data.js → db.js → app.js
-   data.js   : constants (CATS, AWARDS_DEF, seed data helpers)
-   db.js     : all Supabase calls — never call _sb directly here
-   app.js    : everything else (this file)
-
-   Key globals:
-     S            — single app state object (see below)
-     _avCache     — in-memory Map of username → avatar URL
-     DB.*         — all database calls (defined in db.js)
-     goTo(page)   — navigate between pages
-     el(id)       — shorthand for getElementById
-     esc(str)     — HTML-escape a string before injecting into DOM
-
-   Boot sequence:
-     1. _initSb() + startPrefetch() fire immediately on script load
-        (before DOMContentLoaded) to overlap network latency with parsing
-     2. DOMContentLoaded: init all UI modules, loadFromCache(), renderAll()
-     3. loadStorage() fires async: fetches posts + session from Supabase,
-        re-renders feed as soon as posts arrive
-     4. Background: profiles, events, following, notifications (parallel)
-
-   localStorage keys used:
-     dl_posts_cache      — cached posts array (JSON)
-     dl_cache_ts         — timestamp of last posts cache write
-     dl_users_cache      — cached users/profiles array (JSON)
-     dl_profile_cache_ts — timestamp of last profile cache write
-     dl_user_cache       — cached logged-in user object (JSON)
-     dl_user             — legacy alias for dl_user_cache
-     dl_avatar_url       — own avatar URL (set after upload)
-     dl_avatar_cache     — JSON map of username → avatar URL
-     dl_following_*      — following list per username
-     dl_prefs            — theme, accent color, font size
-     dl_nudge_dismissed  — whether signup nudge was closed
-     dl_featured_users   — array of featured usernames (admin-set)
+   DRIVELOG — APP.JS   (v2 — optimized, polished, age-gated)
    ============================================================ */
 'use strict';
 
 // ─── CONSTANTS ────────────────────────────────────────────────
-// MIN_ACCOUNT_AGE_DAYS: how old an account must be before it can like/comment/post.
-// Currently 0 (off) — set to e.g. 3 to require 3 days before interacting.
 const MIN_ACCOUNT_AGE_DAYS = 0;
-
-// BOTW_WINDOW_MS: window for Build Of The Week. Posts within this window
-// get priority in the BOTW slider. Currently 7 days.
-const BOTW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-
-// FEED_PAGE_SIZE: how many cards to show per page before "load more"
-const FEED_PAGE_SIZE = 12;
+const BOTW_WINDOW_MS       = 7 * 24 * 60 * 60 * 1000;
+const FEED_PAGE_SIZE       = 12;
 
 // ─── STATE ────────────────────────────────────────────────────
-// S is the single source of truth for the entire app.
-// All pages read from S — never store page-local state elsewhere.
-// When Supabase returns new data, write it here, then call renderX().
 const S = {
-  user: null,          // logged-in user object (null = guest)
-  posts: [],           // all loaded posts (from cache + Supabase)
-  users: [],           // all loaded profiles (from cache + Supabase)
-  events: [],          // community events
-  page: 'home',        // current active page name (matches data-page)
-  filter: 'All',       // active category filter on feed
-  sort: 'newest',      // feed sort: 'newest' | 'liked' | 'comments'
-  visibleCount: FEED_PAGE_SIZE, // how many feed cards are showing
-  evtFilter: 'All',    // event type filter
-  memberSort: 'likes', // members page sort
-  openPost: null,      // post open in the OLD car modal (legacy — use openCarPost)
-  galleryIdx: 0,       // current gallery image index in car modal
-  lbImages: [], lbIdx: 0, // lightbox images + current index
-  following: [],       // array of usernames the logged-in user follows
-  blockedUsers: [],    // array of usernames the logged-in user has blocked
-  notifs: [],          // notification objects for current user
-  filters: { categories:[], make:"", yearMin:1900, yearMax:new Date().getFullYear()+1, hp:0, likes:0, colors:[], bodyTypes:[], engines:[], drivetrains:[], transmissions:[], fuelTypes:[] },
-  dms: {},             // { otherUsername: [{from,text,ts},...] }
-  openDm: null,        // username of active DM conversation
-  openCarPost: null,   // post currently shown on the full car detail page
-  compareA: null, compareB: null, // posts being compared
-  infiniteScrollObserver: null,   // IntersectionObserver for infinite scroll
-  _editingPostId: null, // set when editing an existing post (not creating new)
+  user: null, posts: [], users: [], events: [],
+  page: 'home', filter: 'All', sort: 'newest',
+  visibleCount: FEED_PAGE_SIZE, evtFilter: 'All', memberSort: 'likes',
+  openPost: null, galleryIdx: 0, lbImages: [], lbIdx: 0,
+  following: [], notifs: [],
+  filters: { categories:[], make:"", yearMin:1940, yearMax:2026, hp:0, likes:0, media:"", build:"" },
+  dms: {},           // { otherUsername: [{from,text,ts},...] }
+  openDm: null,      // username of active conversation
+  openCarPost: null, // post shown on car page
+  compareA: null, compareB: null,
+  infiniteScrollObserver: null,
+  _editingPostId: null,
 };
 
 // ─── PREFETCH — start Supabase fetch immediately on script load ──
@@ -86,74 +29,9 @@ const S = {
 // with HTML/CSS parsing. Result is stored and consumed in loadStorage.
 let _prefetchPostsPromise = null;
 let _prefetchSessionPromise = null;
-// ─── AVATAR CACHE ────────────────────────────────────────────
-// IMPORTANT: _avCache MUST be declared here at the top of the file.
-// loadFromCache() (line ~123) calls _avCache.set() immediately on boot,
-// before most of the file has been parsed. JavaScript const declarations
-// are NOT hoisted, so if _avCache was declared anywhere below loadFromCache,
-// it would be undefined when loadFromCache runs, causing a silent crash
-// that broke all avatar loading. Do not move this block down the file.
-//
-// _avCache is a Map<username, avatarUrl> that lives in memory for the
-// duration of the page session. It is seeded from localStorage at boot
-// (via _initAvCache) and updated whenever a new URL is discovered.
-// Using a Map here instead of reading localStorage on every lookup gives
-// O(1) access and avoids repeated JSON.parse calls during feed renders.
-const _avCache = new Map();
 
-// Seed _avCache from localStorage dl_avatar_cache on startup.
-// Called once at the top of loadFromCache().
-function _initAvCache() {
-  try {
-    const stored = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
-    Object.entries(stored).forEach(([u, url]) => { if (url?.startsWith('http')) _avCache.set(u, url); });
-  } catch(_) {}
-}
-
-// Get the best available avatar URL for a username.
-// Priority: in-memory cache → S.users array → own user object → dl_avatar_url key.
-// Returns null if no URL found (caller should show default grey SVG).
-function getAvatarUrl(username) {
-  if (!username) return null;
-  if (_avCache.has(username)) return _avCache.get(username);
-  const u = S.users.find(x => x.username === username);
-  if (u?.avatarUrl?.startsWith('http')) { _avCache.set(username, u.avatarUrl); return u.avatarUrl; }
-  if (S.user?.username === username && S.user.avatarUrl?.startsWith('http')) {
-    _avCache.set(username, S.user.avatarUrl); return S.user.avatarUrl;
-  }
-  if (S.user?.username === username) {
-    const local = localStorage.getItem('dl_avatar_url');
-    if (local?.startsWith('http')) { _avCache.set(username, local); return local; }
-  }
-  return null;
-}
-function cacheAvatarUrl(username, url) {
-  if (!username || !url?.startsWith('http')) return;
-  _avCache.set(username, url);
-  try {
-    const stored = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
-    stored[username] = url;
-    localStorage.setItem('dl_avatar_cache', JSON.stringify(stored));
-  } catch(_) {}
-}
-
-
-// startPrefetch() fires immediately when the script loads — BEFORE
-// DOMContentLoaded. This means the Supabase network requests for the
-// session and posts start while the browser is still parsing the HTML
-// and CSS. By the time DOMContentLoaded fires and loadStorage() runs,
-// the requests may already have responses ready, making the initial
-// render appear nearly instant.
-//
-// The promises are stored in _prefetchPostsPromise and
-// _prefetchSessionPromise. loadStorage() awaits these instead of
-// making new requests, consuming whatever arrived during parsing.
-//
-// If Supabase isn't ready yet (_sbOk() is false), startPrefetch()
-// returns early. loadStorage() will retry and make its own requests.
 function startPrefetch() {
-  // Skip posts prefetch if we have a cache less than 5 minutes old —
-  // the cached data is fresh enough to show immediately
+  // Check cache freshness — if recent cache exists skip posts prefetch
   const cacheAge = Date.now() - (parseInt(localStorage.getItem('dl_cache_ts')||'0'));
   const hasFreshCache = cacheAge < 300000 && !!localStorage.getItem('dl_posts_cache'); // 5 min
 
@@ -178,35 +56,17 @@ function startPrefetch() {
 // Fire immediately when script executes
 try { _initSb(); startPrefetch(); } catch(_) {}
 
-// ─── BOOT SEQUENCE ────────────────────────────────────────────
-// The site renders in two phases:
-//
-// Phase 1 (synchronous, instant):
-//   - Apply theme so there's no flash of wrong colors
-//   - Init all UI modules (wire event listeners)
-//   - loadFromCache() — read posts/users/user from localStorage into S
-//   - renderAll() — paint the entire UI from cached data
-//   The site is now fully visible and interactive.
-//
-// Phase 2 (async, background):
-//   - loadStorage() awaits the prefetch promises (or starts fresh requests)
-//   - Posts arrive → renderFeed() re-paints cards with fresh data
-//   - Session confirmed → updateAuthUI() shows correct login state
-//   - Profiles/events/notifs arrive → update in place
-//
-// This means a returning user sees their feed in <100ms from cached data,
-// and fresh data updates it within ~1-2s as Supabase responds.
+// ─── BOOT ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // Apply theme first — prevents flash of wrong colors before CSS loads
+  // Apply theme immediately — prevents flash of wrong theme
   applyPrefs();
 
-  // Wire all UI modules. Each init() attaches event listeners.
-  // Wrapped in try/catch so one broken module doesn't prevent others.
+  // Init all UI modules
   const inits = [initHeader, initMobileNav, initSearch, initAuth,
     initPostModal, initCarModal, initLightbox, initGarage, initEvents,
     initMembers, initNavLinks, initFilterSidebar, initMessages, initCarPage,
     initReactions, initReport, initCompare, initInfiniteScroll,
-    initSocialPage, initThemeToggle, initDiscussions, initSpotMap, initFollowListModal];
+    initSocialPage, initThemeToggle];
   for (const fn of inits) {
     try { fn(); } catch(e) { console.warn('Init failed:', fn.name, e); }
   }
@@ -228,18 +88,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(handleURLRouting, 100);
 });
 
-// loadFromCache() — Phase 1 data hydration.
-// Reads everything from localStorage into S so the UI can render
-// immediately without waiting for Supabase. Called synchronously
-// before renderAll() in the boot sequence.
-//
-// After this runs, S.posts, S.users, S.user, S.following, and
-// _avCache are all populated from the last known good state.
-// The subsequent loadStorage() call will overwrite these with
-// fresh Supabase data once it arrives.
 function loadFromCache() {
-  // Seed the in-memory avatar URL Map first so getAvatarUrl()
-  // works correctly for any render that happens in this phase
+  // Initialize in-memory avatar cache from localStorage first
   _initAvCache();
   try {
     const cp = localStorage.getItem('dl_posts_cache');
@@ -287,11 +137,6 @@ function loadFromCache() {
   } catch(_) {}
 }
 
-// renderAll() — paint the entire site from current S state.
-// Called after loadFromCache() for the initial render, and can be
-// called again after major data changes. Most re-renders use targeted
-// functions (renderFeed, updateAuthUI, etc.) rather than renderAll
-// to avoid unnecessary work. renderAll is the nuclear option.
 function renderAll() {
   renderFeed(); renderSidebar(); renderBOTW(); renderTicker();
   renderCategories(); renderLeaderboard(); renderEventsGrid();
@@ -393,14 +238,9 @@ async function loadStorage() {
 
   // Process session
   if (sessionResult.value) {
-    // Supabase confirmed a live session — use it, merge with cache.
-    // Matching by id (not username) — id is the one thing that can't
-    // legitimately change, whereas username is exactly the field a sync
-    // bug (or any future one like it) could leave mismatched, which used
-    // to cause the entire local profile (bio, socials, etc.) to be
-    // silently discarded and reverted.
+    // Supabase confirmed a live session — use it, merge with cache
     const authUser = dbUserToApp(sessionResult.value);
-    S.user = (cachedUser?.id && cachedUser.id === authUser.id)
+    S.user = (cachedUser?.username === authUser.username)
       ? { ...authUser, ...cachedUser, id: authUser.id }
       : authUser;
     localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
@@ -427,15 +267,11 @@ async function loadStorage() {
           localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
           localStorage.setItem('dl_user', JSON.stringify(S.user));
         } else {
-          // Refresh came back with no session. This used to be treated as
-          // definitive proof of logout and wiped everything — but that's
-          // also exactly what a fast reload / timing race looks like (e.g.
-          // right after returning from settings.html), which was silently
-          // signing people out. A real, explicit sign-out already clears
-          // storage directly via logout() — so here we just keep showing
-          // the cached user and try again next load, instead of nuking a
-          // possibly-still-valid session on an ambiguous signal.
-          S.user = cachedUser;
+          // Refresh failed — genuinely logged out
+          S.user = null;
+          localStorage.removeItem('dl_user_cache');
+          localStorage.removeItem('dl_user');
+          localStorage.removeItem('dl_avatar_url');
         }
       } catch(_) {
         // Network error during refresh — keep cached user, try again next load
@@ -447,16 +283,11 @@ async function loadStorage() {
   updateAuthUI(); updateNotifBadge();
   // Wire realtime now that we have confirmed session
   if (S.user?.id) setupRealtimeSubscriptions();
-  setupPublicRealtimeSubscriptions(); // new posts/spots/discussions — works signed in or out
 
   // ── Fire non-critical in background without blocking ──────────
-  // Profiles: only re-fetch if cache is stale. Was 10 minutes — that's why
-  // an updated avatar could take up to 10 min to show up for other people
-  // viewing your posts/profile. Shortened substantially; see also the
-  // per-user on-demand fallback in setAvEl() for the "never fetched them
-  // at all yet" case, which this TTL alone doesn't cover.
+  // Profiles: only re-fetch if cache is >10 min old
   const profileCacheAge = Date.now() - (parseInt(localStorage.getItem('dl_profile_cache_ts')||'0'));
-  const profilesStale   = profileCacheAge > 90 * 1000; // 90 seconds
+  const profilesStale   = profileCacheAge > 10 * 60 * 1000; // 10 minutes
   const profilesFetch   = profilesStale ? DB.getAllProfiles().catch(() => []) : Promise.resolve(S.users.length ? null : []);
 
   Promise.all([
@@ -465,20 +296,7 @@ async function loadStorage() {
     // Only fetch following from DB if we don't have it locally already
     (S.user?.id && !S.following.length) ? DB.getFollowing(S.user.id).catch(() => []) : Promise.resolve(null),
     S.user?.id ? DB.getNotifications(S.user.id).catch(() => []) : Promise.resolve([]),
-    S.user?.id ? DB.getBlockedUsers(S.user.id).catch(() => []) : Promise.resolve([]),
-    DB.getRecentSpotters().catch(() => []),
-  ]).then(([profiles, evts, following, notifs, blocked, spotters]) => {
-    // Story ring data — independent of the profiles-cache-is-fresh skip
-    // below, since this needs to work on every page, not just when the
-    // profile cache happens to be stale.
-    S._activeSpotters = new Set((spotters||[]).map(s => s.username).filter(Boolean));
-    document.querySelectorAll('[data-user]').forEach(node => {
-      const uname = node.dataset.user;
-      if (!uname) return;
-      const active = S._activeSpotters.has(uname);
-      node.classList.toggle('has-story-ring', active);
-      node.style.overflow = active ? 'visible' : '';
-    });
+  ]).then(([profiles, evts, following, notifs]) => {
     if (profiles === null) return; // cache is fresh — skip profile processing
     // Profiles + avatars
     if (profiles?.length) {
@@ -498,10 +316,8 @@ async function loadStorage() {
         const fresh = S.users.find(u => u.username === S.user.username);
         if (fresh) {
           const localAvatar = localStorage.getItem('dl_avatar_url') || S.user.avatarUrl || null;
-          const localBanner = localStorage.getItem('dl_banner_'+S.user.username) || S.user.bannerUrl || null;
           S.user = { ...fresh, ...S.user,
             avatarUrl: localAvatar || fresh.avatarUrl || null,
-            bannerUrl: localBanner || fresh.bannerUrl || null,
             bio: S.user.bio || fresh.bio || '',
             instagram: S.user.instagram || fresh.instagram || '',
             tiktok: S.user.tiktok || fresh.tiktok || '',
@@ -546,9 +362,6 @@ async function loadStorage() {
     // Following (null = already had it from cache)
     if (following?.length) { S.following = following; save(); }
 
-    // Blocked users (usernames the current user has blocked)
-    if (blocked?.length) { S.blockedUsers = blocked.map(b => b.username).filter(Boolean); }
-
     // Notifications
     if (notifs?.length) {
       S.notifs = notifs.map(n => ({
@@ -563,14 +376,7 @@ async function loadStorage() {
 } // end loadStorage
 
 
-// save() — debounced local cache write + Supabase profile sync.
-// LEGACY: most Supabase writes now happen via specific DB.* calls
-// (DB.toggleLike, DB.addComment, DB.updateProfile, etc.) at the
-// point of the action. save() is kept for places that still need
-// to persist the full S.posts/S.users cache to localStorage.
-// The 300ms debounce prevents rapid successive calls from hammering
-// localStorage during things like rapid like-button clicking.
-let _saveTimer;
+// save() is kept for legacy calls but most writes go direct via DB.*
 function save() { clearTimeout(_saveTimer); _saveTimer = setTimeout(_doSave, 300); }
 function _doSave() {
   // Write changed posts/users back to Supabase if user is logged in
@@ -601,9 +407,7 @@ function _doSave() {
 function applyPrefs() {
   try {
     const p = JSON.parse(localStorage.getItem('dl_prefs') || '{}');
-    // Accent color is no longer user-customizable — always the site default
-    // blue (set in main.css :root). Intentionally ignoring any stored
-    // p.accent value here, including old ones from before this was locked.
+    if (p.accent) setAccent(p.accent);
     // Default theme is now LIGHT — only go dark when explicitly set
     const theme = p.theme || 'dark';
     if (theme === 'dark') document.body.classList.add('dark');
@@ -622,24 +426,11 @@ function setAccent(c) {
 
 // ─── REALTIME SUBSCRIPTIONS ────────────────────────────────────
 let _realtimeSubs = [];
-// setupRealtimeSubscriptions() — wire Supabase Realtime for live updates.
-// Called after session is confirmed in loadStorage(), and again after login.
-// Subscribes to two channels:
-//   1. messages: new DMs arrive in real-time without page refresh
-//   2. notifications: likes, follows, comments appear instantly
-//
-// IMPORTANT: Supabase Realtime must be enabled for these tables in the
-// Supabase Dashboard → Database → Replication → tables enabled for realtime.
-// If messages or notifications don't arrive live, check that setting first.
-//
-// We clean up old subscriptions before creating new ones to avoid
-// duplicate listeners if the user logs out and back in during a session.
 function setupRealtimeSubscriptions() {
-  // Remove any existing subscriptions before re-subscribing
-  // (prevents duplicate handlers if called multiple times)
+  // Clean up existing
   _realtimeSubs.forEach(sub => { try { sub.unsubscribe?.(); } catch(_) {} });
   _realtimeSubs = [];
-  if (!S.user) return; // only subscribe when logged in
+  if (!S.user) return;
   // New messages — update conv list and open thread
   const msgSub = DB.subscribeToMessages(S.user.id, payload => {
     if (!payload.new) return;
@@ -668,7 +459,6 @@ function setupRealtimeSubscriptions() {
   const notifSub = DB.subscribeToNotifications(S.user.id, payload => {
     if (payload.new) {
       const n = payload.new;
-      if (!isNotifTypeEnabled(n.type)) return; // this type is muted in Notification settings
       S.notifs.unshift({ id:n.id, type:n.type, from:n.from_username, msg:n.message, link:n.link||null, time:new Date(n.created_at).getTime(), read:false });
       updateNotifBadge();
       renderNotifList();
@@ -676,45 +466,6 @@ function setupRealtimeSubscriptions() {
     }
   });
   _realtimeSubs.push(msgSub, notifSub);
-}
-
-// Public content (new builds, spotting posts, discussions) — runs once at
-// boot regardless of sign-in state, unlike setupRealtimeSubscriptions()
-// above which only covers private content (messages/notifications) and
-// only for signed-in users. Without this, new content posted from another
-// device or by another user never appeared until you manually reloaded —
-// this is what makes it show up live instead.
-let _publicRealtimeSubs = [];
-function setupPublicRealtimeSubscriptions() {
-  if (_publicRealtimeSubs.length) return; // already wired, don't double-subscribe
-  if (!_sbOk()) return;
-
-  const postsSub = DB.subscribeToNewPosts(payload => {
-    if (!payload.new) return;
-    const post = dbPostToApp(payload.new);
-    if (!post || S.posts.find(p => p.id === post.id)) return; // skip our own optimistic add
-    S.posts.unshift(post);
-    if (S.page === 'home') { renderFeed(); renderSidebar(); }
-  });
-
-  const socialSub = DB.subscribeToNewSocialPosts(payload => {
-    if (!payload.new) return;
-    const post = dbSocialToApp(payload.new);
-    if (!post || (S._socialPosts||[]).find(p => p.id === post.id)) return;
-    S._socialPosts = [post, ...(S._socialPosts||[])];
-    if (S.page === 'social') { renderSocialFeed(); }
-    renderStoryBar(); // keep story bubbles live everywhere, not just on the Spotting page
-  });
-
-  const discSub = DB.subscribeToNewDiscussions(payload => {
-    if (!payload.new) return;
-    const d = dbDiscussionToApp(payload.new);
-    if (!d || (S._discussions||[]).find(x => x.id === d.id)) return;
-    S._discussions = [d, ...(S._discussions||[])];
-    if (S.page === 'discussions') renderDiscussions();
-  });
-
-  _publicRealtimeSubs.push(postsSub, socialSub, discSub);
 }
 
 // ─── PUSH NOTIFICATION TOAST ──────────────────────────────────
@@ -775,25 +526,8 @@ function initNavLinks() {
   );
 }
 
-// goTo(page) — the main navigation function.
-// All page navigation goes through here. Page IDs in HTML match
-// the page name: id="page-home", id="page-profile", etc.
-// Each page section has class="page" and is display:none by default.
-// Adding class="active" makes it display:block (see main.css .page.active).
-//
-// Some pages need special handling when activated:
-//   - messages: needs display:flex (not block) — set explicitly below
-//   - profile: re-renders with current user data
-//   - leaderboard: sorts on every visit (rankings change)
-//   - social (Car Spotting): resets feed pagination
-//
-// URL hash is updated so mobile back button and bookmarks work.
 function goTo(page) {
   S.page = page;
-  // If the Car Spotting detail modal is open (e.g. user tapped a username
-  // inside it), close it and restore scrolling — otherwise the modal stays
-  // stuck over the new page with body scroll locked.
-  if (typeof closeSocialDetail === 'function') closeSocialDetail();
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   const pg = el('page-'+page);
   if (pg) pg.classList.add('active');
@@ -813,14 +547,8 @@ function goTo(page) {
   if (page==='leaderboard') renderLeaderboard();
   if (page==='garage')      renderGarage();
   if (page==='events')      renderEventsGrid();
-  if (page==='members')     { renderMembers(); renderMembersStatsBar(); renderMembersBotm(); }
-  if (page==='social')      { renderSocialFeed(true); renderTrendingTags(); }
-  if (page==='discussions') renderDiscussions(true);
-  if (page==='spotpost') {
-    if (!S.user) { toast('Sign in to post','err'); el('authModal').classList.add('open'); goTo('social'); return; }
-    resetSpotComposer();
-  }
-  if (page==='notifications') renderNotifPage();
+  if (page==='members')     renderMembers();
+  if (page==='social')      renderSocialFeed(true);
   if (page==='messages') {
     // Messages page needs display:flex, not the default block from .page.active
     const mp = el('page-messages');
@@ -849,19 +577,7 @@ function goTo(page) {
 }
 
 // ─── SHAREABLE URL ROUTING ────────────────────────────────────
-// Enables deep-linking into the app via URL parameters.
-// Called 100ms after DOMContentLoaded so S.posts has a chance to
-// populate from cache before we try to find a post by ID.
-//
-// Supported URL formats:
-//   ?user=nolanburkdoll  → opens that user's public profile
-//   ?post=abc123         → opens that build page
-//   #leaderboard         → navigates to the leaderboard page
-//   #home (default)      → no action needed
-//
-// If a ?post= ID is not found in S.posts (cache miss), we fetch
-// it directly from Supabase so shared links always work even if
-// the post wasn't in the initial 60-post feed load.
+// Supports: ?user=Username (profile), ?post=postId (build), #pagename
 function handleURLRouting() {
   const params = new URLSearchParams(window.location.search);
   const hashPage = window.location.hash.slice(1);
@@ -935,11 +651,7 @@ function initHeader() {
     e.stopPropagation();
     viewPublicProfile(username);
   });
-  el('avChip')?.addEventListener('click', e=>{
-    e.stopPropagation();
-    if (window.innerWidth <= 768) { goTo('profile'); return; }
-    el('avDrop').classList.toggle('open'); el('notifDrop').classList.remove('open');
-  });
+  el('avChip')?.addEventListener('click', e=>{e.stopPropagation(); el('avDrop').classList.toggle('open'); el('notifDrop').classList.remove('open');});
   el('notifBtn')?.addEventListener('click', e=>{e.stopPropagation(); el('notifDrop').classList.toggle('open'); el('avDrop').classList.remove('open'); renderNotifList();});
   document.addEventListener('click', ()=>{el('avDrop').classList.remove('open'); el('notifDrop').classList.remove('open');});
   el('avDrop')?.addEventListener('click',    e=>e.stopPropagation());
@@ -987,28 +699,12 @@ function _defaultAvSVG() {
   </svg>`;
 }
 
-// setAvEl(domEl, username) — set a DOM avatar element to show the
-// correct photo (or default grey SVG if no photo is available).
-//
-// This is the primary way to render avatars throughout the app.
-// It checks _avCache first for an instant result, then falls back
-// to S.users, S.user, and localStorage — all without network calls.
-//
-// The "skip if same URL" check prevents unnecessary DOM mutations
-// during re-renders (e.g. when renderFeed() runs after a like update).
-//
-// fetchPriority="high" is set on the logged-in user's own avatar
-// so the browser downloads it first — it appears in the header on
-// every page so it should load as fast as possible.
-//
-// onerror falls back to the default grey SVG if the image URL 404s
-// (e.g. if a user deleted their avatar from Supabase Storage).
+// Set an avatar DOM element — shows photo or default grey SVG
 function setAvEl(domEl, username) {
   if (!domEl || !username) return;
-  domEl.dataset.user = username; // store for the global data-user click handler
+  domEl.dataset.user = username;
   const url = getAvatarUrl(username);
-  // Skip DOM write if the element already shows this exact image URL
-  // — avoids flicker and unnecessary repaints during feed re-renders
+  // If the element already shows this exact URL, skip the DOM write
   const existing = domEl.querySelector('img');
   if (url && existing && existing.src === url) return;
   if (url) {
@@ -1030,50 +726,18 @@ function setAvEl(domEl, username) {
       domEl.innerHTML = _defaultAvSVG();
       domEl.style.background = 'transparent';
     }
-    // We don't have this user in S.users at all yet (e.g. they posted
-    // after our last profile fetch, or joined very recently) — the normal
-    // 90-second cache refresh eventually catches this, but for a post
-    // that's visible RIGHT NOW, fetch just this one avatar directly
-    // instead of waiting on the bulk refresh.
-    if (!S.users.find(u => u.username === username) && !_avFetchInFlight.has(username)) {
-      _avFetchInFlight.add(username);
-      DB.getProfileByUsername(username).then(row => {
-        _avFetchInFlight.delete(username);
-        if (row?.avatar_url?.startsWith('http')) {
-          cacheAvatarUrl(username, row.avatar_url);
-          // Re-apply to every currently-visible element for this user,
-          // not just the one that triggered the fetch
-          document.querySelectorAll(`[data-user="${CSS.escape(username)}"]`).forEach(node => {
-            if (node.querySelector('svg') || !node.querySelector('img')) setAvEl(node, username);
-          });
-        }
-      }).catch(() => { _avFetchInFlight.delete(username); });
-    }
   }
-  setStoryRing(domEl, username);
 }
-const _avFetchInFlight = new Set();
 
-// Return avatar HTML string — shows photo or default grey SVG, with the
-// 24hr "active Car Spotting story" ring auto-applied where relevant.
-// Skips the ring for story-bar bubbles themselves, which already have
-// their own dedicated ring wrapper — this avoids a doubled-up ring there.
+// Return avatar HTML string — shows photo or default grey SVG
 function renderAv(username, size, extraClass) {
   const url = getAvatarUrl(username);
   const cls = [extraClass||''].filter(Boolean).join(' ');
   const s = size || 40;
-  const isStoryBubbleInner = cls.includes('story-bubble-av-inner');
-  const ringClass = (!isStoryBubbleInner && hasActiveSpotStory(username)) ? ' has-story-ring' : '';
-  const inner = url
-    ? `<div class="has-photo" style="width:100%;height:100%;border-radius:50%;overflow:hidden"><img src="${url}" alt="" class="av-photo" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
-    : `<div style="width:100%;height:100%;border-radius:50%;overflow:hidden;background:transparent">${_defaultAvSVG()}</div>`;
-  // overflow:visible is forced here (not left to CSS) because some callers'
-  // classes — msg-conv-av, msg-bubble-av — define their own overflow:hidden
-  // elsewhere in the stylesheet, which would silently clip the ring off
-  // entirely. The inner div above still clips the photo/SVG into a circle
-  // on its own, so relaxing overflow on this outer wrapper is safe.
-  const outerOverflow = ringClass ? ';overflow:visible' : '';
-  return `<div class="${cls}${ringClass}" style="width:${s}px;height:${s}px;flex-shrink:0;position:relative${outerOverflow}">${inner}</div>`;
+  if (url) {
+    return `<div class="${cls} has-photo" style="width:${s}px;height:${s}px;border-radius:50%;overflow:hidden;flex-shrink:0"><img src="${url}" alt="" class="av-photo" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`;
+  }
+  return `<div class="${cls}" style="width:${s}px;height:${s}px;border-radius:50%;overflow:hidden;flex-shrink:0;background:transparent">${_defaultAvSVG()}</div>`;
 }
 
 function updateAuthUI() {
@@ -1159,6 +823,7 @@ function initMobileNav() {
     tab.addEventListener('click', () => goTo(tab.dataset.page));
   });
   el('mobBottomPost')?.addEventListener('click', openPostModal);
+  el('mobBottomMenu')?.addEventListener('click', openMobNav);
 }
 
 function closeMobNav() {
@@ -1198,8 +863,7 @@ function renderFeaturedMembers() {
     const img = url
       ? `<img src="${url}" alt="" class="av-photo"/>`
       : _defaultAvSVG();
-    const ring = hasActiveSpotStory(u.username) ? ' has-story-ring' : '';
-    return `<div class="fm-av clickable-user${ring}" data-user="${u.username}" title="${esc(u.username)}" style="background:${bg}${ring?';overflow:visible':''}">${img}</div>`;
+    return `<div class="fm-av clickable-user" data-user="${u.username}" title="${esc(u.username)}" style="background:${bg}">${img}</div>`;
   }).join('') + (extra > 0
     ? `<div class="fm-av fm-av-more" onclick="goTo('members')">+${Math.min(extra,9)}${extra>=9?'+':''}</div>`
     : '');
@@ -1211,20 +875,10 @@ function countUp(id,target,dur) {
   requestAnimationFrame(tick);
 }
 
-// ─── BUILD OF THE WEEK (BOTW) ─────────────────────────────────
-// The BOTW carousel on the home page shows the top 5 posts.
-// Ranking priority:
-//   1. Posts within the last 7 days (BOTW_WINDOW_MS) come first
-//      — rewards fresh content and encourages regular posting
-//   2. Within each group, sorted by total likes descending
-//      — most-loved builds rise to the top
-//
-// This means a brand-new post with 2 likes appears above a 6-month-old
-// post with 200 likes. Once the new post is >7 days old, the classic
-// reclaims its position. This keeps the carousel fresh.
-//
-// NOTE: This is different from the Hot Right Now slider (renderHotPanel),
-// which ranks purely by likes with no recency weighting.
+// ─── BUILD OF THE WEEK ────────────────────────────────────────
+// Ranks the top 5 posts by whether they were posted within the last 7 days (priority),
+// then by total likes — so new posts with rising engagement surface first,
+// while community classics anchor the carousel when fresh content is scarce.
 function getBotwPosts() {
   const cutoff = Date.now() - BOTW_WINDOW_MS;
   return [...S.posts].sort((a,b)=>{
@@ -1337,22 +991,12 @@ function renderHero2Recent() {
   );
 }
 
-// ─── HOT RIGHT NOW SLIDER ─────────────────────────────────────
-// Shows the top 10 most-liked posts in a full-width cinematic slider.
-// Unlike BOTW, this ranks purely by total likes — no recency weighting.
-// Slides auto-advance every HOT_SLIDE_DURATION ms with a progress bar.
-// On mobile: arrow buttons are hidden, swipe left/right to navigate.
-//
-// The "Hot Right Now" label that used to appear above the slider was
-// removed from HTML — the rank badge on each slide ("#1 Hottest Build")
-// makes the section self-explanatory without a redundant heading.
-//
-// renderTicker() is a legacy alias kept because boot calls renderTicker().
-function renderTicker() { renderHotPanel(); } // alias — called during renderAll()
+// ─── HOT RIGHT NOW MOSAIC ─────────────────────────────────────
+function renderTicker() { renderHotPanel(); } // alias for boot call
 // ─── HOT RIGHT NOW — Cinematic Slider ─────────────────────────
-let _hotSliderIdx  = 0;          // currently visible slide index
-let _hotSliderAuto = null;       // setInterval handle for auto-advance
-const HOT_SLIDE_DURATION = 8000; // ms between automatic slide advances
+let _hotSliderIdx  = 0;
+let _hotSliderAuto = null;
+const HOT_SLIDE_DURATION = 8000; // ms per slide
 
 function renderHotPanel() {
   const slider = el('hotSlider'); if (!slider) return;
@@ -1470,49 +1114,45 @@ function startHotProgress(dur) {
 }
 
 // ─── SEARCH ───────────────────────────────────────────────────
-// Two search modes:
-//
-// 1. Desktop (≥769px): a static, always-visible search bar in the header.
-//    Results appear in a dropdown below the bar as you type. Pressing
-//    Enter jumps to the fullscreen overlay for a full results page.
-//
-// 2. FULLSCREEN overlay (mobile, ≤768px):
-//    Tapping the persistent mobile search bar opens a full-page search
-//    overlay immediately. The keyboard pops up on mobile right away
-//    (double focus trick for iOS Safari which ignores the first .focus()
-//    in a click handler).
-//
-// Both modes search the local S.posts and S.users arrays first (instant),
-// then fire Supabase FTS (full-text search) queries in the background
-// and merge any new results that weren't in the local cache.
 let _searchTimer;
 function initSearch() {
+  const trigger  = el('searchBtn');
   const wrap     = el('headerSearchWrap');
   const input    = el('headerSearchInput');
   const results  = el('headerSearchResults');
-  const clearBtn = el('headerSearchClear');
+  const closeBtn = el('headerSearchClose');
+  const expandBtn= el('headerSearchExpand');
   let _searchTimer = null;
+  let _isOpen = false;
 
-  function hideInlineResults() {
+  function openInlineSearch() {
+    _isOpen = true; wrap?.classList.add('open');
+    if (trigger) trigger.style.display = 'none';
+    setTimeout(() => input?.focus(), 80);
+  }
+  function closeInlineSearch() {
+    _isOpen = false; wrap?.classList.remove('open');
+    if (trigger) trigger.style.display = '';
     if (input) input.value = '';
     if (results) { results.innerHTML = ''; results.style.display = 'none'; }
-    if (clearBtn) clearBtn.style.display = 'none';
+    if (expandBtn) expandBtn.style.display = 'none';
   }
-  // Kept for other code that dismisses the search dropdown after navigating
-  window._closeInlineSearch = hideInlineResults;
+  // Expose for external use
+  window._closeInlineSearch = closeInlineSearch;
 
-  // Mobile persistent search bar — tap opens fullscreen search
-  el('mobSearchBar')?.addEventListener('click', () => {
-    openSearch();
-    setTimeout(() => el('searchInput')?.focus(), 50);
+  trigger?.addEventListener('click', () => {
+    // On mobile, always open the fullscreen search overlay directly
+    if (window.innerWidth <= 768) {
+      openSearch();
+      // Force keyboard open immediately
+      setTimeout(() => el('searchInput')?.focus(), 50);
+    } else {
+      openInlineSearch();
+    }
   });
-  el('mobSearchInput')?.addEventListener('focus', (e) => {
-    e.target.blur(); // prevent native keyboard on the readonly input
-    openSearch();
-    setTimeout(() => el('searchInput')?.focus(), 80);
-  });
+  closeBtn?.addEventListener('click', closeInlineSearch);
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { hideInlineResults(); closeSearch(); }
+    if (e.key === 'Escape') { closeInlineSearch(); closeSearch(); }
   });
   el('searchClose')?.addEventListener('click', closeSearch);
   el('searchOverlay')?.addEventListener('click', e => { if(e.target===el('searchOverlay')) closeSearch(); });
@@ -1521,23 +1161,25 @@ function initSearch() {
 
   input?.addEventListener('input', () => {
     const q = input.value.trim();
-    if (clearBtn) clearBtn.style.display = q ? 'flex' : 'none';
-    if (!q) { if(results){results.innerHTML='';results.style.display='none';} return; }
+    if (!q) { if(results){results.innerHTML='';results.style.display='none';} if(expandBtn)expandBtn.style.display='none'; return; }
+    if (expandBtn) expandBtn.style.display = 'inline-flex';
     clearTimeout(_searchTimer);
     _searchTimer = setTimeout(() => runInlineSearch(q), 150);
   });
   input?.addEventListener('keydown', e => {
-    if (e.key === 'Escape') hideInlineResults();
+    if (e.key === 'Escape') closeInlineSearch();
     if (e.key === 'Enter' && input.value.trim()) {
       el('searchInput').value = input.value;
-      hideInlineResults(); openSearch(); doSearch();
+      closeInlineSearch(); openSearch(); doSearch();
     }
   });
-  clearBtn?.addEventListener('click', () => { hideInlineResults(); input?.focus(); });
+  expandBtn?.addEventListener('click', () => {
+    const q = input?.value.trim()||'';
+    el('searchInput').value = q;
+    closeInlineSearch(); openSearch(); if(q) doSearch();
+  });
   document.addEventListener('click', e => {
-    if (results && results.style.display!=='none' && wrap && !wrap.contains(e.target)) {
-      results.style.display = 'none';
-    }
+    if (_isOpen && wrap && !wrap.contains(e.target)) closeInlineSearch();
   });
 }
 
@@ -1558,9 +1200,8 @@ async function runInlineSearch(q) {
   results.innerHTML = [
     userMatches.length ? `<div class="hsr-section">People</div>${userMatches.map(u => {
       const url = getAvatarUrl(u.username);
-      const ring = hasActiveSpotStory(u.username) ? ' has-story-ring' : '';
       return `<div class="hsr-item hsr-user" data-user="${esc(u.username)}">
-        ${url?`<img src="${url}" class="hsr-av${ring}" alt="" style="${ring?'overflow:visible':''}"/>`:`<div class="hsr-av${ring}" style="${ring?'overflow:visible':''}">${avSVG}</div>`}
+        ${url?`<img src="${url}" class="hsr-av" alt=""/>`:`<div class="hsr-av">${avSVG}</div>`}
         <div class="hsr-info"><div class="hsr-name">${esc(u.username)}</div><div class="hsr-sub">${u.posts||0} builds</div></div>
       </div>`; }).join('')}` : '',
     postMatches.length ? `<div class="hsr-section">${userMatches.length?'Builds':'Results'}</div>${postMatches.map(p => {
@@ -1742,11 +1383,6 @@ function initAuth() {
     el('authModal')?.classList.add('open');
     setTimeout(() => document.querySelector('.auth-tab[data-tab="register"]')?.click(), 50);
   });
-  el('signupNudgeSignIn')?.addEventListener('click', () => {
-    hideSignupNudge();
-    el('authModal')?.classList.add('open');
-    setTimeout(() => document.querySelector('.auth-tab[data-tab="login"]')?.click(), 50);
-  });
   el('signupNudgeClose')?.addEventListener('click', () => {
     hideSignupNudge();
     localStorage.setItem('dl_nudge_dismissed', '1');
@@ -1861,52 +1497,6 @@ function initAuth() {
       }
       return;
     }
-
-    // Check whether this account has 2FA enabled and needs a second factor
-    // before the session is fully trusted.
-    const authLevel = await DB.mfaGetAuthLevel();
-    if (authLevel.nextLevel === 'aal2' && authLevel.currentLevel !== 'aal2') {
-      const { factors } = await DB.mfaListFactors();
-      const factor = factors.find(f => f.status === 'verified');
-      if (factor) {
-        el('authModal').classList.remove('open');
-        _pendingMfaLoginData = data;
-        _pendingMfaFactorId = factor.id;
-        el('mfaCodeInput').value = '';
-        el('mfaCodeErr').textContent = '';
-        el('mfaModal').classList.add('open');
-        setTimeout(() => el('mfaCodeInput')?.focus(), 100);
-        return;
-      }
-    }
-
-    await completeSuccessfulLogin(data);
-  });
-
-  // ── MFA (2FA) verification, shown mid-login when required ──
-  let _pendingMfaLoginData = null;
-  let _pendingMfaFactorId = null;
-  el('mfaModalClose')?.addEventListener('click', () => {
-    el('mfaModal').classList.remove('open');
-    _pendingMfaLoginData = null; _pendingMfaFactorId = null;
-    toast('Sign-in cancelled','');
-  });
-  el('mfaVerifyBtn')?.addEventListener('click', async () => {
-    const code = el('mfaCodeInput').value.trim();
-    if (!/^\d{6}$/.test(code)) { el('mfaCodeErr').textContent = 'Enter the 6-digit code'; return; }
-    const btn = el('mfaVerifyBtn');
-    btn.disabled = true; btn.textContent = 'Verifying…';
-    const { error } = await DB.mfaChallengeAndVerify(_pendingMfaFactorId, code);
-    btn.disabled = false; btn.textContent = 'Verify';
-    if (error) { el('mfaCodeErr').textContent = 'Incorrect code — try again'; return; }
-    el('mfaModal').classList.remove('open');
-    const data = _pendingMfaLoginData;
-    _pendingMfaLoginData = null; _pendingMfaFactorId = null;
-    await completeSuccessfulLogin(data);
-  });
-  el('mfaCodeInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') el('mfaVerifyBtn').click(); });
-
-  async function completeSuccessfulLogin(data) {
     S.user = dbUserToApp(data);
     // Refresh users list
     try {
@@ -1932,7 +1522,7 @@ function initAuth() {
     el('authModal').classList.remove('open');
     document.body.classList.remove('modal-open');
     loginUser(S.user.username);
-  }
+  });
 
   // ── REGISTER ──
   el('doRegister')?.addEventListener('click', async () => {
@@ -1987,14 +1577,6 @@ function loginUser(username) {
   } else {
     S.user = { username, posts:0, totalLikes:0, joined:new Date().toISOString().slice(0,7), joinedFull:new Date().toISOString(), bio:'', awards:[] };
   }
-  // Persist immediately — settings.html is a separate page and reads
-  // the session from localStorage. Without this, opening Settings
-  // right after signing in says "not signed in" until a reload.
-  try {
-    localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
-    localStorage.setItem('dl_user', JSON.stringify(S.user));
-    localStorage.setItem('dl_last_user', username);
-  } catch(_) {}
   // Always force-close auth modal
   el('authModal') && el('authModal').classList.remove('open');
   updateAuthUI(); updateProfilePage(); updateDmBadge();
@@ -2519,41 +2101,8 @@ async function submitPost() {
       existing.zeroSixty    = zeroSixty;
       existing.quarterMile  = quarterMile;
       existing.topSpeed     = topSpeed;
-      // Upload any NEWLY ADDED media before saving. When editing,
-      // pendingImages/pendingVideos contain a mix of existing Storage
-      // URLs (https://...) and freshly added base64 (data:...).
-      // The base64 ones must be uploaded — raw base64 stored in the
-      // posts table gets downloaded by every visitor on every load.
-      const editImageUrls = [];
-      let editFailed = 0;
-      for (let i = 0; i < pendingImages.length; i++) {
-        const img = pendingImages[i];
-        if (typeof img === 'string' && img.startsWith('data:')) {
-          try {
-            const res = await DB.uploadBase64(S.user.id, img, i);
-            if (res && res.url) editImageUrls.push(res.url);
-            else editFailed++;
-          } catch(_) { editFailed++; }
-        } else {
-          editImageUrls.push(img); // already a Storage URL
-        }
-      }
-      const editVideoUrls = [];
-      for (let i = 0; i < pendingVideos.length; i++) {
-        const v = pendingVideos[i].dataUrl;
-        if (typeof v === 'string' && v.startsWith('data:')) {
-          try {
-            const res = await DB.uploadVideo(S.user.id, v, i);
-            if (res && res.url) editVideoUrls.push(res.url);
-            else editFailed++;
-          } catch(_) { editFailed++; }
-        } else {
-          editVideoUrls.push(v); // already a Storage URL
-        }
-      }
-      if (editFailed) toast(`${editFailed} file(s) failed to upload and were skipped`, 'err');
-      existing.images       = editImageUrls;
-      existing.videos       = editVideoUrls;
+      existing.images       = [...pendingImages];
+      existing.videos       = [...pendingVideos.map(v=>v.dataUrl)];
       existing.showSocials  = el('postShowSocials')?.checked ?? true;
       existing.editedAt     = new Date().toISOString();
       // Save to Supabase
@@ -2571,39 +2120,20 @@ async function submitPost() {
     const submitBtn = el('submitPost');
     if (submitBtn) { submitBtn.disabled=true; submitBtn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Uploading…'; }
 
-    // Upload images to Supabase Storage.
-    // NEVER push the raw base64 on failure — a base64 image stored in
-    // the posts table gets downloaded by every visitor on every page
-    // load (this caused 30-second load times). Skip + warn instead.
+    // Upload images to Supabase Storage
     const imageUrls = [];
-    let failedImages = 0;
     for (let i=0; i<pendingImages.length; i++) {
       try {
         const res = await DB.uploadBase64(S.user.id, pendingImages[i], i);
-        if (res && res.url) imageUrls.push(res.url);
-        else failedImages++;
-      } catch(_) { failedImages++; }
+        imageUrls.push(res.url || pendingImages[i]);
+      } catch(_) { imageUrls.push(pendingImages[i]); }
     }
-    if (failedImages) toast(`${failedImages} photo(s) failed to upload and were skipped`, 'err');
-
-    // Upload videos to Supabase Storage — same rule: Storage URL or skip.
-    // Base64 video in a post row is ~9MB of text per video.
-    const videoUrls = [];
-    let failedVideos = 0;
-    for (let i=0; i<pendingVideos.length; i++) {
-      try {
-        const res = await DB.uploadVideo(S.user.id, pendingVideos[i].dataUrl, i);
-        if (res && res.url) videoUrls.push(res.url);
-        else failedVideos++;
-      } catch(_) { failedVideos++; }
-    }
-    if (failedVideos) toast(`${failedVideos} video(s) failed to upload and were skipped`, 'err');
 
     const postData = appPostToDb({
       title, make, model, year, category:cat, categories:selectedCats,
       hp, mods, modsDetail, desc, transmission, mileage, buildState, zeroSixty, quarterMile, topSpeed,
       images: imageUrls,
-      videos: videoUrls,
+      videos: pendingVideos.map(v=>v.dataUrl),
       liked_by:[], saved_by:[], reactions:{},
       showSocials: el('postShowSocials')?.checked ?? true,
       state: el('postState')?.value || '',
@@ -2617,7 +2147,7 @@ async function submitPost() {
       id:newPost?.id||'u'+Date.now(), title, make, model, year,
       category:cat, categories:selectedCats, hp, mods, modsDetail, desc, transmission, mileage,
       user:S.user.username, likes:0, comments:[], images:imageUrls,
-      videos:videoUrls, likedBy:[], savedBy:[], reactions:{},
+      videos:pendingVideos.map(v=>v.dataUrl), likedBy:[], savedBy:[], reactions:{},
       date:new Date().toISOString().slice(0,10),
     };
     S.posts.unshift(localPost);
@@ -2944,25 +2474,6 @@ function seedNotifs() {
     {id:'n4',type:'event',  from:'DriveLog',  msg:'Build of the Week is live!',             time:Date.now()-86400000, read:true },
   ];
 }
-// Maps a notification's `type` to the settings toggle that controls it.
-// Types with no matching toggle (award, message, report) are always shown —
-// these are account/security-relevant and intentionally not silenceable.
-// 'botw' and 'announcements' toggles exist in settings but nothing in the
-// app currently generates those notification types yet, so they're stored
-// but have no effect until that feature exists.
-function isNotifTypeEnabled(type) {
-  try {
-    const notifs = (JSON.parse(localStorage.getItem('dl_prefs') || '{}').notifs) || {};
-    switch (type) {
-      case 'like':
-      case 'reaction': return notifs.likes !== false;
-      case 'comment':  return notifs.comments !== false;
-      case 'follow':   return notifs.followers !== false;
-      case 'event':    return notifs.events !== false;
-      default: return true; // award, message, report, unknown types — always on
-    }
-  } catch(_) { return true; }
-}
 function pushNotif(type,from,msg,link,targetUserId){
   // Always push to current user's local state
   S.notifs.unshift({id:'n'+Date.now(),type,from,msg,link:link||null,time:Date.now(),read:false});
@@ -2975,80 +2486,9 @@ function pushNotif(type,from,msg,link,targetUserId){
   save();
 }
 function updateNotifBadge() {
-  const unread = S.notifs.filter(n=>!n.read && isNotifTypeEnabled(n.type)).length;
-  const badge = el('notifBadge');
-  const mobBadge = el('mobTabNotifBadge');
-  if (badge) {
-    if (unread > 0) { badge.textContent = unread > 9 ? '9+' : unread; badge.style.display = 'flex'; }
-    else badge.style.display = 'none';
-  }
-  if (mobBadge) {
-    if (unread > 0) { mobBadge.textContent = unread > 9 ? '9+' : unread; mobBadge.style.display = 'inline-flex'; }
-    else mobBadge.style.display = 'none';
-  }
+  const unread=S.notifs.filter(n=>!n.read).length, badge=el('notifBadge');
+  if(unread>0){badge.textContent=unread>9?'9+':unread; badge.style.display='flex';} else badge.style.display='none';
 }
-// renderNotifPage — full-page notification list for mobile Alerts tab
-// This is a dedicated page (page-notifications) rather than a dropdown,
-// giving mobile users more space to read and interact with notifications.
-function renderNotifPage() {
-  const list = el('notifPageList');
-  const clearBtn = el('notifPageClear');
-  if (!list) return;
-
-  // Wire clear button
-  if (clearBtn) {
-    clearBtn.onclick = () => {
-      S.notifs.forEach(n => n.read = true);
-      updateNotifBadge();
-      renderNotifPage();
-    };
-  }
-
-  const visibleNotifs = S.notifs.filter(n => isNotifTypeEnabled(n.type));
-
-  if (!visibleNotifs.length) {
-    list.innerHTML = '<div class="notif-empty" style="padding:40px 20px;text-align:center"><i class="fas fa-bell" style="font-size:2rem;opacity:.3;display:block;margin-bottom:12px"></i>No notifications yet</div>';
-    return;
-  }
-
-  const icons  = { like:'fas fa-heart', comment:'fas fa-comment', follow:'fas fa-user-plus', event:'fas fa-calendar', welcome:'fas fa-star', reaction:'fas fa-fire', award:'fas fa-medal', dm:'fas fa-envelope', default:'fas fa-bell' };
-  const colors = { like:'#ef4444', comment:'#3b82f6', follow:'#22c55e', event:'#a855f7', welcome:'#f0a030', reaction:'#f0a030', award:'#c9a84c', dm:'#14b8a6', default:'#555' };
-
-  list.innerHTML = visibleNotifs.slice(0, 50).map(n => {
-    const icon  = icons[n.type]  || icons.default;
-    const color = colors[n.type] || colors.default;
-    return `<div class="notif-item${n.read?'':' unread'}" data-link="${n.link||''}">
-      <div class="notif-icon-wrap" style="background:${color}22;border-color:${color}44">
-        <i class="${icon}" style="color:${color}"></i>
-      </div>
-      <div class="notif-item-body">
-        <div class="notif-item-msg">${n.msg||''}</div>
-        <div class="notif-item-time">${timeAgo(n.time)}</div>
-      </div>
-      ${!n.read ? '<div class="notif-unread-dot"></div>' : ''}
-    </div>`;
-  }).join('');
-
-  // Mark as read + navigate on tap
-  list.querySelectorAll('.notif-item').forEach((item, i) => {
-    item.addEventListener('click', () => {
-      if (visibleNotifs[i]) visibleNotifs[i].read = true;
-      updateNotifBadge();
-      item.classList.remove('unread');
-      item.querySelector('.notif-unread-dot')?.remove();
-      const link = item.dataset.link;
-      if (link?.startsWith('post:')) {
-        const post = S.posts.find(p => p.id === link.replace('post:',''));
-        if (post) openCarPage(post);
-      } else if (link?.startsWith('user:')) {
-        viewPublicProfile(link.replace('user:',''));
-      } else if (link?.startsWith('page:')) {
-        goTo(link.replace('page:',''));
-      }
-    });
-  });
-}
-
 function renderNotifList() {
   const icons  = {like:'fas fa-heart',comment:'fas fa-comment',follow:'fas fa-user-plus',event:'fas fa-calendar',welcome:'fas fa-star',reaction:'fas fa-fire',award:'fas fa-medal',badge:'fas fa-medal',dm:'fas fa-envelope',default:'fas fa-bell'};
   const colors = {like:'#e84242',comment:'#3b82f6',follow:'#22c55e',event:'#a855f7',welcome:'#f0a030',reaction:'#f0a030',award:'#c9a84c',badge:'#c9a84c',dm:'#14b8a6',default:'#555'};
@@ -3059,9 +2499,8 @@ function renderNotifList() {
   const cats = ['all','like','comment','follow','event','dm','award'];
   const active = list._activeCat || 'all';
 
-  // Only show unread notifications — read ones are dismissed. Also
-  // exclude any type the user has muted in Notification settings.
-  const unreadNotifs = S.notifs.filter(n => !n.read && isNotifTypeEnabled(n.type));
+  // Only show unread notifications — read ones are dismissed
+  const unreadNotifs = S.notifs.filter(n => !n.read);
   const filtered = active === 'all' ? unreadNotifs : unreadNotifs.filter(n => n.type === active);
 
   if (!unreadNotifs.length) {
@@ -3128,7 +2567,6 @@ function handleNotifLink(link) {
 function isFollowing(u){return S.following.includes(u);}
 function toggleFollow(username) {
   if(!S.user){toast('Sign in to follow members','err'); el('authModal').classList.add('open'); return;}
-  if(username===S.user.username){return;} // can't follow yourself, regardless of how this got triggered
   const idx=S.following.indexOf(username);
   const isNowFollowing = idx < 0;
   if(idx>=0){
@@ -3152,7 +2590,7 @@ function toggleFollow(username) {
 }
 function updateFollowBtn(username) {
   const fb=el('followBtn'); if(!fb)return;
-  if(!S.user||username?.trim().toLowerCase()===S.user.username?.trim().toLowerCase()){fb.style.display='none';return;}
+  if(!S.user||username===S.user.username){fb.style.display='none';return;}
   fb.style.display='inline-flex';
   const f=isFollowing(username);
   fb.textContent=f?'Following ✓':'Follow'; fb.className=f?'btn-ghost small':'btn-primary small';
@@ -3161,7 +2599,6 @@ function updateFollowBtn(username) {
 // ─── FEED ─────────────────────────────────────────────────────
 // ─── FILTER HELPERS ───────────────────────────────────────────
 function applyFiltersToPost(p) {
-  if (S.blockedUsers.includes(p.user)) return false; // hide posts from blocked users
   const f = S.filters;
   // Multi-category: post must match at least one selected category
   if (f.categories.length > 0) {
@@ -3172,33 +2609,22 @@ function applyFiltersToPost(p) {
   const yr = parseInt(p.year) || 0;
   if (yr && (yr < f.yearMin || yr > f.yearMax)) return false;
   if (f.hp > 0) {
-    // Same first-number-only parsing as computeRanges() — see the note
-    // there about why a naive strip-all-non-digits regex is a real bug.
-    const hpNum = parseInt((p.hp||'').match(/\d+/)?.[0]||'0', 10);
+    const hpNum = parseInt((p.hp||'').replace(/[^0-9]/g,'')) || 0;
     if (!hpNum || hpNum < f.hp) return false;
   }
   if (f.likes > 0  && p.likes < f.likes) return false;
-
-  // CarGurus-style filters — these fields don't exist on posts yet (the
-  // upload form doesn't collect them), so these checks are no-ops until
-  // that's added; harmless in the meantime, ready to go once it is.
-  if (f.colors?.length        && !f.colors.includes(p.color))            return false;
-  if (f.bodyTypes?.length     && !f.bodyTypes.includes(p.bodyType))       return false;
-  if (f.engines?.length       && !f.engines.includes(p.engine))          return false;
-  if (f.drivetrains?.length   && !f.drivetrains.includes(p.drivetrain))  return false;
-  if (f.transmissions?.length && !f.transmissions.includes(p.transmission)) return false;
-  if (f.fuelTypes?.length     && !f.fuelTypes.includes(p.fuelType))      return false;
-
+  if (f.media === 'photos' && (!p.images||!p.images.length))   return false;
+  if (f.media === 'multi'  && (!p.images||p.images.length < 2)) return false;
+  if (f.build === 'modified' && !p.mods)  return false;
+  if (f.build === 'stock'    &&  p.mods)  return false;
   return true;
 }
 
 function countActiveFilters() {
   const f = S.filters; let n = 0;
   if (f.categories.length > 0) n++; if (f.make) n++; if (f.hp > 0) n++;
-  if (f.likes > 0) n++;
-  if (f.colors?.length) n++; if (f.bodyTypes?.length) n++; if (f.engines?.length) n++;
-  if (f.drivetrains?.length) n++; if (f.transmissions?.length) n++; if (f.fuelTypes?.length) n++;
-  if (f.yearMin > 1900 || f.yearMax < new Date().getFullYear()+1) n++;
+  if (f.likes > 0) n++; if (f.media) n++; if (f.build) n++;
+  if (f.yearMin > 1940 || f.yearMax < 2026) n++;
   return n;
 }
 
@@ -3282,21 +2708,13 @@ function initFilterSidebar() {
     // Makes: sorted alphabetically, deduplicated
     const makes = [...new Set(posts.map(p=>p.make).filter(Boolean))].sort();
 
-    // Years: floor is always 1900, ceiling is always at least next year
-    // (accommodates next model-year cars) — both extend further only if
-    // an actual post falls outside that range, per your spec.
-    const thisYear = new Date().getFullYear();
-    const defaultYearMin = 1900, defaultYearMax = thisYear + 1;
-    const years = posts.map(p=>parseInt(p.year)).filter(y=>y>1800&&y<=2200);
-    const yearMin = years.length ? Math.min(defaultYearMin, ...years) : defaultYearMin;
-    const yearMax = years.length ? Math.max(defaultYearMax, ...years) : defaultYearMax;
+    // Years: only posts that have a valid 4-digit year
+    const years = posts.map(p=>parseInt(p.year)).filter(y=>y>1900&&y<=2100);
+    const yearMin = years.length ? Math.min(...years) : 1940;
+    const yearMax = years.length ? Math.max(...years) : new Date().getFullYear();
 
-    // HP: extract the FIRST number found, e.g. "450whp"→450, "355 hp"→355.
-    // Previously this stripped ALL non-digit characters before parsing,
-    // which meant a hyphenated value like "450-500hp" got concatenated
-    // into "450500" — a single bad post could blow the slider out to a
-    // huge, meaningless max. Matching the first digit run avoids that.
-    const hps = posts.map(p=>parseInt((p.hp||'').match(/\d+/)?.[0]||'0',10)).filter(v=>v>0&&v<=3000);
+    // HP: extract numeric part from strings like "450whp", "355hp", "900+"
+    const hps = posts.map(p=>parseInt((p.hp||'').replace(/[^0-9]/g,''))).filter(v=>v>0);
     const hpMax = hps.length ? Math.ceil(Math.max(...hps) / 50) * 50 : 500; // round up to nearest 50
 
     // Likes: highest like count across all posts
@@ -3326,7 +2744,7 @@ function initFilterSidebar() {
     if (+ymaxEl.value > r.yearMax || +ymaxEl.value === 1900) ymaxEl.value = r.yearMax;
     // Update default state if filters are at initial values
     if (S.filters.yearMin <= 1900) S.filters.yearMin = r.yearMin;
-    if (S.filters.yearMax >= new Date().getFullYear()+1) S.filters.yearMax = r.yearMax;
+    if (S.filters.yearMax >= 2100) S.filters.yearMax = r.yearMax;
 
     // HP slider
     const hpEl = el('fsHP');
@@ -3344,8 +2762,7 @@ function initFilterSidebar() {
     side._ranges = r;
   }
 
-  btn.addEventListener('click', () => { side._context = 'feed'; openFilter(); });
-  el('openGarageFilterBtn')?.addEventListener('click', () => { side._context = 'garage'; openFilter(); });
+  btn.addEventListener('click', openFilter);
   el('filterClose')?.addEventListener('click', closeFilter);
   over.addEventListener('click', closeFilter);
 
@@ -3360,35 +2777,23 @@ function initFilterSidebar() {
     document.body.style.overflow = '';
   }
 
-  // Category pills — multi-select (previously this replaced the .active
-  // class on ALL pills like a single-select, and wrote to S.filters.category
-  // — singular — which applyFiltersToPost() never actually read. The real
-  // field is the plural S.filters.categories array, so category filtering
-  // was silently doing nothing at all.
+  // Category pills
   side.querySelectorAll('.fs-pill[data-fc]').forEach(p=>p.addEventListener('click',()=>{
-    p.classList.toggle('active');
-    const cat = p.dataset.fc, idx = S.filters.categories.indexOf(cat);
-    if (p.classList.contains('active')) { if (idx===-1) S.filters.categories.push(cat); }
-    else if (idx!==-1) S.filters.categories.splice(idx,1);
+    side.querySelectorAll('.fs-pill[data-fc]').forEach(x=>x.classList.remove('active'));
+    p.classList.add('active'); S.filters.category = p.dataset.fc;
   }));
 
-  // Shared multi-select toggle helper for the 6 new filter groups below
-  function wireMultiSelectPills(selector, datasetKey, filterKey) {
-    side.querySelectorAll(selector).forEach(p=>p.addEventListener('click',()=>{
-      p.classList.toggle('active');
-      const val = p.dataset[datasetKey];
-      const arr = S.filters[filterKey];
-      const idx = arr.indexOf(val);
-      if (p.classList.contains('active')) { if (idx===-1) arr.push(val); }
-      else if (idx!==-1) arr.splice(idx,1);
-    }));
-  }
-  wireMultiSelectPills('.fs-pill[data-fcolor]', 'fcolor', 'colors');
-  wireMultiSelectPills('.fs-pill[data-fbody]',  'fbody',  'bodyTypes');
-  wireMultiSelectPills('.fs-pill[data-fengine]','fengine','engines');
-  wireMultiSelectPills('.fs-pill[data-fdrive]', 'fdrive', 'drivetrains');
-  wireMultiSelectPills('.fs-pill[data-ftrans]', 'ftrans', 'transmissions');
-  wireMultiSelectPills('.fs-pill[data-ffuel]',  'ffuel',  'fuelTypes');
+  // Media pills
+  side.querySelectorAll('.fs-pill[data-fmedia]').forEach(p=>p.addEventListener('click',()=>{
+    side.querySelectorAll('.fs-pill[data-fmedia]').forEach(x=>x.classList.remove('active'));
+    p.classList.add('active'); S.filters.media = p.dataset.fmedia;
+  }));
+
+  // Build pills
+  side.querySelectorAll('.fs-pill[data-fbuild]').forEach(p=>p.addEventListener('click',()=>{
+    side.querySelectorAll('.fs-pill[data-fbuild]').forEach(x=>x.classList.remove('active'));
+    p.classList.add('active'); S.filters.build = p.dataset.fbuild;
+  }));
 
   // Make select
   el('fsMake')?.addEventListener('change', ()=>{ S.filters.make = el('fsMake').value; });
@@ -3423,11 +2828,6 @@ function initFilterSidebar() {
 
   // Apply
   el('filterApply')?.addEventListener('click', ()=>{
-    if (side._context === 'garage') {
-      renderGarage();
-      closeFilter();
-      return;
-    }
     // sidebar categories take over, reset top pill to All
     S.filter = 'All';
     document.querySelectorAll('.fpill[data-cat]').forEach(p=>p.classList.toggle('active', p.dataset.cat==='All'));
@@ -3439,14 +2839,10 @@ function initFilterSidebar() {
   // Reset — resets to real data defaults (not hardcoded values)
   el('filterReset')?.addEventListener('click', ()=>{
     const r = side._ranges || computeRanges();
-    S.filters = { categories:[], make:'', yearMin:r.yearMin, yearMax:r.yearMax, hp:0, likes:0, colors:[], bodyTypes:[], engines:[], drivetrains:[], transmissions:[], fuelTypes:[] };
+    S.filters = { categories:[], make:'', yearMin:r.yearMin, yearMax:r.yearMax, hp:0, likes:0, media:'', build:'' };
+    S.filter = 'All';
     S.visibleCount = FEED_PAGE_SIZE;
     syncFilterUI();
-    if (side._context === 'garage') {
-      renderGarage();
-      return;
-    }
-    S.filter = 'All';
     document.querySelectorAll('.fpill[data-cat]').forEach(p=>p.classList.toggle('active',p.dataset.cat==='All'));
     renderFeed();
   });
@@ -3455,12 +2851,8 @@ function initFilterSidebar() {
   function syncFilterUI() {
     const f = S.filters;
     side.querySelectorAll('.fs-pill[data-fc]').forEach(p=>p.classList.toggle('active', (f.categories||[]).includes(p.dataset.fc)));
-    side.querySelectorAll('.fs-pill[data-fcolor]').forEach(p=>p.classList.toggle('active', (f.colors||[]).includes(p.dataset.fcolor)));
-    side.querySelectorAll('.fs-pill[data-fbody]').forEach(p=>p.classList.toggle('active', (f.bodyTypes||[]).includes(p.dataset.fbody)));
-    side.querySelectorAll('.fs-pill[data-fengine]').forEach(p=>p.classList.toggle('active', (f.engines||[]).includes(p.dataset.fengine)));
-    side.querySelectorAll('.fs-pill[data-fdrive]').forEach(p=>p.classList.toggle('active', (f.drivetrains||[]).includes(p.dataset.fdrive)));
-    side.querySelectorAll('.fs-pill[data-ftrans]').forEach(p=>p.classList.toggle('active', (f.transmissions||[]).includes(p.dataset.ftrans)));
-    side.querySelectorAll('.fs-pill[data-ffuel]').forEach(p=>p.classList.toggle('active', (f.fuelTypes||[]).includes(p.dataset.ffuel)));
+    side.querySelectorAll('.fs-pill[data-fmedia]').forEach(p=>p.classList.toggle('active', p.dataset.fmedia===f.media));
+    side.querySelectorAll('.fs-pill[data-fbuild]').forEach(p=>p.classList.toggle('active', p.dataset.fbuild===f.build));
     el('fsMake').value = f.make;
     const ymin = el('fsYearMin'), ymax = el('fsYearMax');
     ymin.value = f.yearMin; el('fsYearMinVal').textContent = f.yearMin;
@@ -3493,11 +2885,11 @@ function renderCardReactionOverlay(post) {
 
 function cardHTML(post,animIdx) {
   const cfg=catCfg(post.category), imgs=post.images||[];
-  const liked=S.user&&(post.likedBy||[]).includes(S.user.username);
+  const liked=S.user&&post.likedBy.includes(S.user.username);
   const multi=imgs.length>1?`<div class="card-multi"><i class="fas fa-images"></i> ${imgs.length}</div>`:'';
   const imgHTML=imgs.length
     ?`<img class="card-img" src="${imgs[0]}" alt="${esc(post.title)}" loading="lazy"/>`
-    :`<div class="card-img card-img-ph" style="background:${phBg(post.id)}"><span>${esc((post.make||'?').toUpperCase())}</span></div>`;
+    :`<div class="card-img card-img-ph" style="background:${phBg(post.id)}"><span>${post.make.toUpperCase()}</span></div>`;
   return `<div class="card" data-id="${post.id}" style="animation-delay:${animIdx*.04}s">
     <div class="card-img-wrap">${imgHTML}<span class="cat-badge ${cfg.badge}">${post.category}</span>${multi}</div>
     <div class="card-body">
@@ -3518,52 +2910,10 @@ function attachCardEvents(container) {
   container.querySelectorAll('.card-av.av-circle[data-user]').forEach(av => {
     setAvEl(av, av.dataset.user);
   });
-  container.querySelectorAll('.card').forEach(card=>{
-    let clickTimer=null, lastTap=0;
-    const imgWrap = card.querySelector('.card-img-wrap');
-
-    function likePostViaDouble() {
-      // Heart burst on the image (IG-style)
-      if (imgWrap) {
-        const h=document.createElement('div');
-        h.className='soc-heart-burst';
-        h.innerHTML='<i class="fas fa-heart"></i>';
-        imgWrap.appendChild(h);
-        setTimeout(()=>h.remove(),900);
-      }
-      if(!S.user){ toast('Sign in to like','err'); el('authModal').classList.add('open'); return; }
-      // Double-tap only ever LIKES, never unlikes
-      const likeBtn=card.querySelector('.card-likes');
-      if(likeBtn && !likeBtn.classList.contains('liked')) likeBtn.click();
-    }
-
-    card.addEventListener('dblclick',e=>{
-      if(!e.target.closest('.card-img-wrap'))return;
-      e.preventDefault();
-      if(clickTimer){clearTimeout(clickTimer);clickTimer=null;}
-      likePostViaDouble();
-    });
-    card.addEventListener('click',e=>{
-      if(e.target.closest('.card-likes'))return;
-      const p=S.posts.find(x=>x.id===card.dataset.id); if(!p)return;
-      // Clicks on the image get a short delay so a double-tap can like
-      // instead of navigating. Clicks anywhere else open instantly.
-      if(e.target.closest('.card-img-wrap')){
-        const now=Date.now();
-        if(now-lastTap<300){
-          lastTap=0;
-          if(clickTimer){clearTimeout(clickTimer);clickTimer=null;}
-          likePostViaDouble();
-          return;
-        }
-        lastTap=now;
-        if(clickTimer)clearTimeout(clickTimer);
-        clickTimer=setTimeout(()=>{clickTimer=null;openCarPage(p);},260);
-      } else {
-        openCarPage(p);
-      }
-    });
-  });
+  container.querySelectorAll('.card').forEach(card=>card.addEventListener('click',e=>{
+    if(e.target.closest('.card-likes'))return;
+    const p=S.posts.find(x=>x.id===card.dataset.id); if(p)openCarPage(p);
+  }));
   container.querySelectorAll('.card-likes').forEach(btn=>btn.addEventListener('click',e=>{
     e.stopPropagation();
     if (!S.user) { toast('Sign in to like', 'err'); el('authModal').classList.add('open'); return; }
@@ -3744,11 +3094,6 @@ function renderCategories() {
 
 // ─── LEADERBOARD ──────────────────────────────────────────────
 function renderLeaderboard() {
-  // Users who've opted out of "Show on Leaderboard" are excluded from every
-  // member-based leaderboard list below (they still appear in build
-  // leaderboards under their own posts — this only hides them from the
-  // "who's the top member" style rankings).
-  const leaderboardUsers = S.users.filter(u => u.privacyLeaderboard !== false);
   const top=[...S.posts].sort((a,b)=>b.likes-a.likes).slice(0,10);
   el('lbBuilds').innerHTML=`<div class="lb-list">${top.map((p,i)=>{
     const img=p.images?.[0];
@@ -3761,7 +3106,7 @@ function renderLeaderboard() {
   }).join('')}</div>`;
   el('lbBuilds').querySelectorAll('.lb-row[data-id]').forEach(r=>r.addEventListener('click',()=>{const p=S.posts.find(x=>x.id===r.dataset.id);if(p)openCarPage(p);}));
 
-  const topM=[...leaderboardUsers].sort((a,b)=>(b.totalLikes||0)-(a.totalLikes||0)).slice(0,10);
+  const topM=[...S.users].sort((a,b)=>(b.totalLikes||0)-(a.totalLikes||0)).slice(0,10);
   el('lbMembers').innerHTML=`<div class="lb-list">${topM.map((u,i)=>`
     <div class="lb-row${i===0?' gold':i===1?' silver':i===2?' bronze':''}">
       <div class="lb-pos${i===0?' p1':i===1?' p2':i===2?' p3':' pn'}">${i+1}</div>
@@ -3782,7 +3127,7 @@ function renderLeaderboard() {
   }).join('');
   el('lbCats').querySelectorAll('.lb-cat-row[data-id]').forEach(r=>r.addEventListener('click',()=>{const p=S.posts.find(x=>x.id===r.dataset.id);if(p)openCarPage(p);}));
 
-  const topPosts=[...leaderboardUsers].sort((a,b)=>{
+  const topPosts=[...S.users].sort((a,b)=>{
     const ap=S.posts.filter(p=>p.user===a.username).length;
     const bp=S.posts.filter(p=>p.user===b.username).length;
     return bp-ap;
@@ -3797,7 +3142,7 @@ function renderLeaderboard() {
     </div>`;
   }).join('')}</div>`;
 
-  const oldestUsers=[...leaderboardUsers].filter(u=>u.joinedFull||u.joined).sort((a,b)=>{
+  const oldestUsers=[...S.users].filter(u=>u.joinedFull||u.joined).sort((a,b)=>{
     const aT=new Date(a.joinedFull||a.joined+'-01').getTime();
     const bT=new Date(b.joinedFull||b.joined+'-01').getTime();
     return aT-bT;
@@ -3838,13 +3183,6 @@ function getBotmVoteKey() {
   return `dl_botm_votes_${now.getFullYear()}_${now.getMonth()}`;
 }
 
-// The Supabase-side vote key format (year_month, zero-padded) — shared by
-// castBotmVote() and the tally/winner logic so they can never drift apart.
-function getBotmSupabaseVoteKey() {
-  const now = new Date();
-  return `botm_${now.getFullYear()}_${String(now.getMonth()+1).padStart(2,'0')}`;
-}
-
 function getUserBotmVote() {
   try { return JSON.parse(localStorage.getItem(getBotmVoteKey()) || 'null'); } catch(_) { return null; }
 }
@@ -3852,24 +3190,26 @@ function getUserBotmVote() {
 async function castBotmVote(postId) {
   if (!S.user) { toast('Sign in to vote for BOTM','err'); el('authModal')?.classList.add('open'); return; }
   const now = new Date();
-  if (now.getDate() > 25) { toast(`Voting closed on the 25th — check back for this month's winner`,''); return; }
+  if (now.getDate() > 25) { toast(`Voting closed on the 25th — check the Leaderboard for this month's winner`,''); return; }
   const existing = getUserBotmVote();
-  if (existing === postId) { toast('Already your nomination this month ✓','ok'); return; }
-  const voteKey = getBotmSupabaseVoteKey();
+  if (existing === postId) { toast('You already voted for this build this month! ✓','err'); return; }
+  if (existing && existing !== postId) {
+    const votedPost = S.posts.find(p=>p.id===existing);
+    toast(`You already voted for "${votedPost?.title||'another build'}" this month. You can only vote once.`,'err');
+    return;
+  }
+  const voteKey = `botm_${now.getFullYear()}_${String(now.getMonth()+1).padStart(2,'0')}`;
   // Save locally first for instant feedback
   localStorage.setItem(getBotmVoteKey(), postId);
   renderBotmVoteBtn(postId);
-  // Persist to Supabase — upsert means this also correctly REPLACES an
-  // existing vote from earlier in the month, so people can change their mind
+  // Persist to Supabase
   const { error } = await DB.castBotmVote(postId, S.user.id, voteKey);
   if (error) {
     console.warn('BOTM vote save failed:', error);
     toast('Vote counted locally — will sync when connection is restored','');
   } else {
-    toast(existing ? 'Nomination changed 🏆' : 'Your vote has been cast! 🏆','ok');
+    toast('Your vote has been cast! 🏆 Check back on the 26th.','ok');
   }
-  // Refresh the live tally on the Members page, if it's rendered
-  if (el('memBotmCandidates')) renderMembersBotm();
 }
 
 function renderBotmVoteBtn(postId) {
@@ -3883,144 +3223,13 @@ function renderBotmVoteBtn(postId) {
   });
 }
 
-// Tallies community votes for the current month into { postId: count },
-// sorted descending. This is the piece that was missing — DB.getBotmVotes()
-// already existed to fetch the raw vote rows, but nothing ever called it or
-// counted them, so there was no way to actually determine a winner from
-// community votes at all (only a manual admin pick).
-async function getBotmTally() {
-  const voteKey = getBotmSupabaseVoteKey();
-  const votes = await DB.getBotmVotes(voteKey).catch(() => []);
-  const counts = {};
-  votes.forEach(v => { counts[v.post_id] = (counts[v.post_id]||0) + 1; });
-  return Object.entries(counts).sort((a,b) => b[1]-a[1]).map(([postId,count]) => ({ postId, count }));
-}
-
-// Get current month's BOTM winner — admin override takes priority (if set),
-// otherwise the community's most-voted build wins automatically.
-async function getBotmWinner() {
+// Get current month's BOTM winner from votes
+function getBotmWinner() {
+  // Admin override still possible
   const adminPick = JSON.parse(localStorage.getItem('dl_botm') || 'null');
-  if (adminPick?.postId) {
-    const post = S.posts.find(p => p.id === adminPick.postId);
-    if (post) return { post, isAdminPick: true, voteCount: null };
-  }
-  const tally = await getBotmTally();
-  if (!tally.length) return null;
-  const post = S.posts.find(p => p.id === tally[0].postId);
-  if (!post) return null;
-  return { post, isAdminPick: false, voteCount: tally[0].count };
-}
-
-// Community stats bar at the top of the Members page
-function renderMembersStatsBar() {
-  const wrap = el('memStatsBar'); if (!wrap) return;
-  const totalMembers = S.users.length;
-  const totalBuilds = S.posts.length;
-  const totalLikes = S.posts.reduce((sum,p) => sum + (p.likes||0), 0);
-  wrap.innerHTML = `
-    <div class="mem-stat-card"><span class="mem-stat-num">${totalMembers.toLocaleString()}</span><span class="mem-stat-label">Members</span></div>
-    <div class="mem-stat-card"><span class="mem-stat-num">${totalBuilds.toLocaleString()}</span><span class="mem-stat-label">Builds Posted</span></div>
-    <div class="mem-stat-card"><span class="mem-stat-num">${totalLikes.toLocaleString()}</span><span class="mem-stat-label">Total Likes</span></div>
-  `;
-}
-
-// Full Build of the Month section on the Members page — winner cinematic
-// (auto-determined from community votes, or admin override) plus a live
-// nomination panel so people can actually cast/change their vote here.
-async function renderMembersBotm() {
-  const winnerWrap = el('memBotmWinner');
-  const candWrap = el('memBotmCandidates');
-  const subEl = el('memBotmSub');
-  if (!winnerWrap || !candWrap) return;
-
-  const [winnerResult, tally] = await Promise.all([getBotmWinner(), getBotmTally()]);
-
-  // Winner cinematic
-  if (!winnerResult) {
-    winnerWrap.innerHTML = `<div class="lb-special-empty">
-      <i class="fas fa-calendar-star"></i>
-      <p>No votes yet this month — nominate a build below to get things started.</p>
-    </div>`;
-  } else {
-    const { post, isAdminPick, voteCount } = winnerResult;
-    const cfg = catCfg(post.category);
-    winnerWrap.innerHTML = `
-      <div class="botm-cinematic" data-id="${post.id}">
-        <div class="botm-cinematic-img">
-          ${post.images?.[0]
-            ? `<img src="${post.images[0]}" alt="${esc(post.title)}"/>`
-            : `<div class="botm-cinematic-ph" style="background:${phBg(post.id)}"></div>`}
-          <div class="botm-cinematic-grad"></div>
-        </div>
-        <div class="botm-cinematic-info">
-          <div class="botm-cinematic-badge"><i class="fas fa-calendar-star"></i> Build of the Month${isAdminPick ? '' : ' — Community Pick'}</div>
-          <h2 class="botm-cinematic-title">${esc(post.title)}</h2>
-          <div class="botm-cinematic-meta">
-            <span class="cat-badge ${cfg.badge}" style="position:static">${post.category}</span>
-            <span>by <b>${esc(post.user)}</b></span>
-            ${post.year ? `<span>${post.year}</span>` : ''}
-            ${post.hp   ? `<span>${esc(post.hp)}</span>` : ''}
-            <span>♥ ${post.likes.toLocaleString()} likes</span>
-            ${!isAdminPick && voteCount ? `<span><i class="fas fa-crown" style="color:#d97706"></i> ${voteCount} vote${voteCount===1?'':'s'}</span>` : ''}
-          </div>
-          ${post.desc ? `<p class="botm-cinematic-desc">${esc(post.desc.slice(0,220))}${post.desc.length>220?'…':''}</p>` : ''}
-          <button class="btn-primary botm-cinematic-btn"><i class="fas fa-eye"></i> View Full Build</button>
-        </div>
-      </div>`;
-    const card = winnerWrap.querySelector('.botm-cinematic');
-    winnerWrap.querySelector('.botm-cinematic-btn').addEventListener('click', e => { e.stopPropagation(); openCarPage(post); });
-    card.addEventListener('click', () => openCarPage(post));
-  }
-
-  if (subEl) {
-    const now = new Date();
-    subEl.textContent = now.getDate() <= 25
-      ? `Vote now through the 25th — ${now.toLocaleString('default',{month:'long'})}'s winner is decided by the community`
-      : `Voting closed on the 25th — this is ${now.toLocaleString('default',{month:'long'})}'s winner`;
-  }
-
-  // Nomination candidates — top 6 most-liked builds posted this calendar
-  // month (falls back to top 6 overall if nothing's been posted yet this
-  // month), each showing its live vote count.
-  const now = new Date();
-  const thisMonthPosts = S.posts.filter(p => {
-    const d = new Date(p.createdAt || p.date || 0);
-    return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
-  });
-  const pool = (thisMonthPosts.length ? thisMonthPosts : S.posts);
-  const candidates = [...pool].sort((a,b)=>b.likes-a.likes).slice(0,6);
-  const tallyMap = Object.fromEntries(tally.map(t => [t.postId, t.count]));
-  const myVote = getUserBotmVote();
-
-  if (!candidates.length) {
-    candWrap.innerHTML = '<div class="mem-botm-empty">No builds to nominate yet — post one to get the ball rolling.</div>';
-    return;
-  }
-  candWrap.innerHTML = candidates.map(p => {
-    const count = tallyMap[p.id] || 0;
-    const voted = myVote === p.id;
-    return `<div class="mem-botm-candidate" data-open-id="${p.id}">
-      <div class="mem-botm-cand-img">${p.images?.[0] ? `<img src="${p.images[0]}" alt="" loading="lazy"/>` : `<div style="width:100%;height:100%;background:${phBg(p.id)}"></div>`}</div>
-      <div class="mem-botm-cand-body">
-        <div class="mem-botm-cand-title">${esc(p.title)}</div>
-        <div class="mem-botm-cand-user">by ${esc(p.user)}</div>
-        <div class="mem-botm-cand-footer">
-          <span class="mem-botm-vote-count"><i class="fas fa-crown"></i> ${count}</span>
-          <button class="botm-vote-btn${voted?' voted':''}" data-id="${p.id}">${voted?'<i class="fas fa-check"></i> Voted':'<i class="fas fa-crown"></i> Nominate'}</button>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-
-  candWrap.querySelectorAll('.botm-vote-btn').forEach(btn => {
-    btn.addEventListener('click', e => { e.stopPropagation(); castBotmVote(btn.dataset.id); });
-  });
-  candWrap.querySelectorAll('.mem-botm-candidate').forEach(card => {
-    card.addEventListener('click', () => {
-      const post = S.posts.find(p => p.id === card.dataset.openId);
-      if (post) openCarPage(post);
-    });
-  });
+  if (adminPick?.postId) return S.posts.find(p => p.id === adminPick.postId) || null;
+  // Otherwise use community votes (stored locally for demo)
+  return null; // Real voting requires Supabase aggregation
 }
 
 // ─── BUILD OF THE MONTH ────────────────────────────────────────
@@ -4201,7 +3410,7 @@ function initMembers() {
 function renderMembers() {
   const searchEl = el('membersSearch');
   const q = searchEl ? searchEl.value.toLowerCase() : '';
-  let members=[...S.users].filter(u=>!S.blockedUsers.includes(u.username) && (!q||u.username.toLowerCase().includes(q)||(u.bio||'').toLowerCase().includes(q)));
+  let members=[...S.users].filter(u=>!q||u.username.toLowerCase().includes(q)||(u.bio||'').toLowerCase().includes(q));
   if(S.memberSort==='likes')  members.sort((a,b)=>(b.totalLikes||0)-(a.totalLikes||0));
   else if(S.memberSort==='builds') members.sort((a,b)=>(b.posts||0)-(a.posts||0));
   else members.sort((a,b)=>b.joined>a.joined?1:-1);
@@ -4218,20 +3427,20 @@ function renderMembers() {
     const posts=S.posts.filter(p=>p.user===u.username);
     const topPost=[...posts].sort((a,b)=>b.likes-a.likes)[0];
     const img=topPost?.images?.[0], following=isFollowing(u.username);
-    const isSelf=S.user?.username===u.username;
+    const isSelf=S.user?.username===u.username, followers=Math.floor((u.totalLikes||0)/80);
     return `<div class="member-card">
       <div class="member-cover" style="background:${phBg(u.username)}">
         ${img?`<img src="${img}" alt="" loading="lazy"/>`:''}<div class="member-cover-ov"></div>
         ${rank<3?`<div class="member-rank rank${rank+1}">#${rank+1}</div>`:''}
       </div>
       <div class="member-body">
-        <div class="member-av${hasActiveSpotStory(u.username)?' has-story-ring':''}" style="background:transparent">${ u.avatarUrl ? `<img src="${u.avatarUrl}" alt="" class="av-photo"/>`
+        <div class="member-av" style="background:transparent">${ u.avatarUrl ? `<img src="${u.avatarUrl}" alt="" class="av-photo"/>`
             : u.username[0].toUpperCase()
         }</div>
         <div class="member-info">
           <div class="member-name">${esc(u.username)}</div>
           <div class="member-bio">${u.bio?(u.bio.length>60?u.bio.slice(0,60)+'…':u.bio):'DriveLog member'}</div>
-          <div class="member-stats"><span><b>${u.posts||0}</b> builds</span><span><b>${(u.totalLikes||0).toLocaleString()}</b> likes</span></div>
+          <div class="member-stats"><span><b>${u.posts||0}</b> builds</span><span><b>${(u.totalLikes||0).toLocaleString()}</b> likes</span><span><b>${followers}</b> followers</span></div>
           ${(u.instagram||u.tiktok||u.youtube)?`<div class="member-socials">
             ${u.instagram?`<a class="msoc ig" href="https://instagram.com/${u.instagram}" target="_blank" rel="noopener"><i class="fab fa-instagram"></i></a>`:''}
             ${u.tiktok?`<a class="msoc tt" href="https://tiktok.com/@${u.tiktok}" target="_blank" rel="noopener"><i class="fab fa-tiktok"></i></a>`:''}
@@ -4245,25 +3454,6 @@ function renderMembers() {
   }).join('');
   grid.querySelectorAll('.member-follow-btn').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();toggleFollow(b.dataset.un);}));
   grid.querySelectorAll('.member-view-btn').forEach(b=>b.addEventListener('click',()=>viewMemberProfile(b.dataset.un)));
-}
-
-// Minimal page-switch used by viewMemberProfile() — shows the profile page
-// section without goTo()'s "page===profile → always render as ME" hook,
-// and without goTo() deleting the ?user= URL param viewMemberProfile just
-// set. Using the full goTo('profile') here was the cause of a serious bug:
-// clicking ANY other user's profile (story bar, members grid, search,
-// notifications — anywhere) would render YOUR OWN profile instead, because
-// goTo() always calls updateProfilePage() (which renders S.user, not
-// whoever was actually requested) the instant the page becomes 'profile'.
-function switchToProfilePageSection() {
-  S.page = 'profile';
-  if (typeof closeSocialDetail === 'function') closeSocialDetail();
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  const pg = el('page-profile');
-  if (pg) pg.classList.add('active');
-  document.querySelectorAll('.nav-link,.mob-link').forEach(a => a.classList.toggle('active', a.dataset.page==='profile'));
-  window.scrollTo({top:0, behavior:'auto'});
-  closeMobNav();
 }
 
 async function viewMemberProfile(username) {
@@ -4288,7 +3478,7 @@ async function viewMemberProfile(username) {
   }
 
   if (!u) {
-    switchToProfilePageSection();
+    goTo('profile');
     const noMsg = el('noLoginMsg');
     if (noMsg) {
       noMsg.style.display = 'block';
@@ -4306,27 +3496,7 @@ async function viewMemberProfile(username) {
     return;
   }
 
-  const isOwnProfile = S.user?.username === username;
-  if (u.privacyPublic === false && !isOwnProfile && !S.user?.isAdmin) {
-    switchToProfilePageSection();
-    const privMsg = el('noLoginMsg');
-    if (privMsg) {
-      privMsg.style.display = 'block';
-      privMsg.innerHTML = `<div class="profile-not-found" style="text-align:center;padding:40px 20px">
-        <i class="fas fa-lock" style="font-size:3rem;opacity:.3;display:block;margin-bottom:16px"></i>
-        <h2>This Profile is Private</h2>
-        <p>${esc(username)} has chosen to keep their profile private.</p>
-        <button class="btn-ghost small" onclick="goTo('home')" style="margin-top:12px">
-          <i class="fas fa-home"></i> Go Home
-        </button>
-      </div>`;
-    }
-    el('profilePostsWrap').style.display = 'none';
-    el('profileActions').style.display = 'none';
-    return;
-  }
-
-  switchToProfilePageSection();
+  goTo('profile');
 
   // Get posts — from local cache + fetch any missing ones from Supabase
   let posts = S.posts.filter(p => p.user === username);
@@ -4357,7 +3527,7 @@ async function viewMemberProfile(username) {
     }
   }
 
-  const followingCount = await DB.getFollowingCount(u.id).catch(() => 0);
+  const followingCount = username === S.user?.username ? S.following.length : '—';
 
   // Banner
   const savedBanner = localStorage.getItem('dl_banner_'+username) || u.bannerUrl || null;
@@ -4407,11 +3577,9 @@ async function viewMemberProfile(username) {
   if (stEl) stEl.innerHTML = `
     <div class="pstat"><span class="pstat-n">${posts.length}</span><span class="pstat-l">Builds</span></div>
     <div class="pstat"><span class="pstat-n">${likes.toLocaleString()}</span><span class="pstat-l">Likes</span></div>
-    <div class="pstat clickable" id="profileFollowersStat"><span class="pstat-n">${followers.toLocaleString()}</span><span class="pstat-l">Followers</span></div>
-    <div class="pstat clickable" id="profileFollowingStat"><span class="pstat-n">${followingCount.toLocaleString()}</span><span class="pstat-l">Following</span></div>
+    <div class="pstat"><span class="pstat-n">${followers.toLocaleString()}</span><span class="pstat-l">Followers</span></div>
+    <div class="pstat"><span class="pstat-n">${followingCount}</span><span class="pstat-l">Following</span></div>
   `;
-  el('profileFollowersStat')?.addEventListener('click', () => openFollowList(u.id, 'followers'));
-  el('profileFollowingStat')?.addEventListener('click', () => openFollowList(u.id, 'following'));
 
   // Action buttons
   el('profileActions').style.display = 'flex';
@@ -4419,7 +3587,7 @@ async function viewMemberProfile(username) {
   el('profilePostsWrap').style.display = 'block';
   el('profileBuildsLabel').textContent = `${u.username}'s Builds`;
 
-  const isOwn = S.user?.username?.trim().toLowerCase() === username?.trim().toLowerCase();
+  const isOwn = S.user?.username === username;
   const editProfBtn = el('editProfileBtn');
   const profDmBtn   = el('profileDmBtn');
   const shareBtn    = el('profileShareBtn');
@@ -4452,41 +3620,6 @@ async function viewMemberProfile(username) {
   if (followBtnEl) {
     followBtnEl.style.display = isOwn ? 'none' : 'inline-flex';
     followBtnEl.onclick = () => toggleFollow(username);
-  }
-
-  // Block button — only shown on other people's profiles, never your own
-  const blockBtnEl = el('profileBlockBtn');
-  if (blockBtnEl) {
-    if (isOwn || !S.user) {
-      blockBtnEl.style.display = 'none';
-    } else {
-      blockBtnEl.style.display = 'inline-flex';
-      const isBlocked = S.blockedUsers.includes(username);
-      blockBtnEl.innerHTML = isBlocked ? '<i class="fas fa-ban"></i> Unblock' : '<i class="fas fa-ban"></i> Block';
-      blockBtnEl.className = isBlocked ? 'btn-ghost small' : 'btn-ghost small';
-      blockBtnEl.onclick = async () => {
-        const target = S.users.find(x => x.username === username);
-        if (!target?.id || !S.user?.id) { toast('Unable to reach this user right now','err'); return; }
-        blockBtnEl.disabled = true;
-        try {
-          if (isBlocked) {
-            const { error } = await DB.unblockUser(S.user.id, target.id);
-            if (error) { toast('Failed to unblock — try again','err'); return; }
-            S.blockedUsers = S.blockedUsers.filter(u => u !== username);
-            toast(`Unblocked ${username}`, 'ok');
-          } else {
-            if (!confirm(`Block ${username}? They won't be able to message you, and you won't see their posts or profile in the members list.`)) return;
-            const { error } = await DB.blockUser(S.user.id, target.id);
-            if (error) { toast('Failed to block — try again','err'); return; }
-            S.blockedUsers.push(username);
-            toast(`${username} has been blocked`, 'ok');
-          }
-        } finally {
-          blockBtnEl.disabled = false;
-          viewMemberProfile(username); // re-render to reflect new block state
-        }
-      };
-    }
   }
 
   // Pin hint (own profile only)
@@ -4547,11 +3680,6 @@ async function viewPublicProfile(username) {
 }
 
 function buildSocialLinks(u) {
-  // Respect the "Show Social Links" privacy toggle — owners always see
-  // their own links (so they can still edit/verify them), everyone else
-  // sees nothing if it's turned off.
-  const isOwner = S.user?.username === u.username;
-  if (u.privacySocials === false && !isOwner) return '';
   return [
     u.instagram?`<a class="prof-social ig" href="https://instagram.com/${u.instagram}" target="_blank" rel="noopener"><i class="fab fa-instagram"></i> @${u.instagram}</a>`:'',
     u.tiktok?`<a class="prof-social tt" href="https://tiktok.com/@${u.tiktok}" target="_blank" rel="noopener"><i class="fab fa-tiktok"></i> @${u.tiktok}</a>`:'',
@@ -4562,121 +3690,47 @@ function buildSocialLinks(u) {
 
 // ─── GARAGE ───────────────────────────────────────────────────
 function initGarage() {
-  // Tab wiring lives in renderGarage() (single source of truth) so
-  // counts and panels stay in sync. Nothing to do at init.
+  document.querySelectorAll('.gtab').forEach(t=>t.addEventListener('click',()=>{
+    document.querySelectorAll('.gtab,.gpanel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active'); el('gpanel-'+t.dataset.gtab).classList.add('active');
+  }));
 }
 function renderGarage() {
-  const signin = el('garageSignin');
-  const tabs   = el('garageTabs');
-  const panels = document.querySelectorAll('.gpanel');
-
-  // ── Signed out: one clear sign-in state, everything else hidden ──
   if (!S.user) {
-    if (signin) signin.style.display = 'block';
-    if (tabs)   tabs.style.display   = 'none';
-    panels.forEach(p => p.style.display = 'none');
-    // Clear any stale content from a previous session
-    ['likedGrid','savedGrid','sharedGrid'].forEach(id => { const g=el(id); if(g) g.innerHTML=''; });
+    el('savedEmpty').style.display='block';
+    el('likedEmpty').style.display='block';
     return;
   }
-  if (signin) signin.style.display = 'none';
-  if (tabs)   tabs.style.display   = '';
-  panels.forEach(p => p.style.display = '');
-
-  const uname  = S.user.username;
-  const uid    = S.user.id || '';
-  const byDate = (a,b) => new Date(b.createdAt||b.date||0) - new Date(a.createdAt||a.date||0);
-  const likedAll  = S.posts.filter(p=>(p.likedBy||[]).includes(uname)||(p.likedBy||[]).includes(uid));
-  const savedAll  = S.posts.filter(p=>(p.savedBy||[]).includes(uname)||(p.savedBy||[]).includes(uid));
-  const sharedAll = S.posts.filter(p=>p.user===uname);
-  let liked  = likedAll.filter(applyFiltersToPost);
-  let saved  = savedAll.filter(applyFiltersToPost);
-  let shared = sharedAll.filter(applyFiltersToPost);
-
-  // Sort — same options as the home feed (Newest/Most Liked/Most Comments)
-  const gsort = S.garageSort || 'newest';
-  const sortFn = gsort==='popular'   ? (a,b)=>b.likes-a.likes
-               : gsort==='discussed'? (a,b)=>(b.comments||[]).length-(a.comments||[]).length
-               : byDate;
-  liked.sort(sortFn); saved.sort(sortFn); shared.sort(sortFn);
-
-  const filterActive = countActiveFilters() > 0;
-  const emptyMsg = (elx, hasAny) => {
-    if (!elx) return;
-    if (elx.dataset.origHtml === undefined) elx.dataset.origHtml = elx.innerHTML;
-    elx.innerHTML = (hasAny && filterActive)
-      ? '<i class="fas fa-filter"></i><h3>No matches</h3><p>Nothing here matches your current filters.</p>'
-      : elx.dataset.origHtml;
-  };
-
-  // Liked
-  el('likedGrid').innerHTML = liked.map((p,i)=>cardHTML(p,i)).join('');
-  el('likedEmpty').style.display = liked.length ? 'none' : 'block';
-  emptyMsg(el('likedEmpty'), likedAll.length > 0);
-  attachCardEvents(el('likedGrid'));
+  const uname = S.user.username;
+  const uid   = S.user.id || '';
+  const saved  = S.posts.filter(p=>p.savedBy.includes(uname)||p.savedBy.includes(uid));
+  const liked  = S.posts.filter(p=>p.likedBy.includes(uname)||p.likedBy.includes(uid));
+  const shared = S.posts.filter(p=>p.user===uname);
 
   // Saved
   el('savedGrid').innerHTML = saved.map((p,i)=>cardHTML(p,i)).join('');
   el('savedEmpty').style.display = saved.length ? 'none' : 'block';
-  emptyMsg(el('savedEmpty'), savedAll.length > 0);
   attachCardEvents(el('savedGrid'));
+
+  // Liked
+  el('likedGrid').innerHTML = liked.map((p,i)=>cardHTML(p,i)).join('');
+  el('likedEmpty').style.display = liked.length ? 'none' : 'block';
+  attachCardEvents(el('likedGrid'));
 
   // Shared (your builds)
   if (el('sharedGrid')) {
     el('sharedGrid').innerHTML = shared.map((p,i)=>cardHTML(p,i)).join('');
     el('sharedEmpty').style.display = shared.length ? 'none' : 'block';
-    emptyMsg(el('sharedEmpty'), sharedAll.length > 0);
     attachCardEvents(el('sharedGrid'));
   }
 
-  // Saved Parts + Saved Socials
-  if (el('partsPanel'))   renderParts();
+  // Saved Parts
+  if (el('partsPanel')) renderParts();
+
+  // Saved Socials
   if (el('socialsPanel')) renderSavedSocials();
 
-  // Tab counts — total counts, unaffected by the active filter (like Gmail
-  // label counts not changing when you search)
-  const parts   = JSON.parse(localStorage.getItem('dl_parts_'+uname)||'[]');
-  const socials = getSavedSocials();
-  const setCount = (id, n) => { const e = el(id); if (e) e.textContent = n > 0 ? n : ''; };
-  setCount('gcount-liked',  likedAll.length);
-  setCount('gcount-saved',  savedAll.length);
-  setCount('gcount-shared', sharedAll.length);
-  setCount('gcount-parts',  parts.length);
-  setCount('gcount-socials',socials.length);
-
-  // Filter count badge on the garage Filters button
-  const gFilterCount = el('garageFilterTriggerCount');
-  if (gFilterCount) {
-    const n = countActiveFilters();
-    gFilterCount.textContent = n > 0 ? n : '';
-    gFilterCount.style.display = n > 0 ? '' : 'none';
-  }
-
-  // Sort+filter row only makes sense on the build-post tabs (Liked/Saved/
-  // Shared) — Parts and Socials aren't build posts, so year/HP/category
-  // filtering doesn't apply to them.
-  const BUILD_TABS = ['liked','saved','shared'];
-  function updateSortRowVisibility() {
-    const activeTab = document.querySelector('.gtab.active')?.dataset.gtab || 'liked';
-    const row = el('garageSortRow');
-    if (row) row.style.display = BUILD_TABS.includes(activeTab) ? '' : 'none';
-  }
-  updateSortRowVisibility();
-
-  // Wire sort buttons once
-  if (!S._garageSortWired) {
-    S._garageSortWired = true;
-    document.querySelectorAll('.sort-btn[data-gsort]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.sort-btn[data-gsort]').forEach(b=>b.classList.remove('active'));
-        btn.classList.add('active');
-        S.garageSort = btn.dataset.gsort;
-        renderGarage();
-      });
-    });
-  }
-
-  // Wire tabs — single wiring point (onclick replaces, never stacks)
+  // Wire tabs
   document.querySelectorAll('.gtab').forEach(t => {
     t.onclick = () => {
       document.querySelectorAll('.gtab').forEach(x=>x.classList.remove('active'));
@@ -4686,7 +3740,6 @@ function renderGarage() {
       if (panel) panel.classList.add('active');
       if (t.dataset.gtab === 'socials') renderSavedSocials();
       if (t.dataset.gtab === 'parts')   renderParts();
-      updateSortRowVisibility();
     };
   });
 }
@@ -4844,7 +3897,7 @@ function renderParts() {
 }
 
 // ─── PROFILE (own) ────────────────────────────────────────────
-async function updateProfilePage() {
+function updateProfilePage() {
   // Wire banner upload button
   const bannerUploadBtn = el('profileBannerUploadBtn');
   const bannerInput     = el('profileBannerInput');
@@ -4935,36 +3988,13 @@ async function updateProfilePage() {
   // age gate notice
   const notice=el('profileAgeNotice'); if(notice) notice.style.display='none';
 
-  const [ownFollowerCount, ownFollowingCount] = await Promise.all([
-    DB.getFollowerCount(S.user.id).catch(() => 0),
-    DB.getFollowingCount(S.user.id).catch(() => S.following.length),
-  ]);
-  const ownStEl=el('profileStats'); if(ownStEl) ownStEl.innerHTML=`<div class="pstat"><span class="pstat-n">${posts.length}</span><span class="pstat-l">Builds</span></div><div class="pstat"><span class="pstat-n">${likes.toLocaleString()}</span><span class="pstat-l">Likes</span></div><div class="pstat clickable" id="profileFollowersStat"><span class="pstat-n">${ownFollowerCount.toLocaleString()}</span><span class="pstat-l">Followers</span></div><div class="pstat clickable" id="profileFollowingStat"><span class="pstat-n">${ownFollowingCount.toLocaleString()}</span><span class="pstat-l">Following</span></div>`;
-  el('profileFollowersStat')?.addEventListener('click', () => openFollowList(S.user.id, 'followers'));
-  el('profileFollowingStat')?.addEventListener('click', () => openFollowList(S.user.id, 'following'));
+  const ownStEl=el('profileStats'); if(ownStEl) ownStEl.innerHTML=`<div class="pstat"><span class="pstat-n">${posts.length}</span><span class="pstat-l">Builds</span></div><div class="pstat"><span class="pstat-n">${likes.toLocaleString()}</span><span class="pstat-l">Likes</span></div><div class="pstat"><span class="pstat-n">${posts.reduce((a,p)=>a+(p.comments||[]).length,0)}</span><span class="pstat-l">Comments</span></div>`;
   el('followBtn').style.display='none';
   el('profileBuildsLabel').textContent='Your Builds';
   const ownEditBtn = el('editProfileBtn');
   const ownDmBtn   = el('profileDmBtn');
   if (ownEditBtn) ownEditBtn.style.display = 'inline-flex';
   if (ownDmBtn)   ownDmBtn.style.display = 'none';
-  // Share button — this render path (own profile via normal nav) never
-  // wired this up before, which is why clicking it did nothing.
-  const ownShareBtn = el('profileShareBtn');
-  if (ownShareBtn) {
-    ownShareBtn.style.display = 'inline-flex';
-    ownShareBtn.onclick = () => {
-      const profileUrl = `${window.location.origin}${window.location.pathname}?user=${encodeURIComponent(u.username)}`;
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(profileUrl).then(() => toast('Profile link copied! 🔗','ok'));
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = profileUrl; document.body.appendChild(ta); ta.select();
-        document.execCommand('copy'); document.body.removeChild(ta);
-        toast('Profile link copied! 🔗','ok');
-      }
-    };
-  }
   const grid=el('profileGrid');
   if(posts.length){el('noBuilds').style.display='none';grid.innerHTML=posts.map((p,i)=>cardHTML(p,i)).join('');attachCardEvents(grid);}
   else{grid.innerHTML='';el('noBuilds').style.display='block';}
@@ -4992,7 +4022,44 @@ function toast(msg,type=''){
 // Returns the avatar URL for a user if they have one, otherwise null
 // In-memory avatar URL cache — populated from localStorage at boot,
 // updated on every cacheAvatarUrl() call. No JSON.parse on every lookup.
-// avatar cache moved to top of file
+const _avCache = new Map();
+
+function _initAvCache() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
+    Object.entries(stored).forEach(([u, url]) => { if (url?.startsWith('http')) _avCache.set(u, url); });
+  } catch(_) {}
+}
+// Called once from loadFromCache()
+function getAvatarUrl(username) {
+  if (!username) return null;
+  // 1. In-memory cache (fastest, populated from S.users + localStorage at boot)
+  if (_avCache.has(username)) return _avCache.get(username);
+  // 2. S.users array
+  const u = S.users.find(x => x.username === username);
+  if (u?.avatarUrl?.startsWith('http')) { _avCache.set(username, u.avatarUrl); return u.avatarUrl; }
+  // 3. Own user's avatarUrl
+  if (S.user?.username === username && S.user.avatarUrl?.startsWith('http')) {
+    _avCache.set(username, S.user.avatarUrl); return S.user.avatarUrl;
+  }
+  // 4. Own device upload key
+  if (S.user?.username === username) {
+    const local = localStorage.getItem('dl_avatar_url');
+    if (local?.startsWith('http')) { _avCache.set(username, local); return local; }
+  }
+  return null;
+}
+
+// Called when we know an avatar URL — update both in-memory and localStorage
+function cacheAvatarUrl(username, url) {
+  if (!username || !url?.startsWith('http')) return;
+  _avCache.set(username, url);
+  try {
+    const stored = JSON.parse(localStorage.getItem('dl_avatar_cache') || '{}');
+    stored[username] = url;
+    localStorage.setItem('dl_avatar_cache', JSON.stringify(stored));
+  } catch(_) {}
+}
 
 // Returns HTML string for an avatar circle — img if custom, letter if not
 // size: css class suffix ('sm'=26px, 'md'=36px, 'lg'=48px, null=use inline style)
@@ -5030,23 +4097,7 @@ function accountAge(user) {
   return { years, months, short, full };
 }
 
-// ─── CAR DETAIL PAGE (Build Page) ────────────────────────────
-// The full build detail page is at id="page-car" in index.html.
-// It is NOT a modal — it's a full page rendered via goTo('car').
-// This is different from the OLD car modal (initCarModal / openCarModal)
-// which is a legacy overlay that may still be used in some places.
-//
-// The build page has tabs for: Comments | Build Timeline | Build Costs
-// Tab switching is handled by switchCpTab(tab).
-//
-// Gallery: the main image is in #cpGallMain, thumbnails in #cpGallStrip.
-// On mobile, left/right arrow buttons are hidden and the user swipes.
-// Swipe is detected on #cpGallMain with touchstart/touchend handlers.
-// IMPORTANT: The swipe calls el('cpGalNext').click() — note ONE 'l' in
-// 'Gal', not 'Gall'. These buttons are rendered by cpRenderGallery().
-//
-// openCarPage(post) is the correct way to navigate to a build.
-// It sets S.openCarPost, calls goTo('car'), then renderCarPage(post).
+// ─── CAR DETAIL PAGE ──────────────────────────────────────────
 function initCarPage() {
   el('carPageBack')?.addEventListener('click', () => {
     goTo(S._prevPage || 'home');
@@ -5368,10 +4419,18 @@ function renderCarPage(post) {
   switchCpTab('comments');
 }
 
+// cpRenderGallery — Cars & Bids style gallery.
+// Large main image on the left (~68% width), a 2-column grid of medium
+// thumbnails on the right (~32% width) that scrolls if there are many.
+// Clicking any grid thumbnail swaps it into the main image slot.
+// Tap-to-lightbox and swipe-to-navigate both still work on mobile.
 function cpRenderGallery(post) {
-  // Add touch swipe support after rendering
   const gallMain = el('cpGallMain');
-  if (gallMain && !gallMain._swipeWired) {
+  const gridEl   = el('cpGallGrid');
+  if (!gallMain || !gridEl) return;
+
+  // Wire touch swipe once
+  if (!gallMain._swipeWired) {
     gallMain._swipeWired = true;
     let _swipeStartX = 0, _swipeStartY = 0, _swipeMoved = false;
     gallMain.addEventListener('touchstart', e => {
@@ -5381,119 +4440,87 @@ function cpRenderGallery(post) {
     }, { passive: true });
     gallMain.addEventListener('touchmove', e => {
       const dx = Math.abs(e.touches[0].clientX - _swipeStartX);
-      const dy = Math.abs(e.touches[0].clientY - _swipeStartY);
-      if (dx > 8) _swipeMoved = true; // track that user swiped
+      if (dx > 8) _swipeMoved = true;
     }, { passive: true });
     gallMain.addEventListener('touchend', e => {
       const dx = e.changedTouches[0].clientX - _swipeStartX;
       const dy = e.changedTouches[0].clientY - _swipeStartY;
       if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 35) {
-        // Horizontal swipe — navigate gallery
-        if (dx < 0) el('cpGalNext')?.click();
-        else el('cpGalPrev')?.click();
+        if (dx < 0) cpGalStep(1); else cpGalStep(-1);
       } else if (!_swipeMoved) {
-        // Pure tap — open lightbox (the img has pointer-events:none on mobile
-        // so we handle the tap here on the parent instead)
         const img = gallMain.querySelector('#cpMainImg');
         if (img) img.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       }
     }, { passive: true });
   }
-  const imgs   = post.images || [];
-  const vids   = post.videos || [];
-  const mainEl = el('cpGallMain');
-  const stripEl = el('cpGallStrip');
 
-  // Build a unified media array: { type:'image'|'video', src }
+  const imgs = post.images || [];
+  const vids = post.videos || [];
   const media = [
     ...imgs.map(src => ({ type:'image', src })),
     ...vids.map(src => ({ type:'video', src })),
   ];
 
   if (!media.length) {
-    mainEl.innerHTML = `<div class="gallery-ph" style="background:${phBg(post.id)}"><span>${post.make.toUpperCase()}</span><small>${post.year||''}</small></div>`;
-    stripEl.innerHTML = ''; return;
+    gallMain.innerHTML = `<div class="gallery-ph" style="background:${phBg(post.id)}"><span>${post.make.toUpperCase()}</span><small>${post.year||''}</small></div>`;
+    gridEl.innerHTML = '';
+    gridEl.style.display = 'none';
+    return;
   }
+  gridEl.style.display = '';
 
   let curIdx = 0;
+  window._cpGalMedia = media; // used by cpGalStep swipe helper
 
   function setMain(idx) {
     curIdx = idx;
     const item = media[idx];
-    const navBtns = media.length > 1 ? `
-      <button class="gal-nav gal-prev" id="cpGalPrev"><i class="fas fa-chevron-left"></i></button>
-      <button class="gal-nav gal-next" id="cpGalNext"><i class="fas fa-chevron-right"></i></button>
-      <div class="gal-count">${idx+1} / ${media.length}</div>` : '';
-
     if (item.type === 'video') {
-      // Videos: inline player, no lightbox, preload only metadata
-      mainEl.innerHTML = `
+      gallMain.innerHTML = `
         <video id="cpMainVideo" class="gallery-video" controls preload="metadata" playsinline>
           <source src="${item.src}" type="video/mp4"/>
           Your browser does not support video playback.
-        </video>
-        ${navBtns}`;
+        </video>`;
     } else {
-      mainEl.innerHTML = `
-        <img src="${item.src}" alt="${esc(post.title)}" style="cursor:zoom-in" id="cpMainImg" loading="eager"/>
-        ${navBtns}`;
-      // Single click = lightbox (delayed), double click/tap = like the build
-      (function(){
-        const mainImg = el('cpMainImg'); if (!mainImg) return;
-        let t=null, lastTap=0;
-        function likeBuild(){
-          const wrapEl = mainImg.closest('.car-page-gallery-main') || mainImg.parentElement;
-          if (wrapEl) {
-            wrapEl.style.position = wrapEl.style.position || 'relative';
-            const h=document.createElement('div');
-            h.className='soc-heart-burst';
-            h.innerHTML='<i class="fas fa-heart"></i>';
-            wrapEl.appendChild(h);
-            setTimeout(()=>h.remove(),900);
-          }
-          if(!S.user){ toast('Sign in to like','err'); el('authModal').classList.add('open'); return; }
-          const post = S.openCarPost;
-          if (post && !(post.likedBy||[]).includes(S.user.username)) cpHandleLike();
-        }
-        mainImg.addEventListener('dblclick', e=>{
-          e.preventDefault();
-          if(t){clearTimeout(t);t=null;}
-          likeBuild();
-        });
-        mainImg.addEventListener('click', ()=>{
-          const now=Date.now();
-          if(now-lastTap<300){ lastTap=0; if(t){clearTimeout(t);t=null;} likeBuild(); return; }
-          lastTap=now;
-          if(t)clearTimeout(t);
-          t=setTimeout(()=>{t=null;openLightbox(imgs, idx);},260);
-        });
-      })();
+      gallMain.innerHTML = `<img src="${item.src}" alt="${esc(post.title)}" style="cursor:zoom-in" id="cpMainImg" loading="eager"/>`;
+      el('cpMainImg')?.addEventListener('click', () => openLightbox(imgs, imgs.indexOf(item.src)));
     }
-
+    // Photo count badge on main image (only if more than fits in grid)
     if (media.length > 1) {
-      el('cpGalPrev')?.addEventListener('click', e => { e.stopPropagation(); setMain((idx-1+media.length)%media.length); upStrip(); });
-      el('cpGalNext')?.addEventListener('click', e => { e.stopPropagation(); setMain((idx+1)%media.length); upStrip(); });
+      const badge = document.createElement('div');
+      badge.className = 'cp-gallery-count-badge';
+      badge.innerHTML = `<i class="fas fa-images"></i> ${idx+1} / ${media.length}`;
+      gallMain.appendChild(badge);
     }
-    upStrip();
+    updateGridActive();
   }
 
-  function upStrip() {
-    stripEl.querySelectorAll('.strip-thumb-wrap').forEach((t,i) => t.classList.toggle('active', i === curIdx));
+  function updateGridActive() {
+    gridEl.querySelectorAll('.cp-grid-thumb').forEach((t,i) => t.classList.toggle('active', i === curIdx));
   }
 
-  // Build strip — images get thumbnails, videos get a play icon tile
-  stripEl.innerHTML = media.map((item, i) => {
+  // Grid thumbnails — every image/video except the one currently in main
+  gridEl.innerHTML = media.map((item, i) => {
     if (item.type === 'video') {
-      return `<div class="strip-thumb-wrap video-thumb-wrap${i===0?' active':''}" data-i="${i}">
-        <i class="fas fa-play"></i>
+      return `<div class="cp-grid-thumb video-thumb${i===0?' active':''}" data-i="${i}">
+        <div class="cp-grid-thumb-play"><i class="fas fa-play"></i></div>
       </div>`;
     }
-    return `<div class="strip-thumb-wrap${i===0?' active':''}" data-i="${i}">
-      <img class="strip-thumb" src="${item.src}" alt="" loading="lazy"/>
+    return `<div class="cp-grid-thumb${i===0?' active':''}" data-i="${i}">
+      <img src="${item.src}" alt="" loading="lazy"/>
     </div>`;
   }).join('');
 
-  stripEl.querySelectorAll('.strip-thumb-wrap').forEach(t => t.addEventListener('click', () => setMain(+t.dataset.i)));
+  gridEl.querySelectorAll('.cp-grid-thumb').forEach(thumb => {
+    thumb.addEventListener('click', () => setMain(parseInt(thumb.dataset.i)));
+  });
+
+  // Global step function used by swipe gestures
+  window.cpGalStep = (dir) => {
+    const m = window._cpGalMedia || media;
+    setMain((curIdx + dir + m.length) % m.length);
+  };
+
   setMain(0);
 }
 
@@ -5597,7 +4624,7 @@ function renderComment(comment, allComments, depth) {
   const indent = depth > 0 ? 'style="margin-left:28px;border-left:2px solid var(--border);padding-left:14px;"' : '';
   return `<div class="cp-comment" data-cid="${comment.id}" ${indent}>
     <div class="cp-comment-head">
-      ${(()=>{const _cu=getAvatarUrl(comment.user);const _ring=hasActiveSpotStory(comment.user)?' has-story-ring':'';return _cu?`<div class="comment-av av-circle clickable-user has-photo${_ring}" data-user="${comment.user}"><img src="${_cu}" alt="" class="av-photo"/></div>`:`<div class="comment-av av-circle clickable-user${_ring}" data-user="${comment.user}" style="background:${avColor(comment.user)}">${comment.user[0].toUpperCase()}</div>`;})()} 
+      ${(()=>{const _cu=getAvatarUrl(comment.user);return _cu?`<div class="comment-av av-circle clickable-user has-photo" data-user="${comment.user}"><img src="${_cu}" alt="" class="av-photo"/></div>`:`<div class="comment-av av-circle clickable-user" data-user="${comment.user}" style="background:${avColor(comment.user)}">${comment.user[0].toUpperCase()}</div>`;})()} 
       <div class="cp-comment-meta">
         <b class="comment-author clickable-user" data-user="${comment.user}">${esc(comment.user)}</b>
         <span class="comment-time">${timeAgo(new Date(comment.date).getTime())}</span>
@@ -5827,22 +4854,6 @@ function cpRenderTimeline(post) {
 }
 
 // ─── DIRECT MESSAGES ──────────────────────────────────────────
-// DMs are stored in two places:
-//   1. localStorage (dl_dm_*): immediate, works offline, persists
-//      across sessions on the same device
-//   2. Supabase messages table: cross-device sync, realtime delivery
-//
-// The localStorage key for a conversation is always sorted so that
-// the same key is used regardless of who sent the first message:
-//   dl_dm_alice_bob (not dl_dm_bob_alice)
-//
-// When a realtime message arrives via setupRealtimeSubscriptions(),
-// it's written to localStorage AND rendered in the open conversation
-// if the user is currently looking at that thread.
-//
-// On mobile: the conversation list and chat panel are separate
-// "screens". msg-list-col.msg-hide-list hides the list to show
-// the chat, and #msgBackBtn returns to the list.
 function dmKey(user1, user2) {
   // Canonical key: alphabetically sorted so both users share same thread
   return [user1, user2].sort().join('::');
@@ -5987,12 +4998,6 @@ async function renderMessages() {
 
 async function openDmWith(username) {
   if (!S.user) { toast('Sign in to send messages','err'); return; }
-  if (S.blockedUsers.includes(username)) { toast('You have blocked this user','err'); return; }
-  const otherUserForBlockCheck = S.users.find(u => u.username === username);
-  if (otherUserForBlockCheck?.id && S.user?.id) {
-    const blocked = await DB.isBlockedEitherWay(S.user.id, otherUserForBlockCheck.id).catch(() => false);
-    if (blocked) { toast('You can\'t message this user','err'); return; }
-  }
   S.openDm = username;
   // Mark all messages from this user as read locally
   const msgs = loadDmThread(username);
@@ -6093,7 +5098,6 @@ function renderDmMessages(username) {
 async function sendDmMessage() {
   if (!S.user) { toast('Sign in to send messages','err'); return; }
   if (!S.openDm) return;
-  if (S.blockedUsers.includes(S.openDm)) { toast('You have blocked this user','err'); return; }
   const txt      = el('msgInput').value.trim();
   const fileInput= el('msgFileInput');
   const imgFile  = fileInput?.files[0];
@@ -6259,45 +5263,6 @@ function toggleReaction(post, rkey, containerId) {
 // ─── REPORT SYSTEM ─────────────────────────────────════════════
 // ═══════════════════════════════════════════════════════════════
 let _reportTarget = { type: null, id: null };
-
-// ─── FOLLOWERS / FOLLOWING LIST ─────────────────────────────────
-function initFollowListModal() {
-  el('followListClose')?.addEventListener('click', closeFollowList);
-  el('followListModal')?.addEventListener('click', e => { if (e.target === el('followListModal')) closeFollowList(); });
-}
-function closeFollowList() {
-  el('followListModal')?.classList.remove('open');
-  document.body.style.overflow = '';
-}
-async function openFollowList(userId, type) {
-  const modal = el('followListModal');
-  const body = el('followListBody');
-  const title = el('followListTitle');
-  if (!modal || !body) return;
-  title.textContent = type === 'followers' ? 'Followers' : 'Following';
-  body.innerHTML = '<div class="follow-list-empty"><i class="fas fa-spinner fa-spin"></i><br>Loading…</div>';
-  modal.classList.add('open');
-  document.body.style.overflow = 'hidden';
-
-  const list = type === 'followers'
-    ? await DB.getFollowersList(userId).catch(() => [])
-    : await DB.getFollowingList(userId).catch(() => []);
-
-  if (!list.length) {
-    body.innerHTML = `<div class="follow-list-empty"><i class="fas fa-user-friends"></i>${type === 'followers' ? 'No followers yet.' : 'Not following anyone yet.'}</div>`;
-    return;
-  }
-  body.innerHTML = list.map(u => `
-    <div class="follow-list-item" data-user="${esc(u.username)}">
-      ${u.avatarUrl
-        ? `<img src="${u.avatarUrl}" class="follow-list-av" alt=""/>`
-        : `<div class="follow-list-av" style="background:${avColor(u.username)}">${u.username[0].toUpperCase()}</div>`}
-      <div class="follow-list-info"><div class="follow-list-name">${esc(u.username)}</div></div>
-    </div>`).join('');
-  body.querySelectorAll('.follow-list-item').forEach(item => {
-    item.addEventListener('click', () => { closeFollowList(); viewPublicProfile(item.dataset.user); });
-  });
-}
 
 function initReport() {
   const closeBtn = el('reportClose');
@@ -6510,714 +5475,6 @@ function initInfiniteScroll() {
 // ═══════════════════════════════════════════════════════════════
 // ─── COMPARE BUILDS ────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════════
-// ─── DISCUSSIONS (Reddit-style board) ──────────────────────────
-// The HTML/CSS/DB-layer/migration for this were already fully built —
-// this is the missing piece that actually renders and wires it up.
-// ═══════════════════════════════════════════════════════════════
-const DISC_PAGE_SIZE = 15;
-let discPage = 0;
-let discCategory = '';   // '' = All
-let discSort = 'hot';
-let discSearchQ = '';
-
-function dbDiscussionToApp(row) {
-  if (!row) return null;
-  return {
-    id:        row.id,
-    user:      row.username || '',
-    user_id:   row.user_id  || null,
-    title:     row.title    || '',
-    body:      row.body     || '',
-    category:  row.category || 'General',
-    imageUrl:  row.image_url|| null,
-    upvotes:   row.upvotes  || [],
-    downvotes: row.downvotes|| [],
-    comments:  row.comments || [],
-    pinned:    row.pinned   || false,
-    ts:        row.ts || (row.created_at ? new Date(row.created_at).getTime() : Date.now()),
-  };
-}
-
-// Merges Supabase discussions with any local-only fallbacks, then applies
-// the active category/search/sort — same resilience pattern as Car Spotting.
-function getDiscussions() {
-  const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]').map(dbDiscussionToApp).filter(Boolean);
-  const source = S._discussions?.length ? S._discussions : local;
-  let all = [...source];
-  if (discCategory) all = all.filter(d => d.category === discCategory);
-  if (discSearchQ) {
-    const q = discSearchQ.toLowerCase();
-    all = all.filter(d => d.title.toLowerCase().includes(q) || d.body.toLowerCase().includes(q));
-  }
-  return all.sort((a,b) => {
-    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1; // pinned always first
-    const scoreA = (a.upvotes||[]).length - (a.downvotes||[]).length;
-    const scoreB = (b.upvotes||[]).length - (b.downvotes||[]).length;
-    if (discSort === 'new') return b.ts - a.ts;
-    if (discSort === 'top') return scoreB - scoreA;
-    // "Hot" — classic Reddit-style decay: score matters less as a post ages
-    const hoursA = (Date.now()-a.ts)/3600000, hoursB = (Date.now()-b.ts)/3600000;
-    return (scoreB / Math.pow(hoursB+2, 1.5)) - (scoreA / Math.pow(hoursA+2, 1.5));
-  });
-}
-
-function initDiscussions() {
-  const newBtn = el('newDiscussionBtn');
-  newBtn?.addEventListener('click', () => {
-    if (!S.user) { toast('Sign in to start a discussion','err'); el('authModal').classList.add('open'); return; }
-    el('discComposerModal').classList.add('open');
-    document.body.style.overflow = 'hidden';
-    el('discTitleInput')?.focus();
-  });
-  el('discComposerClose')?.addEventListener('click', closeDiscComposer);
-  el('discComposerModal')?.addEventListener('click', e => { if (e.target === el('discComposerModal')) closeDiscComposer(); });
-  el('discTitleInput')?.addEventListener('input', e => { el('discTitleCount').textContent = e.target.value.length + ' / 150'; });
-  el('discBodyInput')?.addEventListener('input', e => { el('discBodyCount').textContent = e.target.value.length + ' / 5000'; });
-  el('discSubmitBtn')?.addEventListener('click', submitDiscussion);
-
-  // Category pills — single-select, like a subreddit switcher
-  document.querySelectorAll('.disc-cat-pill').forEach(p => p.addEventListener('click', () => {
-    document.querySelectorAll('.disc-cat-pill').forEach(x=>x.classList.remove('active'));
-    p.classList.add('active');
-    discCategory = p.dataset.dcat;
-    renderDiscussions(true);
-  }));
-
-  // Sort tabs
-  document.querySelectorAll('.disc-sort-tabs .sort-btn[data-dsort]').forEach(b => b.addEventListener('click', () => {
-    document.querySelectorAll('.disc-sort-tabs .sort-btn[data-dsort]').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active');
-    discSort = b.dataset.dsort;
-    renderDiscussions(true);
-  }));
-
-  // Search (debounced)
-  let discSearchTimer;
-  el('discSearchInput')?.addEventListener('input', e => {
-    clearTimeout(discSearchTimer);
-    discSearchTimer = setTimeout(() => { discSearchQ = e.target.value.trim(); renderDiscussions(true); }, 250);
-  });
-
-  // Detail modal close
-  el('discDetailClose')?.addEventListener('click', closeDiscDetail);
-  el('discDetailModal')?.addEventListener('click', e => { if (e.target === el('discDetailModal')) closeDiscDetail(); });
-
-  // Infinite scroll
-  const sentinel = el('discSentinel');
-  if (sentinel) {
-    const obs = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) { discPage++; renderDiscussions(); }
-    }, { rootMargin: '200px' });
-    obs.observe(sentinel);
-  }
-}
-
-function closeDiscComposer() {
-  el('discComposerModal').classList.remove('open');
-  document.body.style.overflow = '';
-  el('discTitleInput').value = ''; el('discBodyInput').value = '';
-  el('discTitleCount').textContent = '0 / 150'; el('discBodyCount').textContent = '0 / 5000';
-}
-function closeDiscDetail() {
-  el('discDetailModal').classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-function renderDiscussions(reset) {
-  if (reset) discPage = 0;
-  const wrap = el('discList'); if (!wrap) return;
-
-  // Paint whatever's already in memory instantly
-  const cached = getDiscussions();
-  if (cached.length) {
-    wrap.innerHTML = cached.slice(0, (discPage+1)*DISC_PAGE_SIZE).map(discussionRowHTML).join('');
-    bindDiscussionListEvents(wrap);
-  } else if (reset) {
-    wrap.innerHTML = '';
-  }
-
-  DB.getDiscussions({ limit: DISC_PAGE_SIZE*(discPage+1)+1 }).then(rows => {
-    const sbDiscussions = (rows||[]).map(dbDiscussionToApp).filter(Boolean);
-    const localOnly = JSON.parse(localStorage.getItem('dl_discussions')||'[]').map(dbDiscussionToApp).filter(Boolean);
-    const merged = [...sbDiscussions];
-    localOnly.forEach(ld => { if (!merged.find(sd => sd.id === ld.id)) merged.push(ld); });
-    S._discussions = merged;
-
-    if (!merged.length) {
-      wrap.innerHTML = `<div class="disc-empty">
-        <i class="fas fa-comments"></i>
-        <h3>No discussions yet</h3>
-        <p>${S.user ? 'Be the first to start one — use the button up top.' : 'Sign in to start one.'}</p>
-      </div>`;
-      return;
-    }
-    const visible = getDiscussions().slice(0, (discPage+1)*DISC_PAGE_SIZE);
-    if (!visible.length) {
-      wrap.innerHTML = `<div class="disc-empty"><i class="fas fa-filter"></i><h3>No matches</h3><p>Nothing here matches your filters yet.</p></div>`;
-      return;
-    }
-    wrap.innerHTML = visible.map(discussionRowHTML).join('');
-    bindDiscussionListEvents(wrap);
-  }).catch(err => {
-    console.warn('Discussions fetch failed (table may not exist yet):', err?.message||err);
-    if (!cached.length) {
-      wrap.innerHTML = `<div class="disc-empty">
-        <i class="fas fa-comments"></i>
-        <h3>Discussions</h3>
-        <p>Run <b>discussions_migration.sql</b> in Supabase to enable cross-device discussions.</p>
-      </div>`;
-    }
-  });
-}
-
-function discAvatarHTML(username, cls, size) {
-  const url = getAvatarUrl(username);
-  const ring = hasActiveSpotStory(username) ? ' has-story-ring' : '';
-  const sizeStyle = size ? `width:${size}px;height:${size}px;` : '';
-  return url
-    ? `<img src="${url}" class="${cls}${ring} clickable-user" data-user="${esc(username)}" alt="" style="${sizeStyle}overflow:${ring?'visible':'hidden'}"/>`
-    : `<div class="${cls}${ring} clickable-user" data-user="${esc(username)}" style="${sizeStyle}background:${avColor(username)};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;overflow:${ring?'visible':'hidden'}">${(username||'?')[0].toUpperCase()}</div>`;
-}
-
-function discussionRowHTML(d) {
-  const myVote = S.user && (d.upvotes||[]).includes(S.user.username) ? 'up' : (S.user && (d.downvotes||[]).includes(S.user.username) ? 'down' : '');
-  const score = (d.upvotes||[]).length - (d.downvotes||[]).length;
-  const preview = (d.body||'').length > 180 ? d.body.slice(0,180)+'…' : (d.body||'');
-  return `<div class="disc-item" data-id="${d.id}">
-    <div class="disc-vote-col">
-      <button class="disc-vote-btn disc-up${myVote==='up'?' active':''}" data-id="${d.id}" data-dir="up"><i class="fas fa-arrow-up"></i></button>
-      <span class="disc-vote-count">${score}</span>
-      <button class="disc-vote-btn disc-down${myVote==='down'?' active':''}" data-id="${d.id}" data-dir="down"><i class="fas fa-arrow-down"></i></button>
-    </div>
-    <div class="disc-row-content">
-      <div class="disc-row-meta">
-        <span class="disc-cat-badge">${esc(d.category)}</span>
-        ${discAvatarHTML(d.user, 'disc-row-meta-av')}
-        <span class="disc-row-meta-user clickable-user" data-user="${esc(d.user)}">${esc(d.user)}</span>
-        <span class="disc-row-meta-time">${timeAgo(d.ts)}</span>
-      </div>
-      <h3 class="disc-row-title">${esc(d.title)}</h3>
-      ${preview ? `<p class="disc-row-preview">${esc(preview)}</p>` : ''}
-      <div class="disc-row-footer">
-        <span class="disc-comment-count"><i class="fas fa-comment"></i> ${(d.comments||[]).length}</span>
-        ${d.pinned ? '<span class="disc-pin-badge"><i class="fas fa-thumbtack"></i> Pinned</span>' : ''}
-      </div>
-    </div>
-  </div>`;
-}
-
-function bindDiscussionListEvents(wrap) {
-  wrap.querySelectorAll('.disc-vote-btn').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      if (!S.user) { toast('Sign in to vote','err'); el('authModal').classList.add('open'); return; }
-      toggleDiscussionVote(btn.dataset.id, btn.dataset.dir);
-    });
-  });
-  wrap.querySelectorAll('.disc-item').forEach(item => {
-    item.addEventListener('click', () => openDiscussionDetail(item.dataset.id));
-  });
-  wrap.querySelectorAll('.clickable-user').forEach(el2 => {
-    el2.addEventListener('click', e => { e.stopPropagation(); viewPublicProfile(el2.dataset.user); });
-  });
-}
-
-function findDiscussion(id) {
-  return (S._discussions||[]).find(x=>x.id===id) || getDiscussions().find(x=>x.id===id);
-}
-
-function toggleDiscussionVote(id, dir) {
-  const d = findDiscussion(id); if (!d) return;
-  const uname = S.user.username;
-  let up = d.upvotes||[], down = d.downvotes||[];
-  if (dir==='up') { down = down.filter(u=>u!==uname); up = up.includes(uname) ? up.filter(u=>u!==uname) : [...up, uname]; }
-  else            { up   = up.filter(u=>u!==uname);   down = down.includes(uname) ? down.filter(u=>u!==uname) : [...down, uname]; }
-  // findDiscussion() returns the live object straight out of S._discussions
-  // when it's there (the common case) — assigning to `d` already updates
-  // that shared object, so there is nothing further to mutate here.
-  d.upvotes = up; d.downvotes = down;
-  const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]');
-  const li = local.findIndex(x=>x.id===id);
-  if (li>=0) { local[li].upvotes=up; local[li].downvotes=down; localStorage.setItem('dl_discussions', JSON.stringify(local)); }
-  DB.toggleDiscussionVote(id, uname, dir).catch(()=>{});
-  refreshVoteUI(id, up, down, uname);
-}
-
-function refreshVoteUI(id, up, down, uname) {
-  const score = up.length - down.length;
-  document.querySelectorAll(`.disc-item[data-id="${id}"] .disc-vote-count, .disc-detail-votes[data-id="${id}"] .disc-vote-count`)
-    .forEach(node => node.textContent = score);
-  document.querySelectorAll(`.disc-vote-btn[data-id="${id}"]`).forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.dir==='up' ? up.includes(uname) : down.includes(uname));
-  });
-}
-
-function openDiscussionDetail(id) {
-  const d = findDiscussion(id); if (!d) return;
-  const content = el('discDetailContent');
-  const modal = el('discDetailModal');
-  if (!content || !modal) return;
-  content.innerHTML = discussionDetailHTML(d);
-  bindDiscussionDetailEvents(content, d);
-  modal.classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-
-function discussionDetailHTML(d) {
-  const isOwn = S.user && (d.user === S.user.username || (d.user_id && d.user_id === S.user.id));
-  const canDelete = isOwn || S.user?.isAdmin;
-  const myVote = S.user && (d.upvotes||[]).includes(S.user.username) ? 'up' : (S.user && (d.downvotes||[]).includes(S.user.username) ? 'down' : '');
-  const score = (d.upvotes||[]).length - (d.downvotes||[]).length;
-  const commentCount = (d.comments||[]).length;
-
-  return `
-    <div class="disc-detail-header">
-      <span class="disc-cat-badge">${esc(d.category)}</span>
-      <span class="disc-detail-time">${timeAgo(d.ts)}</span>
-      ${canDelete ? `<button class="disc-detail-del" data-id="${d.id}"><i class="fas fa-trash-alt"></i> Delete</button>` : ''}
-    </div>
-    <h2 class="disc-detail-title">${esc(d.title)}</h2>
-    <div class="disc-detail-author">
-      ${discAvatarHTML(d.user, 'disc-detail-author-av')}
-      <span class="disc-detail-author-name clickable-user" data-user="${esc(d.user)}">${esc(d.user)}</span>
-    </div>
-    ${d.body ? `<div class="disc-detail-body">${esc(d.body)}</div>` : ''}
-    <div class="disc-detail-votes" data-id="${d.id}">
-      <button class="disc-vote-btn disc-up${myVote==='up'?' active':''}" data-id="${d.id}" data-dir="up"><i class="fas fa-arrow-up"></i></button>
-      <span class="disc-vote-count">${score}</span>
-      <button class="disc-vote-btn disc-down${myVote==='down'?' active':''}" data-id="${d.id}" data-dir="down"><i class="fas fa-arrow-down"></i></button>
-    </div>
-    ${S.user ? `<div class="disc-comment-composer">
-      ${renderAv(S.user.username, 32, 'disc-comment-composer-av')}
-      <div class="disc-comment-composer-body">
-        <textarea rows="2" placeholder="What are your thoughts?" id="discNewCommentInput" maxlength="2000"></textarea>
-        <button class="disc-comment-submit" id="discNewCommentSubmit">Comment</button>
-      </div>
-    </div>` : `<p class="disc-comment-signin">Sign in to comment</p>`}
-    <div class="disc-comments-heading">${commentCount} Comment${commentCount===1?'':'s'}</div>
-    <div class="disc-comments-list" id="discCommentsList-${d.id}">${renderCommentTree(d.comments||[], null)}</div>
-  `;
-}
-
-// Recursively renders a comment thread — comments reference their parent
-// via parentId, so arbitrary reply depth "just works" the same way
-// Reddit's does, each level nesting inside .disc-replies.
-function renderCommentTree(comments, parentId) {
-  const children = comments.filter(c => (c.parentId||null) === parentId);
-  if (!children.length) return parentId === null ? '<p class="disc-no-comments">No comments yet — start the conversation.</p>' : '';
-  return children.map(c => commentHTML(c, comments)).join('');
-}
-
-function commentHTML(c, allComments) {
-  const myVote = S.user && (c.upvotes||[]).includes(S.user.username) ? 'up' : (S.user && (c.downvotes||[]).includes(S.user.username) ? 'down' : '');
-  const score = (c.upvotes||[]).length - (c.downvotes||[]).length;
-  const canDelete = S.user && (S.user.username===c.user || S.user.isAdmin) && c.user !== '[deleted]';
-  const childrenHTML = renderCommentTree(allComments, c.id);
-  return `<div class="disc-comment" data-cid="${c.id}">
-    <div class="disc-comment-vote">
-      <button class="disc-vote-btn disc-up${myVote==='up'?' active':''}" data-cid="${c.id}" data-dir="up"><i class="fas fa-arrow-up"></i></button>
-      <span class="disc-vote-count">${score}</span>
-      <button class="disc-vote-btn disc-down${myVote==='down'?' active':''}" data-cid="${c.id}" data-dir="down"><i class="fas fa-arrow-down"></i></button>
-    </div>
-    <div class="disc-comment-body-wrap">
-      <div class="disc-comment-meta">
-        ${discAvatarHTML(c.user, 'disc-comment-av')}
-        <span class="disc-comment-author clickable-user" data-user="${esc(c.user)}">${esc(c.user)}</span>
-        <span class="disc-comment-time">${timeAgo(c.ts)}</span>
-      </div>
-      <div class="disc-comment-text">${esc(c.text)}</div>
-      <div class="disc-comment-actions">
-        ${S.user && c.user !== '[deleted]' ? `<button class="disc-reply-btn" data-cid="${c.id}">Reply</button>` : ''}
-        ${canDelete ? `<button class="disc-comment-del-btn" data-cid="${c.id}">Delete</button>` : ''}
-      </div>
-      ${S.user ? `<div class="disc-reply-composer" id="discReplyComposer-${c.id}">
-        ${renderAv(S.user.username, 24, '')}
-        <input type="text" placeholder="Reply…" data-parent="${c.id}" maxlength="2000"/>
-        <button class="disc-reply-send" data-parent="${c.id}"><i class="fas fa-paper-plane"></i></button>
-      </div>` : ''}
-      ${childrenHTML ? `<div class="disc-replies">${childrenHTML}</div>` : ''}
-    </div>
-  </div>`;
-}
-
-function bindDiscussionDetailEvents(content, d) {
-  // Top-level elements — the discussion's own vote buttons, the delete
-  // button, the author name, and the new-comment composer. None of these
-  // live inside the comments list that refreshDiscussionCommentsUI()
-  // rebuilds, so they must only ever be bound ONCE per modal open.
-  // (Previously this whole function — including these bindings — was
-  // re-run every time a comment was posted or voted on, which stacked a
-  // fresh duplicate listener onto every one of these elements each time:
-  // clicking the discussion's upvote would fire the toggle twice in the
-  // same click and cancel itself out, and the comment submit button would
-  // fire twice per click, posting the same comment twice.)
-  content.querySelectorAll('.disc-detail-votes .disc-vote-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (!S.user) { toast('Sign in to vote','err'); el('authModal').classList.add('open'); return; }
-      toggleDiscussionVote(btn.dataset.id, btn.dataset.dir);
-    });
-  });
-  content.querySelector('.disc-detail-del')?.addEventListener('click', () => deleteDiscussionFromDetail(d.id));
-  content.querySelectorAll('.disc-detail-author .clickable-user').forEach(el2 => {
-    el2.addEventListener('click', () => viewPublicProfile(el2.dataset.user));
-  });
-  el('discNewCommentSubmit')?.addEventListener('click', () => sendDiscussionComment(d.id, content));
-  el('discNewCommentInput')?.addEventListener('keydown', e => {
-    if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendDiscussionComment(d.id, content); }
-  });
-
-  // Comment-tree elements — safe to (re)bind every time, since the list
-  // they live in is fully replaced (fresh DOM nodes) on every re-render.
-  bindDiscussionCommentEvents(content, d);
-}
-
-// Binds vote/reply/delete/profile-link handlers for everything inside the
-// comments list only. Called once on initial open (via
-// bindDiscussionDetailEvents above) and again every time the list is
-// re-rendered — safe to call repeatedly because renderCommentTree() always
-// produces brand-new DOM nodes, so there's nothing stale to double-bind.
-function bindDiscussionCommentEvents(content, d) {
-  const listEl = content.querySelector(`#discCommentsList-${d.id}`);
-  if (!listEl) return;
-  listEl.querySelectorAll('.disc-vote-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (!S.user) { toast('Sign in to vote','err'); el('authModal').classList.add('open'); return; }
-      toggleCommentVote(d.id, btn.dataset.cid, btn.dataset.dir, content);
-    });
-  });
-  listEl.querySelectorAll('.disc-reply-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const composer = el('discReplyComposer-'+btn.dataset.cid);
-      composer?.classList.toggle('open');
-      if (composer?.classList.contains('open')) composer.querySelector('input')?.focus();
-    });
-  });
-  listEl.querySelectorAll('.disc-reply-send').forEach(btn => {
-    btn.addEventListener('click', () => sendDiscussionReply(d.id, btn.dataset.parent, content));
-  });
-  listEl.querySelectorAll('.disc-reply-composer input').forEach(input => {
-    input.addEventListener('keydown', e => { if (e.key==='Enter') sendDiscussionReply(d.id, input.dataset.parent, content); });
-  });
-  listEl.querySelectorAll('.disc-comment-del-btn').forEach(btn => {
-    btn.addEventListener('click', () => deleteDiscussionComment(d.id, btn.dataset.cid, content));
-  });
-  listEl.querySelectorAll('.clickable-user').forEach(el2 => {
-    el2.addEventListener('click', () => viewPublicProfile(el2.dataset.user));
-  });
-}
-
-function addDiscussionCommentToStores(discussionId, comment) {
-  // findDiscussion() checks S._discussions FIRST, so `d` here IS the same
-  // object living in S._discussions whenever that discussion is cached
-  // there (virtually always). A second "if (S._discussions) {...}" lookup
-  // used to re-find that identical object and push the same comment onto
-  // it a second time — that's what was causing every comment to post
-  // twice. Mutating `d` once is sufficient.
-  const d = findDiscussion(discussionId);
-  if (d) d.comments = [...(d.comments||[]), comment];
-  const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]');
-  const li = local.findIndex(x=>x.id===discussionId);
-  if (li>=0) { local[li].comments = [...(local[li].comments||[]), comment]; localStorage.setItem('dl_discussions', JSON.stringify(local)); }
-  DB.addDiscussionComment(discussionId, comment).catch(()=>{});
-}
-
-function refreshDiscussionCommentsUI(discussionId, content) {
-  const d = findDiscussion(discussionId); if (!d) return;
-  const listEl = content.querySelector(`#discCommentsList-${discussionId}`);
-  if (listEl) listEl.innerHTML = renderCommentTree(d.comments||[], null);
-  const heading = content.querySelector('.disc-comments-heading');
-  if (heading) heading.textContent = `${(d.comments||[]).length} Comment${(d.comments||[]).length===1?'':'s'}`;
-  bindDiscussionCommentEvents(content, d);
-  document.querySelectorAll(`.disc-item[data-id="${discussionId}"] .disc-comment-count`).forEach(node => {
-    node.innerHTML = `<i class="fas fa-comment"></i> ${(d.comments||[]).length}`;
-  });
-}
-
-function notifyDiscussionOwner(discussionId, comment, isReply) {
-  const d = findDiscussion(discussionId);
-  if (!d || !d.user_id || d.user === S.user.username) return;
-  const preview = comment.text.length > 40 ? comment.text.slice(0,40)+'…' : comment.text;
-  DB.pushNotification(d.user_id, 'comment', S.user.username, (isReply?'replied: "':'commented: "')+preview+'"', 'page:discussions').catch(()=>{});
-}
-
-function sendDiscussionComment(discussionId, content) {
-  const input = el('discNewCommentInput');
-  const text = input.value.trim();
-  if (!text) return;
-  if (!S.user) { toast('Sign in to comment','err'); return; }
-  const comment = { id:'c'+Date.now()+Math.random().toString(36).slice(2,7), user:S.user.username, text, ts:Date.now(), upvotes:[], downvotes:[], parentId:null };
-  input.value = '';
-  addDiscussionCommentToStores(discussionId, comment);
-  refreshDiscussionCommentsUI(discussionId, content);
-  notifyDiscussionOwner(discussionId, comment, false);
-}
-
-function sendDiscussionReply(discussionId, parentId, content) {
-  const input = content.querySelector(`.disc-reply-composer input[data-parent="${parentId}"]`);
-  if (!input) return;
-  const text = input.value.trim();
-  if (!text) return;
-  if (!S.user) { toast('Sign in to reply','err'); return; }
-  const comment = { id:'c'+Date.now()+Math.random().toString(36).slice(2,7), user:S.user.username, text, ts:Date.now(), upvotes:[], downvotes:[], parentId };
-  input.value = '';
-  addDiscussionCommentToStores(discussionId, comment);
-  refreshDiscussionCommentsUI(discussionId, content);
-  notifyDiscussionOwner(discussionId, comment, true);
-}
-
-function toggleCommentVote(discussionId, commentId, dir, content) {
-  const d = findDiscussion(discussionId); if (!d) return;
-  const uname = S.user.username;
-  const applyVote = c => {
-    if (c.id !== commentId) return c;
-    let up = c.upvotes||[], down = c.downvotes||[];
-    if (dir==='up') { down = down.filter(u=>u!==uname); up = up.includes(uname)?up.filter(u=>u!==uname):[...up,uname]; }
-    else            { up   = up.filter(u=>u!==uname);   down = down.includes(uname)?down.filter(u=>u!==uname):[...down,uname]; }
-    return { ...c, upvotes:up, downvotes:down };
-  };
-  // Same shared-object issue as addDiscussionCommentToStores() — applying
-  // this toggle a second time to the identical object flipped the vote
-  // right back off, which is why votes on comments looked like they
-  // silently did nothing.
-  d.comments = (d.comments||[]).map(applyVote);
-  const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]');
-  const li = local.findIndex(x=>x.id===discussionId);
-  if (li>=0) { local[li].comments = d.comments; localStorage.setItem('dl_discussions', JSON.stringify(local)); }
-  DB.toggleDiscussionCommentVote(discussionId, commentId, uname, dir).catch(()=>{});
-  refreshDiscussionCommentsUI(discussionId, content);
-}
-
-function deleteDiscussionComment(discussionId, commentId, content) {
-  if (!confirm('Delete this comment? Replies to it will remain.')) return;
-  const d = findDiscussion(discussionId); if (!d) return;
-  // Soft-delete — keeps the node so any replies underneath don't orphan,
-  // same "[deleted]" convention Reddit itself uses.
-  const softDelete = c => c.id===commentId ? { ...c, text:'[deleted]', user:'[deleted]' } : c;
-  d.comments = (d.comments||[]).map(softDelete);
-  const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]');
-  const li = local.findIndex(x=>x.id===discussionId);
-  if (li>=0) { local[li].comments = d.comments; localStorage.setItem('dl_discussions', JSON.stringify(local)); }
-  DB.setDiscussionComments(discussionId, d.comments).catch(()=>{});
-  refreshDiscussionCommentsUI(discussionId, content);
-  toast('Comment deleted','ok');
-}
-
-function deleteDiscussionFromDetail(id) {
-  if (!confirm('Delete this discussion? This cannot be undone.')) return;
-  const d = findDiscussion(id);
-  const isMine = d && S.user && (d.user===S.user.username || d.user_id===S.user.id);
-  Promise.resolve((!isMine && S.user?.isAdmin) ? DB.adminDeleteDiscussion(id) : DB.deleteDiscussion(id, S.user?.id))
-    .catch(()=>{})
-    .finally(() => {
-      S._discussions = (S._discussions||[]).filter(x=>x.id!==id);
-      const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]').filter(x=>x.id!==id);
-      localStorage.setItem('dl_discussions', JSON.stringify(local));
-      closeDiscDetail();
-      toast('Discussion deleted','ok');
-      renderDiscussions(true);
-    });
-}
-
-async function submitDiscussion() {
-  if (!S.user) { toast('Sign in to post','err'); return; }
-  const category = el('discCatSelect')?.value || 'General';
-  const title = el('discTitleInput')?.value.trim() || '';
-  const body  = el('discBodyInput')?.value.trim() || '';
-  if (!title) { toast('Give your discussion a title','err'); return; }
-
-  const btn = el('discSubmitBtn');
-  const originalHTML = btn.innerHTML;
-  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Posting…';
-
-  let finalId = 'd'+Date.now(), finalTs = Date.now();
-  try {
-    const { data, error } = await DB.createDiscussion(S.user.id, S.user.username, { title, body, category });
-    if (error) throw error;
-    if (data) { finalId = data.id; finalTs = data.created_at ? new Date(data.created_at).getTime() : Date.now(); }
-  } catch(e) {
-    console.warn('Discussion create failed, saving locally:', e?.message||e);
-    const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]');
-    local.unshift({ id:finalId, username:S.user.username, user_id:S.user.id, title, body, category, upvotes:[], downvotes:[], comments:[], pinned:false, created_at:new Date().toISOString() });
-    localStorage.setItem('dl_discussions', JSON.stringify(local));
-  }
-
-  S._discussions = [dbDiscussionToApp({ id:finalId, username:S.user.username, user_id:S.user.id, title, body, category, upvotes:[], downvotes:[], comments:[], pinned:false, ts:finalTs }), ...(S._discussions||[])];
-
-  btn.disabled = false; btn.innerHTML = originalHTML;
-  closeDiscComposer();
-  toast('Discussion posted ✓','ok');
-  discCategory=''; discSort='hot'; discSearchQ='';
-  const searchInput = el('discSearchInput'); if (searchInput) searchInput.value = '';
-  document.querySelectorAll('.disc-cat-pill').forEach(p=>p.classList.toggle('active', p.dataset.dcat===''));
-  document.querySelectorAll('.disc-sort-tabs .sort-btn[data-dsort]').forEach(p=>p.classList.toggle('active', p.dataset.dsort==='hot'));
-  renderDiscussions(true);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// ─── SPOTTING MAP — world map of Car Spotting post locations ───
-// Original, self-contained SVG world map (simplified continent
-// silhouettes, not precise cartography) — avoids depending on any
-// external mapping API or paid service. Pins are placed using real
-// equirectangular projection math against each post's actual lat/lng,
-// captured opt-in at post time via the browser's Geolocation API.
-// ═══════════════════════════════════════════════════════════════
-
-// Converts real coordinates to x/y in the map's 1000×500 viewBox.
-function projectLatLng(lat, lng) {
-  return { x: (lng+180)/360*1000, y: (90-lat)/180*500 };
-}
-
-// Static background — ocean, graticule (lat/long grid), and simplified
-// continent shapes. Shared by the sidebar teaser and the full map modal.
-function worldMapStaticSvg() {
-  const graticule = [];
-  for (let lng=-180; lng<=180; lng+=30) { const x=(lng+180)/360*1000; graticule.push(`<line class="wm-grat" x1="${x}" y1="0" x2="${x}" y2="500"/>`); }
-  for (let lat=-60; lat<=60; lat+=30) { const y=(90-lat)/180*500; graticule.push(`<line class="wm-grat" x1="0" y1="${y}" x2="1000" y2="${y}"/>`); }
-  return `<rect class="wm-ocean" x="0" y="0" width="1000" height="500"/>
-    ${graticule.join('')}
-    <polygon class="wm-land" data-continent="north-america" points="41.7,61.1 111.1,55.6 166.7,50.0 236.1,61.1 277.8,69.4 319.4,83.3 347.2,111.1 333.3,125.0 305.6,133.3 291.7,152.8 277.8,180.6 263.9,194.4 250.0,208.3 236.1,211.1 222.2,205.6 208.3,194.4 194.4,180.6 180.6,166.7 166.7,152.8 155.6,138.9 152.8,116.7 138.9,97.2 111.1,88.9 69.4,83.3 41.7,69.4"/>
-    <polygon class="wm-land" data-continent="south-america" points="277.8,222.2 291.7,236.1 305.6,250.0 305.6,277.8 305.6,300.0 300.0,319.4 305.6,347.2 319.4,375.0 311.1,394.4 300.0,400.0 311.1,388.9 327.8,361.1 338.9,347.2 347.2,319.4 366.7,305.6 388.9,277.8 402.8,263.9 388.9,250.0 361.1,236.1 333.3,227.8 305.6,222.2 277.8,222.2"/>
-    <polygon class="wm-land" data-continent="europe" points="472.2,130.6 477.8,116.7 486.1,105.6 500.0,108.3 513.9,105.6 527.8,100.0 541.7,97.2 555.6,94.4 569.4,88.9 583.3,83.3 597.2,77.8 611.1,83.3 611.1,111.1 597.2,125.0 583.3,133.3 569.4,138.9 555.6,138.9 541.7,144.4 527.8,144.4 513.9,138.9 500.0,133.3 486.1,130.6 472.2,130.6"/>
-    <polygon class="wm-land" data-continent="africa" points="452.8,208.3 458.3,194.4 466.7,180.6 486.1,166.7 500.0,161.1 527.8,158.3 555.6,161.1 583.3,163.9 591.7,180.6 597.2,208.3 611.1,222.2 625.0,236.1 633.3,250.0 625.0,277.8 611.1,305.6 597.2,327.8 583.3,338.9 569.4,341.7 555.6,338.9 550.0,327.8 541.7,311.1 533.3,291.7 527.8,263.9 522.2,236.1 486.1,227.8 472.2,222.2 458.3,216.7 452.8,208.3"/>
-    <polygon class="wm-land" data-continent="asia" points="597.2,133.3 611.1,125.0 638.9,116.7 666.7,105.6 694.4,97.2 722.2,88.9 750.0,83.3 777.8,77.8 805.6,83.3 833.3,97.2 861.1,111.1 875.0,125.0 888.9,125.0 894.4,138.9 888.9,152.8 861.1,161.1 838.9,166.7 827.8,180.6 805.6,194.4 791.7,222.2 777.8,236.1 763.9,250.0 772.2,236.1 783.3,222.2 791.7,208.3 763.9,194.4 750.0,188.9 736.1,194.4 722.2,208.3 708.3,222.2 694.4,227.8 680.6,222.2 666.7,208.3 661.1,194.4 652.8,180.6 638.9,172.2 625.0,166.7 611.1,152.8 597.2,144.4 583.3,152.8 577.8,144.4 588.9,138.9 597.2,133.3"/>
-    <polygon class="wm-land" data-continent="australia" points="813.9,311.1 819.4,305.6 833.3,300.0 847.2,291.7 861.1,283.3 875.0,283.3 888.9,291.7 902.8,294.4 911.1,305.6 916.7,319.4 925.0,327.8 916.7,341.7 911.1,355.6 902.8,355.6 888.9,355.6 883.3,347.2 875.0,338.9 861.1,338.9 847.2,341.7 833.3,344.4 819.4,338.9 813.9,327.8 813.9,311.1"/>`;
-}
-
-function initSpotMap() {
-  const svg = el('spotMapSvg');
-  if (svg) svg.innerHTML = worldMapStaticSvg();
-  const mini = el('spotMapMiniSvg');
-  if (mini) mini.innerHTML = worldMapStaticSvg();
-
-  el('spotMapOpenBtn')?.addEventListener('click', openSpotMap);
-  el('spotMapTeaserBtn')?.addEventListener('click', e => {
-    // Clicking anywhere on the teaser card opens the map, not just the button
-    if (!e.target.closest('a')) openSpotMap();
-  });
-  el('spotMapClose')?.addEventListener('click', closeSpotMap);
-  el('spotMapModal')?.addEventListener('click', e => { if (e.target === el('spotMapModal')) closeSpotMap(); });
-
-  renderSpotMapMiniPins();
-}
-
-function openSpotMap() {
-  el('spotMapModal')?.classList.add('open');
-  document.body.style.overflow = 'hidden';
-  renderSpotMapFull();
-}
-function closeSpotMap() {
-  el('spotMapModal')?.classList.remove('open');
-  document.body.style.overflow = '';
-  hideSpotMapPopup();
-}
-
-// Small, non-interactive pin dots on the sidebar teaser — just enough to
-// look alive without needing full click/popup wiring for a tiny preview.
-async function renderSpotMapMiniPins() {
-  const svg = el('spotMapMiniSvg'); if (!svg) return;
-  const locations = await DB.getSpottingLocations().catch(() => []);
-  if (!locations.length) return;
-  const pinsHTML = locations.slice(0, 60).map(loc => {
-    const { x, y } = projectLatLng(loc.lat, loc.lng);
-    return `<circle class="wm-mini-pin" cx="${x}" cy="${y}" r="3.5"/>`;
-  }).join('');
-  svg.insertAdjacentHTML('beforeend', pinsHTML);
-}
-
-// Full interactive map — real pins from every located post, click for a
-// popup with the post's photo + spotter, click the popup to open the post.
-let _spotMapLocations = [];
-async function renderSpotMapFull() {
-  const svg = el('spotMapSvg');
-  const countEl = el('spotMapCount');
-  if (!svg) return;
-
-  // Repaint the static base (clears any previously-rendered pins) then add fresh ones
-  svg.innerHTML = worldMapStaticSvg();
-
-  const locations = await DB.getSpottingLocations().catch(() => null);
-  if (locations === null) {
-    if (countEl) countEl.textContent = 'Run spotting_locations_migration.sql in Supabase to enable the map.';
-    return;
-  }
-  _spotMapLocations = locations;
-  if (countEl) {
-    countEl.textContent = locations.length
-      ? `${locations.length} spot${locations.length===1?'':'s'} located on the map`
-      : 'No located spots yet — be the first to share your location when posting.';
-  }
-  if (!locations.length) return;
-
-  const pinsHTML = locations.map((loc, i) => {
-    const { x, y } = projectLatLng(loc.lat, loc.lng);
-    return `<g class="wm-pin" data-idx="${i}" transform="translate(${x},${y})">
-      <circle class="wm-pin-pulse" r="5"/>
-      <circle class="wm-pin-dot" r="5"/>
-    </g>`;
-  }).join('');
-  svg.insertAdjacentHTML('beforeend', pinsHTML);
-
-  svg.querySelectorAll('.wm-pin').forEach(pin => {
-    pin.addEventListener('click', e => {
-      e.stopPropagation();
-      showSpotMapPopup(_spotMapLocations[pin.dataset.idx], pin);
-    });
-  });
-}
-
-function showSpotMapPopup(loc, pinEl) {
-  const popup = el('spotMapPopup');
-  const wrap = pinEl.closest('.spot-map-wrap');
-  if (!popup || !loc) return;
-  const img = loc.media?.[0]?.url;
-  popup.innerHTML = `
-    <div class="spot-map-popup-close"><i class="fas fa-times"></i></div>
-    ${img ? `<img src="${img}" class="spot-map-popup-img" alt=""/>` : `<div class="spot-map-popup-img" style="background:${phBg(loc.id)}"></div>`}
-    <div class="spot-map-popup-body">
-      <div class="spot-map-popup-user">${esc(loc.username)}</div>
-      ${loc.location_name ? `<div class="spot-map-popup-loc"><i class="fas fa-map-marker-alt"></i> ${esc(loc.location_name)}</div>` : ''}
-    </div>`;
-
-  popup.style.display = 'block'; // must be visible before offsetWidth/Height can be measured below
-
-  // Position the popup relative to the map wrap, anchored above the pin —
-  // clamped so it can't render off the left/right/top edge of the map,
-  // which a fixed-width popup near the map's border would otherwise do
-  // (especially visible on narrow phone screens).
-  const svg = el('spotMapSvg');
-  const svgRect = svg.getBoundingClientRect();
-  const wrapRect = (wrap||svg.parentElement).getBoundingClientRect();
-  const { x, y } = projectLatLng(loc.lat, loc.lng);
-  const scaleX = svgRect.width / 1000, scaleY = svgRect.height / 500;
-  let left = (svgRect.left - wrapRect.left) + x*scaleX;
-  let top  = (svgRect.top  - wrapRect.top)  + y*scaleY;
-  const popupHalfWidth = (popup.offsetWidth || 160) / 2;
-  const popupHeight = popup.offsetHeight || 220;
-  left = Math.max(popupHalfWidth + 4, Math.min(left, wrapRect.width - popupHalfWidth - 4));
-  top  = Math.max(popupHeight + 4, top); // keep it from going above the map's top edge
-  popup.style.left = left + 'px';
-  popup.style.top  = top + 'px';
-
-  popup.querySelector('.spot-map-popup-close').addEventListener('click', e => { e.stopPropagation(); hideSpotMapPopup(); });
-  popup.onclick = async () => {
-    const cached = findSocialPost(loc.id);
-    if (cached) { closeSpotMap(); openSocialDetail(loc.id); return; }
-    // Not already loaded in the feed — fetch it directly so the click
-    // doesn't silently do nothing.
-    const row = await DB.getSocialPostById(loc.id).catch(() => null);
-    const post = dbSocialToApp(row);
-    if (!post) { toast('Could not load that post','err'); return; }
-    S._socialPosts = [post, ...(S._socialPosts||[])];
-    closeSpotMap();
-    openSocialDetail(loc.id);
-  };
-}
-function hideSpotMapPopup() {
-  const popup = el('spotMapPopup');
-  if (popup) popup.style.display = 'none';
-}
-
 function initCompare() {
   [1, 2].forEach(slot => {
     const inp = el(`compareSearch${slot}`);
@@ -7937,29 +6194,43 @@ let socialSentinelObs = null;
 
 function initSocialPage() {
   const uploadBtn = el('socialUploadBtn');
+  const modal     = el('socialUploadModal');
+  const closeBtn  = el('socialUploadClose');
   const zone      = el('socialUploadZone');
   const fileInput = el('socialFileInput');
   const submitBtn = el('socialSubmitBtn');
 
-  // "Post" button on the Car Spotting feed → full composer page
+  function resetModal() {
+    el('socialCaption').value = '';
+    el('socialUploadPreview').innerHTML = '';
+    _socialPendingFiles = [];
+    _blurredDataURLs = [];
+    // Reset steps
+    el('csPrivacyWarn').style.display   = 'block';
+    el('socialUploadZone').style.display = 'block';
+    el('csBlurEditor').style.display    = 'none';
+    el('csPostForm').style.display      = 'none';
+    el('csPrivacyAccept').checked       = false;
+    el('socialUploadZone').classList.remove('cs-enabled');
+    el('socialTagPills').innerHTML = CATS.slice(0,12).map(c =>
+      `<button type="button" class="post-cat-pill" data-cat="${c.name}" style="font-size:.7rem;padding:4px 11px">
+        <i class="${c.fa} pill-icon"></i>${c.name}
+      </button>`
+    ).join('');
+    el('socialTagPills').querySelectorAll('.post-cat-pill').forEach(p => p.addEventListener('click', () => {
+      el('socialTagPills').querySelectorAll('.post-cat-pill').forEach(x=>x.classList.remove('active'));
+      p.classList.toggle('active');
+    }));
+  }
+
   if (uploadBtn) uploadBtn.addEventListener('click', () => {
     if (!S.user) { toast('Sign in to post','err'); el('authModal').classList.add('open'); return; }
-    goTo('spotpost');
+    modal.classList.add('open');
+    resetModal();
   });
-
-  // Back button on the composer page
-  el('spotPostBack')?.addEventListener('click', () => goTo('social'));
-
-  // "Change photos" on the details step — restart at the upload step
-  // but keep the privacy checkbox accepted (they already agreed).
-  el('spotAddMoreBtn')?.addEventListener('click', () => {
-    _socialPendingFiles = []; _blurredDataURLs = [];
-    _blurImages = []; _blurBoxes = []; _blurImgIdx = 0;
-    el('socialUploadZone').style.display = 'block';
-    el('csBlurEditor').style.display     = 'none';
-    el('csPostForm').style.display       = 'none';
-    if (fileInput) fileInput.value = '';
-    setSpotStep(1);
+  if (closeBtn) closeBtn.addEventListener('click', () => { modal.classList.remove('open'); resetModal(); });
+  if (modal) modal.addEventListener('click', e => {
+    if (e.target === modal) { modal.classList.remove('open'); resetModal(); }
   });
 
   // Privacy acceptance enables the upload zone
@@ -7991,28 +6262,9 @@ function initSocialPage() {
   );
   if (submitBtn) submitBtn.addEventListener('click', submitSocialPost);
 
-  renderStoryBar();
-  renderTrendingTags();
-
-  // Detail modal — closes on X, backdrop click, or Escape
-  el('socialDetailClose')?.addEventListener('click', closeSocialDetail);
-  el('socialDetailModal')?.addEventListener('click', e => {
-    if (e.target === el('socialDetailModal')) closeSocialDetail();
-  });
-
-  // Sidebar usernames/avatars → profile (delegated once; buttons excluded)
-  const socialPage_ = el('page-social');
-  if (socialPage_ && !socialPage_._userNavWired) {
-    socialPage_._userNavWired = true;
-    socialPage_.addEventListener('click', e => {
-      if (e.target.closest('#socialPostsWrap')) return; // cards handle their own
-      if (e.target.closest('button')) return;
-      const cu = e.target.closest('.clickable-user');
-      if (cu?.dataset.user) viewMemberProfile(cu.dataset.user);
-    });
-  }
-
-  // Feed tabs
+  // Render sidebar widgets
+  renderSocialEventsPreview();
+  renderSuggestedFollows('socialWhoToFollow');
   document.querySelectorAll('.soc-tab').forEach(t => t.addEventListener('click', () => {
     document.querySelectorAll('.soc-tab').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
@@ -8020,10 +6272,8 @@ function initSocialPage() {
     if (socialTab === 'builds') {
       const wrap = el('socialPostsWrap');
       if (wrap) {
-        const recBuilds = [...S.posts].sort((a,b)=>new Date(b.createdAt||b.date)-new Date(a.createdAt||a.date)).slice(0,12);
-        wrap.innerHTML = recBuilds.length
-          ? `<div class="card-grid social-builds-grid">${recBuilds.map((p,i)=>cardHTML(p,i)).join('')}</div>`
-          : '<div class="social-empty"><i class="fas fa-car social-empty-icon"></i><h3>No builds yet</h3><p>Builds from the main feed appear here.</p></div>';
+        const recBuilds = [...S.posts].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,12);
+        wrap.innerHTML = `<div class="card-grid social-builds-grid">${recBuilds.map((p,i)=>cardHTML(p,i)).join('')}</div>`;
         attachCardEvents(wrap); return;
       }
     }
@@ -8033,8 +6283,6 @@ function initSocialPage() {
     el('socialSearchClear').style.display = 'none';
     renderSocialFeed(true);
   }));
-
-  // Search
   el('socialSearchInput')?.addEventListener('input', () => {
     const q = el('socialSearchInput').value.trim();
     el('socialSearchClear').style.display = q ? 'block' : 'none';
@@ -8046,87 +6294,9 @@ function initSocialPage() {
     S._socialSearchQ = ''; socialPage = 0;
     renderSocialFeed(true);
   });
-
-  // Infinite scroll — sentinel at the bottom of the spotting feed.
-  // When it enters the viewport and more posts exist, load the next page.
-  const sentinel = el('socialSentinel');
-  if (sentinel && 'IntersectionObserver' in window) {
-    socialSentinelObs = new IntersectionObserver(entries => {
-      if (!entries[0].isIntersecting) return;
-      if (S.page !== 'social' || S._socialSearchQ || socialTab === 'builds') return;
-      const total = getSocialPosts().length;
-      if (total > (socialPage+1)*SOCIAL_PAGE_SIZE) {
-        socialPage++;
-        renderSocialFeed(false);
-      }
-    }, { rootMargin: '400px' });
-    socialSentinelObs.observe(sentinel);
-  }
 }
 
-// ─── SPOT COMPOSER PAGE STATE ─────────────────────────────────
-// Steps: 1 = photos (privacy + upload), 2 = blur, 3 = details
-function setSpotStep(n) {
-  [1,2,3].forEach(i => {
-    const s = el('spotStep'+i);
-    if (s) { s.classList.toggle('active', i===n); s.classList.toggle('done', i<n); }
-  });
-}
-
-// Reset the composer to step 1 — called every time the page opens
-function resetSpotComposer() {
-  const cap = el('socialCaption'); if (cap) cap.value = '';
-  const loc = el('spotLocation'); if (loc) loc.value = '';
-  const mapOptin = el('spotShareMapLocation'); if (mapOptin) mapOptin.checked = false;
-  const prev = el('socialUploadPreview'); if (prev) prev.innerHTML = '';
-  _socialPendingFiles = []; _blurredDataURLs = [];
-  _blurImages = []; _blurBoxes = []; _blurImgIdx = 0;
-  const fi = el('socialFileInput'); if (fi) fi.value = '';
-  el('csPrivacyWarn').style.display    = 'block';
-  el('socialUploadZone').style.display = 'block';
-  el('csBlurEditor').style.display     = 'none';
-  el('csPostForm').style.display       = 'none';
-  el('csPrivacyAccept').checked        = false;
-  el('socialUploadZone').classList.remove('cs-enabled');
-  setSpotStep(1);
-  // Category pills — click to select, click again to deselect
-  el('socialTagPills').innerHTML = CATS.slice(0,12).map(c =>
-    `<button type="button" class="post-cat-pill" data-cat="${c.name}" style="font-size:.7rem;padding:4px 11px">
-      <i class="${c.fa} pill-icon"></i>${c.name}
-    </button>`
-  ).join('');
-  el('socialTagPills').querySelectorAll('.post-cat-pill').forEach(p => p.addEventListener('click', () => {
-    const wasActive = p.classList.contains('active');
-    el('socialTagPills').querySelectorAll('.post-cat-pill').forEach(x=>x.classList.remove('active'));
-    if (!wasActive) p.classList.add('active');
-  }));
-}
-
-// ─── BLUR EDITOR ENGINE ───────────────────────────────────────
-// Client-side canvas-based blur tool for Car Spotting posts.
-// No server, no API, no ML — entirely in the browser.
-//
-// How it works:
-//   - The selected image is drawn onto an HTML <canvas> (#csCanvas)
-//   - A transparent overlay canvas (#csOverlay) sits on top and captures
-//     mouse/touch drag events to draw the selection rectangle
-//   - When the user releases, the selected region is pixelated using
-//     applyBlurBox(), which:
-//       1. Gets the pixel data for that region
-//       2. Draws it onto a tiny canvas (1/pixelSize the original size)
-//       3. Draws that tiny canvas back at full size with imageSmoothingEnabled=false
-//       4. The result is a "pixelated" / mosaic blur effect
-//   - Boxes are stored in _blurBoxes[imageIndex] so Undo/Clear work
-//   - applyAllBlurs() processes every image, converts to JPEG, stores in
-//     _blurredDataURLs — only these blurred versions are ever uploaded
-//
-// Pixel size is adaptive: Math.max(8, box_min_dimension / 10)
-// So a tiny box gets a finer mosaic, a big box gets coarser pixels.
-//
-// Multiple images: _blurImages[] holds loaded Image objects,
-// _blurBoxes[] is a parallel array of box arrays, one per image.
-// _blurImgIdx tracks which image the editor is currently showing.
-
+// ─── BLUR EDITOR ENGINE ────────────────────────────────────────
 let _socialPendingFiles  = [];
 let _blurredDataURLs     = [];   // final blurred images to upload
 let _blurBoxes           = [];   // array of arrays, one per image
@@ -8148,7 +6318,6 @@ function handleSocialFiles(files) {
   el('csPrivacyWarn').style.display    = 'none';
   el('csBlurEditor').style.display     = 'block';
   el('csPostForm').style.display       = 'none';
-  setSpotStep(2);
 
   // Load all images first, then show editor for first one
   let loaded = 0;
@@ -8179,7 +6348,7 @@ function initBlurEditor(idx) {
   if (!canvas || !overlay || !wrap) return;
 
   // Size canvas to fit modal width, maintain aspect ratio
-  const maxW = Math.min(720, window.innerWidth - 48); // full-page composer allows a wider canvas
+  const maxW = Math.min(520, window.innerWidth - 48);
   const scale = maxW / img.naturalWidth;
   const displayW = Math.round(img.naturalWidth  * scale);
   const displayH = Math.round(img.naturalHeight * scale);
@@ -8352,22 +6521,13 @@ async function applyAllBlurs() {
   for (let i = 0; i < _blurImages.length; i++) {
     // Apply blur to each image
     const img = _blurImages[i];
-    // Blur at full resolution first so the boxes land exactly where drawn
-    const full = document.createElement('canvas');
-    full.width = img.naturalWidth; full.height = img.naturalHeight;
-    const fctx = full.getContext('2d');
-    fctx.drawImage(img, 0, 0);
-    (_blurBoxes[i] || []).forEach(box => applyBlurBox(fctx, box));
-    // Then downscale to max 1080px wide (Instagram standard) —
-    // keeps uploads small and every post consistent
-    let out = full;
-    if (full.width > 1080) {
-      const scale = 1080 / full.width;
-      out = document.createElement('canvas');
-      out.width = 1080; out.height = Math.round(full.height * scale);
-      out.getContext('2d').drawImage(full, 0, 0, out.width, out.height);
-    }
-    _blurredDataURLs.push(out.toDataURL('image/jpeg', 0.88));
+    const c   = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    (_blurBoxes[i] || []).forEach(box => applyBlurBox(ctx, box));
+    // Compress + convert to data URL
+    _blurredDataURLs.push(c.toDataURL('image/jpeg', 0.88));
   }
 
   // Update preview strip
@@ -8384,229 +6544,154 @@ async function applyAllBlurs() {
   // Show post form
   el('csBlurEditor').style.display = 'none';
   el('csPostForm').style.display   = 'block';
-  setSpotStep(3);
 
   if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Apply Blur & Continue'; }
 }
 
 async function submitSocialPost() {
   if (!S.user) { toast('Sign in to post','err'); return; }
-  let caption   = el('socialCaption')?.value.trim() || '';
+  const caption = el('socialCaption')?.value.trim() || '';
   const tag     = el('socialTagPills')?.querySelector('.post-cat-pill.active')?.dataset.cat || '';
-  // Location is stored as a 📍 line appended to the caption — schema-safe
-  // (no new column needed) and renders naturally on the card.
-  const spotLoc = el('spotLocation')?.value.trim() || '';
-  if (spotLoc) caption = caption ? caption + '\n📍 ' + spotLoc : '📍 ' + spotLoc;
-
-  // Precise GPS coordinates for the Spotting Map — strictly opt-in via the
-  // checkbox, never captured silently. Best-effort: if permission is
-  // denied, times out, or isn't supported, we just skip it and post
-  // normally rather than blocking on it.
-  let mapCoords = null;
-  if (el('spotShareMapLocation')?.checked && navigator.geolocation) {
-    mapCoords = await new Promise(resolve => {
-      navigator.geolocation.getCurrentPosition(
-        pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => resolve(null),
-        { timeout: 8000, maximumAge: 300000 }
-      );
-    });
-  }
-
   const hasContent = caption.length > 0 || _blurredDataURLs.length > 0;
   if (!hasContent) { toast('Add a caption or photo to share','err'); return; }
   const btn     = el('socialSubmitBtn');
   const progBar = el('socialUploadProgress');
   if (btn) { btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Posting…'; }
-  if (progBar) { progBar.style.display='block'; progBar.value=10; }
+  if (progBar) { progBar.style.display='block'; progBar.value=0; }
 
-  // Upload blurred images to Supabase Storage.
-  // Skip failures — never embed base64 in the social_posts table.
-  const mediaItems = [];
-  let failedSpots = 0;
-  for (let i = 0; i < _blurredDataURLs.length; i++) {
-    const result = await DB.uploadSpottingImage(S.user.id, _blurredDataURLs[i], i);
-    if (result && result.url) mediaItems.push({ type:'image', url: result.url });
-    else failedSpots++;
-    if (progBar) progBar.value = 10 + Math.round(((i+1)/_blurredDataURLs.length)*70);
-  }
-  if (failedSpots) toast(`${failedSpots} photo(s) failed to upload and were skipped`, 'err');
-  // If every photo failed AND there's no caption, don't create an empty post
-  if (!mediaItems.length && !caption) {
-    if (btn) { btn.disabled=false; btn.innerHTML='<i class="fas fa-paper-plane"></i> Post to Car Spotting'; }
-    if (progBar) { progBar.style.display='none'; progBar.value=0; }
-    toast('Post failed — no photos uploaded. Please try again.','err');
-    return;
-  }
-  if (progBar) progBar.value = 85;
+  // Use blurred images (or original if no images)
+  const mediaItems = _blurredDataURLs.map(url => ({ type:'image', url }));
+  if (progBar) progBar.value = 90;
 
-  const postId = 'sp' + Date.now();
-  const postData = {
-    id: postId, caption, tag,
-    media: mediaItems,
-    liked_by: [], likes: 0,
-    comments: [], reactions: {},
-    lat: mapCoords?.lat ?? null,
-    lng: mapCoords?.lng ?? null,
-    location_name: spotLoc || null,
+  const post = {
+    id:'sp'+Date.now(), user:S.user.username, caption, tag,
+    media:mediaItems, likes:0, likedBy:[], comments:[],
+    reactions:{}, ts:Date.now(), date:new Date().toISOString().slice(0,10),
   };
-
-  // Save to Supabase
-  const { error } = await DB.createSocialPost(S.user.id, S.user.username, postData);
-  if (error) {
-    console.warn('Social post save failed, storing locally:', error);
-    // Fallback: store locally if Supabase fails
-    const stored = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-    stored.unshift({ ...postData, user: S.user.username, ts: Date.now(), date: new Date().toISOString().slice(0,10) });
-    localStorage.setItem('dl_social_posts', JSON.stringify(stored));
-  }
-  // Show the new post at the top of the feed immediately —
-  // the background refetch in renderSocialFeed will confirm it.
-  S._socialPosts = [
-    dbSocialToApp({ ...postData, username: S.user.username, user_id: S.user.id, ts: Date.now() }),
-    ...(S._socialPosts||[]),
-  ].filter(Boolean);
-  if (!S._activeSpotters) S._activeSpotters = new Set();
-  S._activeSpotters.add(S.user.username);
+  const stored = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+  stored.unshift(post);
+  localStorage.setItem('dl_social_posts', JSON.stringify(stored));
 
   if (progBar) { progBar.value=100; setTimeout(()=>{ progBar.style.display='none'; progBar.value=0; },400); }
+  el('socialUploadModal').classList.remove('open');
   _socialPendingFiles = []; _blurredDataURLs = [];
   if (btn) { btn.disabled=false; btn.innerHTML='<i class="fas fa-paper-plane"></i> Post to Car Spotting'; }
   toast('Posted to Car Spotting ✓','ok');
-  socialPage=0;
-  goTo('social');
-}
-
-
-// Convert Supabase social_posts row to app format
-// Handles both Supabase rows (snake_case) and legacy localStorage posts (camelCase)
-function dbSocialToApp(row) {
-  if (!row) return null;
-  return {
-    id:       row.id,
-    user:     row.username || row.user || '',
-    user_id:  row.user_id  || null,
-    caption:  row.caption  || '',
-    tag:      row.tag      || '',
-    media:    row.media    || [],
-    likes:    row.likes    || 0,
-    likedBy:  row.liked_by || row.likedBy || [],
-    comments: row.comments || [],
-    reactions:row.reactions|| {},
-    ts:       row.ts || (row.created_at ? new Date(row.created_at).getTime() : Date.now()),
-    date:     row.date || (row.created_at||'').slice(0,10),
-    lat:          row.lat          ?? null,
-    lng:          row.lng          ?? null,
-    locationName: row.location_name || '',
-  };
-}
-
-// getSocialPosts — merge Supabase posts with any local-only fallbacks
-// S._socialPosts is populated by renderSocialFeed after Supabase fetch
-const SPOT_STORY_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours, same convention as Instagram/Snapchat stories
-
-// Unlike getSocialPosts(), this ignores the current Car Spotting page's
-// tab filter (For You/Following/Builds) — it needs to answer "does this
-// person have an active Car Spotting post" correctly from ANY page on the
-// site, not just while looking at a particular feed tab.
-function hasActiveSpotStory(username) {
-  if (!username) return false;
-  // Preferred source — fetched at boot, works on every page immediately,
-  // not just after visiting Car Spotting.
-  if (S._activeSpotters) return S._activeSpotters.has(username);
-  // Fallback for the brief window before that boot fetch resolves, or if
-  // it failed — uses whatever social post data we already have in memory.
-  const posts = S._socialPosts?.length
-    ? S._socialPosts
-    : JSON.parse(localStorage.getItem('dl_social_posts')||'[]').map(dbSocialToApp).filter(Boolean);
-  const cutoff = Date.now() - SPOT_STORY_WINDOW_MS;
-  return posts.some(p => p.user === username && p.ts > cutoff);
-}
-
-// Adds/removes the gradient "story ring" class on an avatar element,
-// depending on whether that user currently has an active Car Spotting
-// post. Called from setAvEl() so every avatar rendered through the normal
-// DOM-update path gets this automatically, site-wide.
-function setStoryRing(domEl, username) {
-  if (!domEl) return;
-  const active = hasActiveSpotStory(username);
-  domEl.classList.toggle('has-story-ring', active);
-  // The ring extends outside the avatar's own box, but avatar elements
-  // have overflow:hidden (to clip photos into a circle) — which silently
-  // clipped the ring off entirely. The photo/SVG inside clips itself to a
-  // circle independently (the <img> has its own border-radius, the
-  // fallback SVG draws its own circle), so relaxing overflow here doesn't
-  // risk a square photo peeking out.
-  domEl.style.overflow = active ? 'visible' : '';
+  socialPage=0; renderSocialFeed(true);
 }
 
 function getSocialPosts() {
-  // Use in-memory cache if available (populated from Supabase)
-  if (S._socialPosts?.length) {
-    if (socialTab === 'following' && S.user)
-      return S._socialPosts.filter(p => S.following.includes(p.user) || p.user === S.user.username);
-    return S._socialPosts;
-  }
-  // Fallback to localStorage (posts created before Supabase migration)
   const stored = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-  if (socialTab === 'following' && S.user)
-    return stored.filter(p => S.following.includes(p.user) || p.user === S.user.username);
+  if (socialTab==='following' && S.user)
+    return stored.filter(p => S.following.includes(p.user) || p.user===S.user.username);
   return stored;
 }
 
 function renderSocialFeed(reset) {
   if (reset) socialPage=0;
   const wrap = el('socialPostsWrap'); if (!wrap) return;
+  // If search is active, delegate to doSocialSearch
   if (S._socialSearchQ) { doSocialSearch(); return; }
+  const all   = getSocialPosts();
+  const slice = all.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
+  if (reset) wrap.innerHTML='';
 
-  renderStoryBar();
-
-  // Paint whatever we already have in memory instantly
-  const cached = getSocialPosts();
-  if (cached.length) {
-    const slice = cached.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
-    wrap.innerHTML = `<div class="social-discover-grid">${slice.map(p => renderSocialGridCard(p)).join('')}</div>`;
-    bindSocialGridEvents(wrap);
-  } else if (reset) {
-    wrap.innerHTML = '';
+  if (!all.length) {
+    wrap.innerHTML=`<div class="social-empty"><i class="fas fa-camera-retro social-empty-icon"></i><h3>Nothing here yet</h3><p>Be the first to share a moment from your build.</p>${S.user?'<button class="btn-primary" onclick="el(\'socialUploadBtn\').click()"><i class="fas fa-plus"></i> Share Something</button>':''}</div>`;
+    return;
   }
 
-  // Fetch fresh from Supabase — handle missing table gracefully
-  DB.getSocialPosts({ limit: SOCIAL_PAGE_SIZE * (socialPage+1) + 1 }).then(rows => {
-    const sbPosts   = (rows||[]).map(dbSocialToApp).filter(Boolean);
-    const localOnly = JSON.parse(localStorage.getItem('dl_social_posts')||'[]').map(dbSocialToApp).filter(Boolean);
-    const merged    = [...sbPosts];
-    localOnly.forEach(lp => { if (!merged.find(sp => sp.id === lp.id)) merged.push(lp); });
-    merged.sort((a,b) => b.ts - a.ts);
-    S._socialPosts = merged;
+  const from = reset ? 0 : socialPage*SOCIAL_PAGE_SIZE;
+  const newPosts = all.slice(from, (socialPage+1)*SOCIAL_PAGE_SIZE);
 
-    if (!merged.length) {
-      wrap.innerHTML = `<div class="social-empty">
-        <i class="fas fa-camera-retro social-empty-icon"></i>
-        <h3>No spots yet</h3>
-        <p>Be the first to share a car you spotted.</p>
-        ${S.user ? '<button class="btn-primary" onclick="goTo(\'spotpost\')"><i class="fas fa-camera"></i> Post a Spot</button>' : ''}
+  newPosts.forEach(post => {
+    const card = document.createElement('div');
+    card.className='social-post-card'; card.dataset.id=post.id;
+    const liked = post.likedBy.includes(S.user ? S.user.username : getDeviceId());
+    const mainMedia = post.media[0];
+    card.innerHTML=`
+      <div class="social-post-head">
+        ${(()=>{const _su=getAvatarUrl(post.user);return _su?`<div class="social-post-av av-circle clickable-user has-photo" data-user="${post.user}"><img src="${_su}" alt="" class="av-photo"/></div>`:`<div class="social-post-av av-circle clickable-user" data-user="${post.user}" style="background:${avColor(post.user)}">${post.user[0].toUpperCase()}</div>`;})()} 
+        <div class="social-post-user-info">
+          <span class="social-post-username clickable-user" data-user="${post.user}">${esc(post.user)}</span>
+          <span class="social-post-time">${timeAgo(post.ts)}</span>
+        </div>
+        ${post.tag?`<span class="cat-badge ${catCfg(post.tag).badge}" style="position:static;margin-left:auto">${post.tag}</span>`:''}
+        <button class="social-report-btn" data-id="${post.id}" title="Report"><i class="fas fa-flag"></i></button>
+      </div>
+      ${mainMedia?(mainMedia.type==='video'
+        ?`<video class="social-post-media" controls preload="metadata" playsinline><source src="${mainMedia.url}"/></video>`
+        :`<img class="social-post-media" src="${mainMedia.url}" alt="${esc(post.caption)}" loading="lazy"/>`
+      ):''}
+      ${post.media.length>1?`<div class="social-post-strip">${post.media.slice(1,5).map(m=>m.type==='video'?`<div class="social-strip-item video-thumb-wrap"><i class="fas fa-play"></i></div>`:`<img class="social-strip-item" src="${m.url}" alt="" loading="lazy"/>`).join('')}${post.media.length>5?`<div class="social-strip-more">+${post.media.length-5}</div>`:''}</div>`:''}
+      ${post.caption?`<div class="social-post-caption"><b class="clickable-user" data-user="${post.user}">${esc(post.user)}</b> ${esc(post.caption)}</div>`:''}
+      <div class="social-post-actions">
+        <button class="social-action-btn social-like-btn${liked?' liked':''}" data-id="${post.id}"><i class="fas fa-heart"></i> <span>${post.likes||0}</span></button>
+        <button class="social-action-btn social-comment-toggle" data-id="${post.id}"><i class="fas fa-comment"></i> <span>${(post.comments||[]).length}</span></button>
+        ${S.user&&post.user===S.user.username?`<button class="social-action-btn social-delete-btn" data-id="${post.id}"><i class="fas fa-trash-alt"></i></button>`:''}
+      </div>
+      <div class="social-post-comments" id="spc-${post.id}" style="display:none">
+        <div class="social-comments-list" id="scl-${post.id}"></div>
+        <div class="social-comment-input">
+          <input class="social-comment-text finput" type="text" placeholder="Add a comment…" data-id="${post.id}" style="margin-bottom:0"/>
+          <button class="social-comment-submit btn-primary small" data-id="${post.id}">Post</button>
+        </div>
       </div>`;
-      renderStoryBar();
-      return;
-    }
-
-    const visible = getSocialPosts().slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
-    wrap.innerHTML = `<div class="social-discover-grid">${visible.map(p => renderSocialGridCard(p)).join('')}</div>`;
-    bindSocialGridEvents(wrap);
-    renderTrendingTags();
-    renderStoryBar();
-  }).catch(err => {
-    console.warn('Social posts fetch failed (table may not exist yet):', err?.message || err);
-    if (!cached.length) {
-      wrap.innerHTML = `<div class="social-empty">
-        <i class="fas fa-camera-retro social-empty-icon"></i>
-        <h3>Car Spotting</h3>
-        <p>Run <b>social_posts_migration.sql</b> in Supabase to enable cross-device posts.</p>
-        ${S.user ? '<button class="btn-primary" onclick="goTo(\'spotpost\')"><i class="fas fa-camera"></i> Post Locally</button>' : ''}
-      </div>`;
-    }
+    wrap.appendChild(card);
   });
+
+  // Events
+  wrap.querySelectorAll('.social-like-btn').forEach(btn => btn.addEventListener('click', () => {
+    const all2=JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+    const p=all2.find(x=>x.id===btn.dataset.id); if(!p) return;
+    const vid=voterId(), idx=p.likedBy.indexOf(vid);
+    if(idx>=0){p.likes=Math.max(0,p.likes-1);p.likedBy.splice(idx,1);}
+    else{p.likes++;p.likedBy.push(vid);}
+    localStorage.setItem('dl_social_posts',JSON.stringify(all2));
+    btn.className='social-action-btn social-like-btn'+(idx<0?' liked':'');
+    btn.querySelector('span').textContent=p.likes;
+  }));
+  wrap.querySelectorAll('.social-comment-toggle').forEach(btn => btn.addEventListener('click', () => {
+    const pnl=el('spc-'+btn.dataset.id); if(!pnl) return;
+    const open=pnl.style.display!=='none';
+    pnl.style.display=open?'none':'block';
+    if(!open) renderSocialComments(btn.dataset.id);
+  }));
+  wrap.querySelectorAll('.social-comment-submit').forEach(btn => btn.addEventListener('click', () => {
+    if(!S.user){toast('Sign in to comment','err');return;}
+    const inp=wrap.querySelector(`.social-comment-text[data-id="${btn.dataset.id}"]`);
+    const txt=inp?.value.trim(); if(!txt) return;
+    const all2=JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+    const p=all2.find(x=>x.id===btn.dataset.id); if(!p) return;
+    p.comments=p.comments||[];
+    p.comments.push({id:'sc'+Date.now(),user:S.user.username,text:txt,ts:Date.now()});
+    localStorage.setItem('dl_social_posts',JSON.stringify(all2));
+    if(inp) inp.value='';
+    renderSocialComments(btn.dataset.id);
+  }));
+  wrap.querySelectorAll('.social-delete-btn').forEach(btn => btn.addEventListener('click', () => {
+    if(!confirm('Delete this post?')) return;
+    const all2=JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+    localStorage.setItem('dl_social_posts',JSON.stringify(all2.filter(p=>p.id!==btn.dataset.id)));
+    renderSocialFeed(true);
+  }));
+  wrap.querySelectorAll('.social-report-btn').forEach(btn => btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const all2=JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+    const p=all2.find(x=>x.id===btn.dataset.id);
+    openReport('social',btn.dataset.id,p?.caption||'');
+  }));
+
+  // Infinite scroll
+  if (socialSentinelObs) socialSentinelObs.disconnect();
+  const sentinel=el('socialSentinel');
+  if (sentinel && slice.length<all.length) {
+    socialSentinelObs=new IntersectionObserver(entries=>{
+      if(entries[0].isIntersecting){socialPage++;renderSocialFeed(false);}
+    },{rootMargin:'300px'});
+    socialSentinelObs.observe(sentinel);
+  }
+  renderSocialSidebar();
 }
 
 function renderSocialEventsPreview() {
@@ -8658,43 +6743,71 @@ function renderSuggestedFollows(containerId) {
 }
 
 
-// Trending Tags widget — computed from ALL spot posts (Supabase +
-// legacy local), counts both #hashtags in captions and category tags.
-// Renders into #socialTags (the widget in the right sidebar).
-// Tags are clickable → runs a search for that tag.
-function renderTrendingTags() {
-  const box = el('socialTags'); if (!box) return;
-  const allPosts = (S._socialPosts?.length)
-    ? S._socialPosts
-    : JSON.parse(localStorage.getItem('dl_social_posts')||'[]').map(dbSocialToApp).filter(Boolean);
-  const counts = {};
-  allPosts.forEach(p => {
-    ((p.caption||'').match(/#[\w]+/g)||[]).forEach(t => { const k=t.toLowerCase(); counts[k]=(counts[k]||0)+1; });
-    if (p.tag && p.tag !== 'All') { const k='#'+p.tag.toLowerCase().replace(/\s+/g,''); counts[k]=(counts[k]||0)+1; }
-  });
-  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  if (!sorted.length) {
-    box.innerHTML = '<p class="social-sidebar-empty">No tags yet. Use #hashtags in your captions!</p>';
-    return;
+function renderSocialComments(postId) {
+  const list=el('scl-'+postId); if(!list) return;
+  const all=JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+  const post=all.find(p=>p.id===postId);
+  if(!post||!post.comments?.length){list.innerHTML='<p class="social-no-comments">No comments yet</p>';return;}
+  list.innerHTML=post.comments.map(c=>`
+    <div class="social-comment-item">
+      <span class="social-comment-av clickable-user" data-user="${c.user}" style="background:${avColor(c.user)}">${c.user[0].toUpperCase()}</span>
+      <div class="social-comment-body"><b class="clickable-user" data-user="${c.user}">${esc(c.user)}</b> ${esc(c.text)}</div>
+      <span class="social-comment-time">${timeAgo(c.ts)}</span>
+    </div>`).join('');
+}
+
+function renderSocialSidebar() {
+  // Who to follow
+  const wrap=el('socialWhoToFollow'); if(!wrap) return;
+  const suggestions=S.users.filter(u=>!S.following.includes(u.username)&&(!S.user||u.username!==S.user.username)).slice(0,4);
+  if(!suggestions.length){wrap.innerHTML='<p class="social-no-comments">You follow everyone!</p>';}
+  else {
+    wrap.innerHTML=suggestions.map(u=>`
+      <div class="social-suggest-row">
+        <div class="social-suggest-av clickable-user" data-user="${u.username}" style="background:#6b7280">${u.username[0].toUpperCase()}</div>
+        <div class="social-suggest-info">
+          <div class="social-suggest-name clickable-user" data-user="${u.username}">${esc(u.username)}</div>
+          <div class="social-suggest-meta">${S.posts.filter(p=>p.user===u.username).length} builds</div>
+        </div>
+        <button class="btn-ghost small social-follow-btn" data-user="${u.username}">${S.following.includes(u.username)?'Following':'Follow'}</button>
+      </div>`).join('');
+    wrap.querySelectorAll('.social-follow-btn').forEach(btn=>btn.addEventListener('click',()=>{
+      if(!S.user){toast('Sign in to follow','err');return;}
+      toggleFollow(btn.dataset.user);
+      btn.textContent=S.following.includes(btn.dataset.user)?'Following':'Follow';
+    }));
   }
-  box.innerHTML = sorted.map(([tag,count]) =>
-    `<button class="social-trend-tag" data-tag="${esc(tag)}">
-      <span class="social-trend-name">${esc(tag)}</span>
-      <span class="social-trend-count">${count}</span>
-    </button>`).join('');
-  box.querySelectorAll('.social-trend-tag').forEach(b => b.addEventListener('click', () => {
-    if (S.page !== 'social') goTo('social');
-    const si = el('socialSearchInput');
-    if (si) { si.value = b.dataset.tag.replace('#',''); el('socialSearchClear').style.display='block'; doSocialSearch(); }
-  }));
+
+  // Trending hashtags — extracted from captions
+  const hashEl = el('socialHashtags');
+  if (hashEl) {
+    const allPosts = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+    const tagCounts = {};
+    allPosts.forEach(p => {
+      if (!p.caption) return;
+      const tags = p.caption.match(/#[\w]+/g) || [];
+      tags.forEach(t => { tagCounts[t] = (tagCounts[t]||0)+1; });
+    });
+    const sorted = Object.entries(tagCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+    if (!sorted.length) {
+      hashEl.innerHTML = '<p class="social-no-comments">No hashtags yet. Use #tags in your captions!</p>';
+    } else {
+      hashEl.innerHTML = sorted.map(([tag,count]) =>
+        `<div class="social-hashtag-row">
+          <span class="social-hashtag-tag">${esc(tag)}</span>
+          <span class="social-hashtag-count">${count} post${count!==1?'s':''}</span>
+        </div>`
+      ).join('');
+    }
+  }
 }
 
 // ─── BIO WORD LIMIT ────────────────────────────────────────────
-function truncateBio(bio, charLimit=150) {
+function truncateBio(bio, wordLimit=50) {
   if (!bio) return '';
-  const trimmed = bio.trim();
-  if (trimmed.length<=charLimit) return trimmed;
-  return trimmed.slice(0,charLimit).trim()+'…';
+  const words=bio.trim().split(/\s+/);
+  if (words.length<=wordLimit) return bio;
+  return words.slice(0,wordLimit).join(' ')+'…';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -8814,6 +6927,7 @@ function renderProfileMedia(username) {
 // ─── SOCIAL SEARCH ────────────────────────────────────────────
 function doSocialSearch() {
   const q = el('socialSearchInput')?.value.trim().toLowerCase() || '';
+  const allPosts = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
   if (!q) {
     S._socialSearchQ = '';
     socialPage = 0;
@@ -8821,23 +6935,21 @@ function doSocialSearch() {
     return;
   }
   S._socialSearchQ = q;
-  // Search everything we know about: Supabase posts + legacy local posts
-  const allPosts = (S._socialPosts?.length)
-    ? S._socialPosts
-    : JSON.parse(localStorage.getItem('dl_social_posts')||'[]').map(dbSocialToApp).filter(Boolean);
   const results = allPosts.filter(p => {
     const caption = (p.caption||'').toLowerCase();
     const tags    = (p.tag||'').toLowerCase();
     const user    = (p.user||'').toLowerCase();
-    return caption.includes(q) || tags.includes(q) || user.includes(q);
+    const hashtags= (caption.match(/#[\w]+/g)||[]).join(' ').toLowerCase();
+    return caption.includes(q) || tags.includes(q) || user.includes(q) || hashtags.includes(q);
   });
+  // Render results directly
   const wrap = el('socialPostsWrap'); if (!wrap) return;
   if (!results.length) {
     wrap.innerHTML = `<div class="social-no-results"><i class="fas fa-search"></i><p>No posts found for "<b>${esc(q)}</b>"</p></div>`;
     return;
   }
-  wrap.innerHTML = `<div class="social-discover-grid">${results.map(p => renderSocialGridCard(p)).join('')}</div>`;
-  bindSocialGridEvents(wrap);
+  wrap.innerHTML = results.map(p => renderSocialCard(p)).join('');
+  bindSocialCardEvents(wrap);
 }
 
 // Handle browser/mobile back button
@@ -8854,435 +6966,53 @@ window.addEventListener('popstate', e => {
 });
 
 // ─── SOCIAL CARD HELPERS (used by search) ─────────────────────
-// Render a spot caption: escape, linkify #hashtags, style 📍 location lines
-function socialCaptionHTML(caption) {
-  if (!caption) return '';
-  const lines = caption.split('\n').map(line => {
-    const escd = esc(line);
-    const linked = escd.replace(/#([\w]+)/g, '<span class="soc-hashtag" data-tag="#$1">#$1</span>');
-    if (line.trim().startsWith('📍')) {
-      return `<span class="soc-post-location"><i class="fas fa-map-marker-alt"></i> ${linked.replace('📍','').trim()}</span>`;
-    }
-    return linked;
-  });
-  return lines.join('<br/>');
-}
-
-// ─── STORY BAR — horizontal-scrolling profile bubbles (Snapchat-style) ──
-// Shows your own bubble first (tap → post a new spot), then one bubble per
-// distinct recent poster, most-recent-first. Tapping someone else's bubble
-// opens their profile via the existing global [data-user] click handler —
-// no extra click wiring needed for that part.
-function renderStoryBar() {
-  const bar = el('storyBar'); if (!bar) return;
-  const posts = getSocialPosts();
-  const seenUsers = new Set();
-  const posters = [];
-  let ownHasPost = false;
-  posts.forEach(p => {
-    if (!p.user) return;
-    if (p.user === S.user?.username) { ownHasPost = true; return; }
-    if (seenUsers.has(p.user)) return;
-    seenUsers.add(p.user);
-    posters.push(p.user);
-  });
-
-  const ownBubble = `
-    <div class="story-bubble story-bubble-own${(S.user && ownHasPost) ? ' has-story' : ''}" id="storyBubbleOwn">
-      <div class="story-bubble-ring">
-        ${S.user ? renderAv(S.user.username, 64, 'story-bubble-av-inner') : `<div style="width:100%;height:100%;border-radius:50%;overflow:hidden;background:transparent">${_defaultAvSVG()}</div>`}
-        <div class="story-bubble-own-plus"><i class="fas fa-plus"></i></div>
-      </div>
-      <span class="story-bubble-name">${S.user ? 'You' : 'Post'}</span>
-    </div>`;
-
-  const otherBubbles = posters.slice(0, 20).map(u => `
-    <div class="story-bubble clickable-user" data-user="${esc(u)}">
-      <div class="story-bubble-ring">${renderAv(u, 64, 'story-bubble-av-inner')}</div>
-      <span class="story-bubble-name">${esc(u)}</span>
-    </div>`).join('');
-
-  bar.innerHTML = ownBubble + otherBubbles;
-
-  const ownEl = el('storyBubbleOwn');
-  if (ownEl) ownEl.addEventListener('click', () => {
-    if (!S.user) { toast('Sign in to post','err'); el('authModal').classList.add('open'); return; }
-    goTo('spotpost');
-  });
-}
-
-// Compact 4:5 thumbnail card for the discover grid — tapping opens the
-// full rich card (comments, carousel, etc.) in the detail modal.
-function renderSocialGridCard(p) {
-  if (!p) return '';
-  const media = (p.media||[]).filter(Boolean);
-  const first = media[0];
-  const isVideo = first?.type === 'video';
-  const thumbSrc = first?.url || '';
-  const badge = media.length > 1
-    ? '<div class="social-grid-multi-badge"><i class="fas fa-clone"></i></div>'
-    : (isVideo ? '<div class="social-grid-multi-badge"><i class="fas fa-play"></i></div>' : '');
-  const mediaTag = thumbSrc
-    ? (isVideo
-        ? `<video src="${thumbSrc}" muted playsinline preload="metadata"></video>`
-        : `<img src="${thumbSrc}" alt="" loading="lazy"/>`)
-    : `<div style="width:100%;height:100%;background:${phBg(p.id)}"></div>`;
-  return `<div class="social-grid-card" data-id="${p.id}">
-    ${mediaTag}
-    ${badge}
-    <div class="social-grid-card-overlay">
-      <span class="social-grid-card-user">${esc(p.user)}</span>
-      <span class="social-grid-card-likes"><i class="fas fa-heart"></i> ${(p.likedBy||[]).length}</span>
-    </div>
-  </div>`;
-}
-
-function bindSocialGridEvents(wrap) {
-  if (!wrap) return;
-  wrap.querySelectorAll('.social-grid-card').forEach(card => {
-    card.addEventListener('click', () => openSocialDetail(card.dataset.id));
-    // Video thumbnails show a black box until a frame is grabbed
-    const video = card.querySelector('video');
-    if (video) video.addEventListener('loadedmetadata', () => { video.currentTime = video.duration * 0.1; }, { once:true });
-  });
-}
-
-// Opens the full rich card (same one used everywhere else — comments,
-// carousel, like/delete/report — nothing lost by moving to a grid+modal
-// layout) in a modal when a discover-grid thumbnail is tapped.
-function openSocialDetail(id) {
-  const post = findSocialPost(id);
-  if (!post) return;
-  const content = el('socialDetailContent');
-  const modal = el('socialDetailModal');
-  if (!content || !modal) return;
-  content.innerHTML = renderSocialCard(post);
-  bindSocialCardEvents(content);
-  modal.classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-function closeSocialDetail() {
-  const modal = el('socialDetailModal');
-  if (modal) modal.classList.remove('open');
-  document.body.style.overflow = '';
-}
-
 function renderSocialCard(p) {
   if (!p) return '';
   const media   = (p.media||[]).filter(Boolean);
+  const isVideo = media[0]?.type === 'video';
+  const user    = S.users.find(u=>u.username===p.user)||{};
   const avUrl   = getAvatarUrl(p.user);
   const avHTML  = avUrl
-    ? `<div class="soc-av has-photo clickable-user" data-user="${p.user}"><img src="${avUrl}" alt="" class="av-photo"/></div>`
-    : `<div class="soc-av clickable-user" data-user="${p.user}" style="background:${avColor(p.user)}">${(p.user||'?')[0].toUpperCase()}</div>`;
+    ? `<div class="soc-av has-photo"><img src="${avUrl}" alt="" class="av-photo"/></div>`
+    : `<div class="soc-av" style="background:${avColor(p.user)}">${(p.user||'?')[0].toUpperCase()}</div>`;
   const cats = (p.tag && p.tag !== 'All') ? `<span class="cat-badge ${catCfg(p.tag).badge}" style="position:static">${p.tag}</span>` : '';
-  const isOwn = S.user && (p.user === S.user.username || (p.user_id && p.user_id === S.user.id));
-  const canDelete = isOwn || S.user?.isAdmin;
-  const menu = (canDelete
-    ? `<button class="soc-post-del" data-id="${p.id}" title="Delete post"><i class="fas fa-trash-alt"></i></button>` : '')
-    + `<button class="soc-post-close" id="socDetailCloseBtn" title="Close"><i class="fas fa-times"></i></button>`;
-
-  // Media: uniform 4:5 frame (1080x1350 — Instagram post format).
-  // Multiple photos become a swipeable carousel with arrows + dots.
-  const mediaHTML = media.length ? `<div class="soc-post-media-wrap">
-    <div class="soc-carousel" data-count="${media.length}">
-      <div class="soc-carousel-track">${media.map((m,i) =>
-        m.type==='video'
-          ? `<div class="soc-slide"><video src="${m.url}" class="soc-slide-media" muted playsinline preload="metadata" controls></video></div>`
-          : `<div class="soc-slide" data-idx="${i}"><img src="${m.url}" alt="" class="soc-slide-media" loading="lazy"/></div>`
-      ).join('')}</div>
-      ${media.length > 1 ? `
-        <button class="soc-car-arrow soc-car-prev" style="display:none"><i class="fas fa-chevron-left"></i></button>
-        <button class="soc-car-arrow soc-car-next"><i class="fas fa-chevron-right"></i></button>
-        <div class="soc-car-count">1/${media.length}</div>
-        <div class="soc-car-dots">${media.map((_,i)=>`<span class="soc-car-dot${i===0?' active':''}"></span>`).join('')}</div>` : ''}
+  return `<article class="social-post-card" data-id="${p.id}">
+    <div class="soc-post-head">
+      ${avHTML}
+      <div class="soc-post-head-info">
+        <span class="soc-post-user clickable-user" data-user="${p.user}">${esc(p.user)}</span>
+        <span class="soc-post-time">${timeAgo(p.ts)}</span>
+      </div>
+      ${cats}
     </div>
-  </div>` : '';
-
-  const comments = p.comments || [];
-  const commentsListHTML = comments.length
-    ? comments.map(c => socialCommentHTML(c)).join('')
-    : '<p class="social-no-comments">No comments yet — be the first.</p>';
-
-  return `<article class="social-post-card soc-detail-layout" data-id="${p.id}">
-    <div class="soc-detail-media">
-      ${mediaHTML}
-    </div>
-    <div class="soc-detail-info">
-      <div class="soc-post-head">
-        ${avHTML}
-        <div class="soc-post-head-info">
-          <span class="soc-post-user clickable-user" data-user="${p.user}">${esc(p.user)}</span>
-          <span class="soc-post-time">${timeAgo(p.ts)}</span>
-        </div>
-        ${cats}
-        ${menu}
-      </div>
-      <div class="soc-detail-scroll">
-        ${p.caption ? `<div class="soc-caption-row">
-          ${avHTML}
-          <div class="soc-caption-text"><span class="soc-post-user clickable-user" data-user="${p.user}">${esc(p.user)}</span> ${socialCaptionHTML(p.caption)}</div>
-        </div>` : ''}
-        <div class="soc-comments-list" id="scl-${p.id}">${commentsListHTML}</div>
-      </div>
-      <div class="soc-post-actions">
-        <button class="soc-like-btn${(p.likedBy||[]).includes(S.user?.username)?' active':''}" data-id="${p.id}">
-          <i class="fas fa-heart"></i> <span>${(p.likedBy||[]).length}</span>
-        </button>
-        <button class="soc-comment-btn" data-id="${p.id}"><i class="fas fa-comment"></i> <span>${comments.length}</span></button>
-      </div>
-      ${S.user ? `<div class="soc-comment-input-row">
-        ${renderAv(S.user.username, 28, 'soc-comment-my-av')}
-        <input type="text" class="soc-comment-input" data-id="${p.id}" maxlength="300" placeholder="Add a comment…"/>
-        <button class="soc-comment-send" data-id="${p.id}" title="Post comment"><i class="fas fa-paper-plane"></i></button>
-      </div>` : '<p class="soc-comment-signin">Sign in to comment</p>'}
+    ${media.length ? `<div class="soc-post-media-wrap">${media.slice(0,4).map(m =>
+      m.type==='video'
+        ? `<video src="${m.url}" class="social-post-media" muted playsinline preload="metadata" controls></video>`
+        : `<img src="${m.url}" alt="" class="social-post-media" loading="lazy"/>`
+    ).join('')}</div>` : ''}
+    ${p.caption ? `<p class="soc-post-caption">${esc(p.caption)}</p>` : ''}
+    <div class="soc-post-actions">
+      <button class="soc-like-btn${(p.likedBy||[]).includes(S.user?.username)?' active':''}" data-id="${p.id}">
+        <i class="fas fa-heart"></i> <span>${(p.likedBy||[]).length}</span>
+      </button>
+      <button class="soc-comment-btn" data-id="${p.id}"><i class="fas fa-comment"></i> <span>${(p.comments||[]).length}</span></button>
     </div>
   </article>`;
 }
 
-function socialCommentHTML(c) {
-  const avUrl = getAvatarUrl(c.user);
-  const ring = hasActiveSpotStory(c.user) ? ' has-story-ring' : '';
-  const av = avUrl
-    ? `<span class="social-comment-av has-photo clickable-user${ring}" data-user="${c.user}"><img src="${avUrl}" alt="" class="av-photo"/></span>`
-    : `<span class="social-comment-av clickable-user${ring}" data-user="${c.user}" style="background:${avColor(c.user)}">${(c.user||'?')[0].toUpperCase()}</span>`;
-  return `<div class="social-comment-item">
-    ${av}
-    <div class="social-comment-body"><b class="clickable-user" data-user="${c.user}">${esc(c.user)}</b> ${esc(c.text)}</div>
-    <span class="social-comment-time">${timeAgo(c.ts)}</span>
-  </div>`;
-}
-
-// Find a spot post in every place we keep them
-function findSocialPost(id) {
-  return (S._socialPosts||[]).find(p=>p.id===id)
-    || JSON.parse(localStorage.getItem('dl_social_posts')||'[]').map(dbSocialToApp).find(p=>p&&p.id===id);
-}
-
 function bindSocialCardEvents(wrap) {
   if (!wrap) return;
-
-  // ── Close (now lives inside the header row itself, to the right of
-  // the trash icon — used to float outside the card entirely) ──
-  wrap.querySelector('#socDetailCloseBtn')?.addEventListener('click', closeSocialDetail);
-
-  // ── Likes (optimistic) ──
   wrap.querySelectorAll('.soc-like-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      if (!S.user) { toast('Sign in to like','err'); el('authModal').classList.add('open'); return; }
-      const liked = btn.classList.contains('active');
-      btn.classList.toggle('active', !liked);
-      const countEl = btn.querySelector('span');
-      if (countEl) countEl.textContent = Math.max(0, parseInt(countEl.textContent||'0') + (liked ? -1 : 1));
-      DB.toggleSocialLike(btn.dataset.id, S.user.username).catch(()=>{});
-      // Notify the post owner (only on like, not unlike, never self)
-      if (!liked) {
-        const sp0 = findSocialPost(btn.dataset.id);
-        if (sp0?.user_id && sp0.user !== S.user.username) {
-          DB.pushNotification(sp0.user_id, 'like', S.user.username, 'liked your spot', 'page:social').catch(()=>{});
-        }
-      }
+      if (!S.user) { toast('Sign in to like','err'); return; }
       const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-      const post = all.find(p=>p.id===btn.dataset.id);
-      if (post) {
-        if (liked) post.likedBy = (post.likedBy||[]).filter(u=>u!==S.user.username);
-        else post.likedBy = [...(post.likedBy||[]), S.user.username];
-        post.likes = (post.likedBy||[]).length;
-        localStorage.setItem('dl_social_posts', JSON.stringify(all));
-      }
-      if (S._socialPosts) {
-        const sp = S._socialPosts.find(p=>p.id===btn.dataset.id);
-        if (sp) {
-          if (liked) sp.likedBy = (sp.likedBy||[]).filter(u=>u!==S.user.username);
-          else sp.likedBy = [...(sp.likedBy||[]), S.user.username];
-          sp.likes = (sp.likedBy||[]).length;
-        }
-      }
-    });
-  });
-
-  // ── Comments: focus the input (comments are always visible now) ──
-  wrap.querySelectorAll('.soc-comment-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      wrap.querySelector(`.soc-comment-input[data-id="${btn.dataset.id}"]`)?.focus();
-    });
-  });
-
-  // ── Comments: submit ──
-  function sendComment(id, inputEl) {
-    const text = inputEl.value.trim();
-    if (!text) return;
-    if (!S.user) { toast('Sign in to comment','err'); return; }
-    const comment = { user: S.user.username, text, ts: Date.now() };
-    inputEl.value = '';
-    // Optimistic: append to the list + bump the count
-    const list = el('scl-'+id);
-    if (list) {
-      if (list.querySelector('.social-no-comments')) list.innerHTML = '';
-      list.insertAdjacentHTML('beforeend', socialCommentHTML(comment));
-      list.scrollTop = list.scrollHeight;
-    }
-    const countSpan = wrap.querySelector(`.soc-comment-btn[data-id="${id}"] span`);
-    if (countSpan) countSpan.textContent = parseInt(countSpan.textContent||'0') + 1;
-    // Update every store
-    const sp = (S._socialPosts||[]).find(p=>p.id===id);
-    if (sp) sp.comments = [...(sp.comments||[]), comment];
-    const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-    const lp = all.find(p=>p.id===id);
-    if (lp) { lp.comments = [...(lp.comments||[]), comment]; localStorage.setItem('dl_social_posts', JSON.stringify(all)); }
-    DB.addSocialComment(id, comment).catch(()=>{});
-    // Notify the post owner (never self)
-    const owner = findSocialPost(id);
-    if (owner?.user_id && owner.user !== S.user.username) {
-      const preview = text.length > 40 ? text.slice(0,40)+'…' : text;
-      DB.pushNotification(owner.user_id, 'comment', S.user.username, 'commented on your spot: "'+preview+'"', 'page:social').catch(()=>{});
-    }
-  }
-  wrap.querySelectorAll('.soc-comment-send').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const input = wrap.querySelector(`.soc-comment-input[data-id="${btn.dataset.id}"]`);
-      if (input) sendComment(btn.dataset.id, input);
-    });
-  });
-  wrap.querySelectorAll('.soc-comment-input').forEach(input => {
-    input.addEventListener('keydown', e => { if (e.key==='Enter') sendComment(input.dataset.id, input); });
-  });
-
-  // ── Delete own post (admins can delete any) ──
-  wrap.querySelectorAll('.soc-post-del').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = btn.dataset.id;
-      if (!S.user) return;
-      if (!confirm('Delete this spot? This cannot be undone.')) return;
-      const card = wrap.querySelector(`.social-post-card[data-id="${id}"]`);
-      if (card) { card.style.opacity='.4'; card.style.pointerEvents='none'; }
-      const post = findSocialPost(id);
-      const isMine = post && (post.user === S.user.username || post.user_id === S.user.id);
-      try {
-        // Admins deleting someone else's post use the unfiltered call;
-        // owners use the user-scoped call. Promise.resolve guards the
-        // "Supabase not ready" path which returns undefined.
-        const res = await Promise.resolve(
-          (!isMine && S.user.isAdmin)
-            ? DB.adminDeleteSocialPost(id)
-            : DB.deleteSocialPost(id, S.user.id)
-        );
-        if (res?.error) throw res.error;
-      } catch(e) {
-        // If it only exists locally, deleting locally below still works;
-        // otherwise surface the failure.
-        const existsLocally = JSON.parse(localStorage.getItem('dl_social_posts')||'[]').some(p=>p.id===id);
-        if (!existsLocally) {
-          if (card) { card.style.opacity=''; card.style.pointerEvents=''; }
-          toast('Delete failed — try again','err');
-          return;
-        }
-      }
-      // Remove from every local store + the DOM
-      S._socialPosts = (S._socialPosts||[]).filter(p=>p.id!==id);
-      const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]').filter(p=>p.id!==id);
+      const post = all.find(p=>p.id===btn.dataset.id); if(!post) return;
+      const liked = (post.likedBy||[]).includes(S.user.username);
+      if (liked) post.likedBy = (post.likedBy||[]).filter(u=>u!==S.user.username);
+      else { post.likedBy = [...(post.likedBy||[]), S.user.username]; }
       localStorage.setItem('dl_social_posts', JSON.stringify(all));
-      card?.remove();
-      toast('Spot deleted','ok');
-      renderTrendingTags();
-    });
-  });
-
-  // ── Media: carousel nav + single click = lightbox, double = like ──
-  wrap.querySelectorAll('.social-post-card').forEach(card => {
-    const id = card.dataset.id;
-    const post = findSocialPost(id);
-    const imgUrls = (post?.media||[]).filter(m=>m && m.type!=='video').map(m=>m.url);
-    let clickTimer = null, lastTap = 0;
-
-    function likeViaDouble() {
-      const mediaWrap = card.querySelector('.soc-post-media-wrap');
-      if (mediaWrap) {
-        const h = document.createElement('div');
-        h.className = 'soc-heart-burst';
-        h.innerHTML = '<i class="fas fa-heart"></i>';
-        mediaWrap.appendChild(h);
-        setTimeout(() => h.remove(), 900);
-      }
-      if (!S.user) { toast('Sign in to like','err'); el('authModal').classList.add('open'); return; }
-      const likeBtn = card.querySelector('.soc-like-btn');
-      if (likeBtn && !likeBtn.classList.contains('active')) likeBtn.click();
-    }
-
-    // Carousel state
-    const carousel = card.querySelector('.soc-carousel');
-    if (carousel) {
-      const track = carousel.querySelector('.soc-carousel-track');
-      const slides = carousel.querySelectorAll('.soc-slide');
-      const dots  = carousel.querySelectorAll('.soc-car-dot');
-      const prev  = carousel.querySelector('.soc-car-prev');
-      const next  = carousel.querySelector('.soc-car-next');
-      const count = carousel.querySelector('.soc-car-count');
-      let cur = 0;
-
-      function goSlide(n) {
-        cur = Math.max(0, Math.min(slides.length-1, n));
-        track.style.transform = `translateX(-${cur*100}%)`;
-        dots.forEach((d,i)=>d.classList.toggle('active', i===cur));
-        if (prev) prev.style.display = cur===0 ? 'none' : '';
-        if (next) next.style.display = cur===slides.length-1 ? 'none' : '';
-        if (count) count.textContent = `${cur+1}/${slides.length}`;
-        // Pause any videos not on screen
-        carousel.querySelectorAll('video').forEach(v => { if (!slides[cur].contains(v)) v.pause(); });
-      }
-      prev?.addEventListener('click', e => { e.stopPropagation(); goSlide(cur-1); });
-      next?.addEventListener('click', e => { e.stopPropagation(); goSlide(cur+1); });
-
-      // Touch swipe
-      let touchX = null;
-      carousel.addEventListener('touchstart', e => { touchX = e.touches[0].clientX; }, {passive:true});
-      carousel.addEventListener('touchend', e => {
-        if (touchX === null) return;
-        const dx = e.changedTouches[0].clientX - touchX;
-        touchX = null;
-        if (Math.abs(dx) > 40) goSlide(cur + (dx < 0 ? 1 : -1));
-      }, {passive:true});
-
-      // Image taps: single = lightbox, double = like
-      carousel.querySelectorAll('.soc-slide img').forEach((img, idx) => {
-        img.addEventListener('dblclick', e => {
-          e.preventDefault();
-          if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
-          likeViaDouble();
-        });
-        img.addEventListener('click', () => {
-          const now = Date.now();
-          if (now - lastTap < 300) {
-            lastTap = 0;
-            if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
-            likeViaDouble();
-            return;
-          }
-          lastTap = now;
-          if (clickTimer) clearTimeout(clickTimer);
-          clickTimer = setTimeout(() => {
-            clickTimer = null;
-            if (imgUrls.length) openLightbox(imgUrls, Math.min(idx, imgUrls.length-1));
-          }, 280);
-        });
-      });
-    }
-  });
-
-  // ── Usernames + avatars → profile (delegated, once per wrap) ──
-  if (!wrap._userNavWired) {
-    wrap._userNavWired = true;
-    wrap.addEventListener('click', e => {
-      const cu = e.target.closest('.clickable-user');
-      if (cu?.dataset.user) viewMemberProfile(cu.dataset.user);
-    });
-  }
-
-  // ── Hashtag click → search ──
-  wrap.querySelectorAll('.soc-hashtag').forEach(tag => {
-    tag.addEventListener('click', () => {
-      const si = el('socialSearchInput');
-      if (si) { si.value = tag.dataset.tag.replace('#',''); el('socialSearchClear').style.display='block'; doSocialSearch(); window.scrollTo({top:0,behavior:'smooth'}); }
+      btn.classList.toggle('active', !liked);
+      btn.querySelector('span').textContent = post.likedBy.length;
     });
   });
 }
-
