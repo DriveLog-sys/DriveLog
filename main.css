@@ -1981,8 +1981,8 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
   font-size:.8rem;transition:all var(--tr);
 }
 .disc-vote-btn:hover{background:var(--hover);color:var(--text)}
-.disc-vote-btn.disc-up.active{color:var(--accent)}
-.disc-vote-btn.disc-down.active{color:#e8392a}
+.disc-vote-btn.disc-up.active{color:var(--green)}
+.disc-vote-btn.disc-down.active{color:var(--red)}
 .disc-vote-count{font-family:var(--cond);font-weight:800;font-size:.86rem;color:var(--text)}
 
 .disc-row-content{flex:1;min-width:0}
@@ -1995,7 +1995,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 .disc-row-meta-av{width:20px;height:20px;border-radius:50%;flex-shrink:0}
 .disc-row-meta-user{font-size:.78rem;font-weight:600;color:var(--sec)}
 .disc-row-meta-time{font-size:.78rem;color:var(--muted)}
-.disc-row-title{font-family:var(--disp);font-size:1.15rem;color:var(--text);margin:0 0 4px;line-height:1.3}
+.disc-row-title{font-family:var(--body);font-size:1.08rem;font-weight:700;letter-spacing:normal;color:var(--text);margin:0 0 4px;line-height:1.35}
 .disc-row-preview{
   color:var(--muted);font-size:.85rem;line-height:1.5;margin:0;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
@@ -2016,11 +2016,11 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 
 /* ── Detail view ── */
 .disc-detail-box{max-width:680px;padding:32px}
-.disc-detail-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.disc-detail-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-right:42px}
 .disc-detail-time{color:var(--muted);font-size:.82rem;margin-left:auto}
 .disc-detail-del{background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:.8rem;transition:all var(--tr)}
 .disc-detail-del:hover{color:#e8392a;border-color:#e8392a}
-.disc-detail-title{font-family:var(--disp);font-size:1.7rem;color:var(--text);margin:0 0 14px;line-height:1.3}
+.disc-detail-title{font-family:var(--body);font-size:1.5rem;font-weight:800;letter-spacing:normal;color:var(--text);margin:0 0 14px;line-height:1.35}
 .disc-detail-author{display:flex;align-items:center;gap:10px;margin-bottom:16px}
 .disc-detail-author-av{width:34px;height:34px;border-radius:50%;flex-shrink:0}
 .disc-detail-author-name{font-weight:700;color:var(--text);font-size:.92rem}
@@ -7322,55 +7322,30 @@ body:not(.dark) .save-btn {
 #profileShareBtn:active { transform: scale(.95); }
 
 /* ═══════════════════════════════════════════════════════════════
-   INLINE EXPANDING SEARCH — header
+   HEADER SEARCH — static bar, always visible (no open/close animation)
    ═══════════════════════════════════════════════════════════════ */
 .header-search-wrap {
   position: relative;
   display: flex;
   align-items: center;
 }
-/* The trigger icon-btn stays visible until opened */
-.header-search-wrap .header-search-trigger {
-  flex-shrink: 0;
-  width: auto;
-  min-width: 150px;
-  border-radius: 19px;
-  padding: 0 16px;
-  gap: 9px;
-  justify-content: flex-start;
-  font-family: var(--cond);
-  font-size: .8rem;
-  font-weight: 700;
-  letter-spacing: .5px;
-}
-
-/* The expanding bar — hidden by default, slides in from right */
+/* Styled like the old bar's "already open" state, but permanent — a
+   normal flex child (not position:absolute), so it can never overlay
+   or overlap the nav links to its left. */
 .header-search-bar {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
   display: flex;
   align-items: center;
   gap: 8px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 24px;
-  padding: 5px 12px 5px 14px;
-  width: 0;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-  transition: width .25s cubic-bezier(.4,0,.2,1), opacity .2s ease;
-  white-space: nowrap;
-  box-shadow: 0 4px 20px rgba(0,0,0,.15);
-  z-index: 100;
+  padding: 7px 14px;
+  width: 240px;
+  flex-shrink: 1;
+  min-width: 130px;
+  transition: border-color var(--tr);
 }
-.header-search-wrap.open .header-search-bar {
-  width: min(380px, 70vw);
-  opacity: 1;
-  pointer-events: auto;
-}
+.header-search-bar:focus-within { border-color: var(--accent); }
 .header-search-icon { color: var(--muted); font-size: .82rem; flex-shrink: 0; }
 .header-search-input {
   flex: 1; border: none; background: transparent; outline: none;
@@ -7378,22 +7353,14 @@ body:not(.dark) .save-btn {
   color: var(--text); min-width: 0;
 }
 .header-search-input::placeholder { color: var(--muted); }
-.header-search-expand {
-  color: var(--accent); background: none; border: none;
-  font-family: var(--cond); font-size: .72rem; font-weight: 700;
-  letter-spacing: .5px; cursor: pointer; white-space: nowrap;
-  padding: 2px 0; flex-shrink: 0;
-  transition: opacity var(--tr);
-}
-.header-search-expand:hover { opacity: .7; }
-.header-search-close {
-  width: 24px; height: 24px; border-radius: 50%;
+.header-search-clear {
+  width: 20px; height: 20px; border-radius: 50%;
   background: var(--raised); border: none; color: var(--muted);
-  cursor: pointer; font-size: .7rem; flex-shrink: 0;
+  cursor: pointer; font-size: .62rem; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   transition: all var(--tr);
 }
-.header-search-close:hover { background: var(--hover); color: var(--text); }
+.header-search-clear:hover { background: var(--hover); color: var(--text); }
 
 /* Inline search results dropdown */
 .header-search-results {
@@ -7738,6 +7705,11 @@ html, body { overflow-x: hidden; }
   /* Hide desktop-only header items */
   .site-nav, .main-nav { display: none !important; flex: 0 !important; }
   #themeToggleBtn  { display: none !important; }
+  /* FIX: this was never actually hidden on mobile before — mobile already
+     has its own persistent .mob-search-bar next to the logo, so this
+     desktop-only bar (like its sibling #themeToggleBtn) needs an explicit
+     mobile override too, or the two search bars show side by side. */
+  #headerSearchWrap { display: none !important; }
   #openPostBtn     { display: none !important; }
   #avName          { display: none !important; }
   .av-chip .fa-chevron-down { display: none !important; }
@@ -8172,7 +8144,6 @@ html, body { overflow-x: hidden; }
   .header-inner { padding: 0 10px !important; }
   .mob-bottom-tab { font-size: .48rem !important; }
   .mob-bottom-tab i { font-size: 1rem !important; }
-  .header-search-wrap .header-search-trigger { min-width: 110px !important; padding: 0 12px !important; }
 }
 
 /* ── iOS safe area ─────────────────────────────────────────── */

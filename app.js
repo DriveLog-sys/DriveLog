@@ -1472,53 +1472,34 @@ function startHotProgress(dur) {
 // ─── SEARCH ───────────────────────────────────────────────────
 // Two search modes:
 //
-// 1. INLINE search (desktop, ≥769px):
-//    Clicking the magnifying glass expands a bar to the left.
-//    Results appear in a dropdown below the bar as you type.
-//    "Expand" button or pressing Enter opens the fullscreen overlay.
+// 1. Desktop (≥769px): a static, always-visible search bar in the header.
+//    Results appear in a dropdown below the bar as you type. Pressing
+//    Enter jumps to the fullscreen overlay for a full results page.
 //
 // 2. FULLSCREEN overlay (mobile, ≤768px):
-//    Clicking the icon opens a full-page search overlay immediately.
-//    The keyboard pops up on mobile right away (double focus trick
-//    for iOS Safari which ignores the first .focus() in a click handler).
+//    Tapping the persistent mobile search bar opens a full-page search
+//    overlay immediately. The keyboard pops up on mobile right away
+//    (double focus trick for iOS Safari which ignores the first .focus()
+//    in a click handler).
 //
 // Both modes search the local S.posts and S.users arrays first (instant),
 // then fire Supabase FTS (full-text search) queries in the background
 // and merge any new results that weren't in the local cache.
 let _searchTimer;
 function initSearch() {
-  const trigger  = el('searchBtn');
   const wrap     = el('headerSearchWrap');
   const input    = el('headerSearchInput');
   const results  = el('headerSearchResults');
-  const closeBtn = el('headerSearchClose');
-  const expandBtn= el('headerSearchExpand');
+  const clearBtn = el('headerSearchClear');
   let _searchTimer = null;
-  let _isOpen = false;
 
-  function openInlineSearch() {
-    _isOpen = true; wrap?.classList.add('open');
-    if (trigger) trigger.style.display = 'none';
-    setTimeout(() => input?.focus(), 80);
-  }
-  function closeInlineSearch() {
-    _isOpen = false; wrap?.classList.remove('open');
-    if (trigger) trigger.style.display = '';
+  function hideInlineResults() {
     if (input) input.value = '';
     if (results) { results.innerHTML = ''; results.style.display = 'none'; }
-    if (expandBtn) expandBtn.style.display = 'none';
+    if (clearBtn) clearBtn.style.display = 'none';
   }
-  // Expose for external use
-  window._closeInlineSearch = closeInlineSearch;
-
-  trigger?.addEventListener('click', () => {
-    if (window.innerWidth <= 768) {
-      openSearch();
-      setTimeout(() => el('searchInput')?.focus(), 50);
-    } else {
-      openInlineSearch();
-    }
-  });
+  // Kept for other code that dismisses the search dropdown after navigating
+  window._closeInlineSearch = hideInlineResults;
 
   // Mobile persistent search bar — tap opens fullscreen search
   el('mobSearchBar')?.addEventListener('click', () => {
@@ -1530,9 +1511,8 @@ function initSearch() {
     openSearch();
     setTimeout(() => el('searchInput')?.focus(), 80);
   });
-  closeBtn?.addEventListener('click', closeInlineSearch);
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeInlineSearch(); closeSearch(); }
+    if (e.key === 'Escape') { hideInlineResults(); closeSearch(); }
   });
   el('searchClose')?.addEventListener('click', closeSearch);
   el('searchOverlay')?.addEventListener('click', e => { if(e.target===el('searchOverlay')) closeSearch(); });
@@ -1541,25 +1521,23 @@ function initSearch() {
 
   input?.addEventListener('input', () => {
     const q = input.value.trim();
-    if (!q) { if(results){results.innerHTML='';results.style.display='none';} if(expandBtn)expandBtn.style.display='none'; return; }
-    if (expandBtn) expandBtn.style.display = 'inline-flex';
+    if (clearBtn) clearBtn.style.display = q ? 'flex' : 'none';
+    if (!q) { if(results){results.innerHTML='';results.style.display='none';} return; }
     clearTimeout(_searchTimer);
     _searchTimer = setTimeout(() => runInlineSearch(q), 150);
   });
   input?.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeInlineSearch();
+    if (e.key === 'Escape') hideInlineResults();
     if (e.key === 'Enter' && input.value.trim()) {
       el('searchInput').value = input.value;
-      closeInlineSearch(); openSearch(); doSearch();
+      hideInlineResults(); openSearch(); doSearch();
     }
   });
-  expandBtn?.addEventListener('click', () => {
-    const q = input?.value.trim()||'';
-    el('searchInput').value = q;
-    closeInlineSearch(); openSearch(); if(q) doSearch();
-  });
+  clearBtn?.addEventListener('click', () => { hideInlineResults(); input?.focus(); });
   document.addEventListener('click', e => {
-    if (_isOpen && wrap && !wrap.contains(e.target)) closeInlineSearch();
+    if (results && results.style.display!=='none' && wrap && !wrap.contains(e.target)) {
+      results.style.display = 'none';
+    }
   });
 }
 
@@ -6755,8 +6733,10 @@ function toggleDiscussionVote(id, dir) {
   let up = d.upvotes||[], down = d.downvotes||[];
   if (dir==='up') { down = down.filter(u=>u!==uname); up = up.includes(uname) ? up.filter(u=>u!==uname) : [...up, uname]; }
   else            { up   = up.filter(u=>u!==uname);   down = down.includes(uname) ? down.filter(u=>u!==uname) : [...down, uname]; }
+  // findDiscussion() returns the live object straight out of S._discussions
+  // when it's there (the common case) — assigning to `d` already updates
+  // that shared object, so there is nothing further to mutate here.
   d.upvotes = up; d.downvotes = down;
-  if (S._discussions) { const sd = S._discussions.find(x=>x.id===id); if (sd) { sd.upvotes=up; sd.downvotes=down; } }
   const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]');
   const li = local.findIndex(x=>x.id===id);
   if (li>=0) { local[li].upvotes=up; local[li].downvotes=down; localStorage.setItem('dl_discussions', JSON.stringify(local)); }
@@ -6862,46 +6842,80 @@ function commentHTML(c, allComments) {
 }
 
 function bindDiscussionDetailEvents(content, d) {
-  content.querySelectorAll('.disc-vote-btn').forEach(btn => {
+  // Top-level elements — the discussion's own vote buttons, the delete
+  // button, the author name, and the new-comment composer. None of these
+  // live inside the comments list that refreshDiscussionCommentsUI()
+  // rebuilds, so they must only ever be bound ONCE per modal open.
+  // (Previously this whole function — including these bindings — was
+  // re-run every time a comment was posted or voted on, which stacked a
+  // fresh duplicate listener onto every one of these elements each time:
+  // clicking the discussion's upvote would fire the toggle twice in the
+  // same click and cancel itself out, and the comment submit button would
+  // fire twice per click, posting the same comment twice.)
+  content.querySelectorAll('.disc-detail-votes .disc-vote-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       if (!S.user) { toast('Sign in to vote','err'); el('authModal').classList.add('open'); return; }
-      if (btn.dataset.id) toggleDiscussionVote(btn.dataset.id, btn.dataset.dir);
-      else if (btn.dataset.cid) toggleCommentVote(d.id, btn.dataset.cid, btn.dataset.dir, content);
+      toggleDiscussionVote(btn.dataset.id, btn.dataset.dir);
     });
   });
-  content.querySelectorAll('.disc-reply-btn').forEach(btn => {
+  content.querySelector('.disc-detail-del')?.addEventListener('click', () => deleteDiscussionFromDetail(d.id));
+  content.querySelectorAll('.disc-detail-author .clickable-user').forEach(el2 => {
+    el2.addEventListener('click', () => viewPublicProfile(el2.dataset.user));
+  });
+  el('discNewCommentSubmit')?.addEventListener('click', () => sendDiscussionComment(d.id, content));
+  el('discNewCommentInput')?.addEventListener('keydown', e => {
+    if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendDiscussionComment(d.id, content); }
+  });
+
+  // Comment-tree elements — safe to (re)bind every time, since the list
+  // they live in is fully replaced (fresh DOM nodes) on every re-render.
+  bindDiscussionCommentEvents(content, d);
+}
+
+// Binds vote/reply/delete/profile-link handlers for everything inside the
+// comments list only. Called once on initial open (via
+// bindDiscussionDetailEvents above) and again every time the list is
+// re-rendered — safe to call repeatedly because renderCommentTree() always
+// produces brand-new DOM nodes, so there's nothing stale to double-bind.
+function bindDiscussionCommentEvents(content, d) {
+  const listEl = content.querySelector(`#discCommentsList-${d.id}`);
+  if (!listEl) return;
+  listEl.querySelectorAll('.disc-vote-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!S.user) { toast('Sign in to vote','err'); el('authModal').classList.add('open'); return; }
+      toggleCommentVote(d.id, btn.dataset.cid, btn.dataset.dir, content);
+    });
+  });
+  listEl.querySelectorAll('.disc-reply-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const composer = el('discReplyComposer-'+btn.dataset.cid);
       composer?.classList.toggle('open');
       if (composer?.classList.contains('open')) composer.querySelector('input')?.focus();
     });
   });
-  content.querySelectorAll('.disc-reply-send').forEach(btn => {
+  listEl.querySelectorAll('.disc-reply-send').forEach(btn => {
     btn.addEventListener('click', () => sendDiscussionReply(d.id, btn.dataset.parent, content));
   });
-  content.querySelectorAll('.disc-reply-composer input').forEach(input => {
+  listEl.querySelectorAll('.disc-reply-composer input').forEach(input => {
     input.addEventListener('keydown', e => { if (e.key==='Enter') sendDiscussionReply(d.id, input.dataset.parent, content); });
   });
-  el('discNewCommentSubmit')?.addEventListener('click', () => sendDiscussionComment(d.id, content));
-  el('discNewCommentInput')?.addEventListener('keydown', e => {
-    if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendDiscussionComment(d.id, content); }
-  });
-  content.querySelectorAll('.disc-comment-del-btn').forEach(btn => {
+  listEl.querySelectorAll('.disc-comment-del-btn').forEach(btn => {
     btn.addEventListener('click', () => deleteDiscussionComment(d.id, btn.dataset.cid, content));
   });
-  content.querySelector('.disc-detail-del')?.addEventListener('click', () => deleteDiscussionFromDetail(d.id));
-  content.querySelectorAll('.clickable-user').forEach(el2 => {
+  listEl.querySelectorAll('.clickable-user').forEach(el2 => {
     el2.addEventListener('click', () => viewPublicProfile(el2.dataset.user));
   });
 }
 
 function addDiscussionCommentToStores(discussionId, comment) {
+  // findDiscussion() checks S._discussions FIRST, so `d` here IS the same
+  // object living in S._discussions whenever that discussion is cached
+  // there (virtually always). A second "if (S._discussions) {...}" lookup
+  // used to re-find that identical object and push the same comment onto
+  // it a second time — that's what was causing every comment to post
+  // twice. Mutating `d` once is sufficient.
   const d = findDiscussion(discussionId);
   if (d) d.comments = [...(d.comments||[]), comment];
-  if (S._discussions) {
-    const sd = S._discussions.find(x=>x.id===discussionId);
-    if (sd) sd.comments = [...(sd.comments||[]), comment];
-  }
   const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]');
   const li = local.findIndex(x=>x.id===discussionId);
   if (li>=0) { local[li].comments = [...(local[li].comments||[]), comment]; localStorage.setItem('dl_discussions', JSON.stringify(local)); }
@@ -6914,7 +6928,7 @@ function refreshDiscussionCommentsUI(discussionId, content) {
   if (listEl) listEl.innerHTML = renderCommentTree(d.comments||[], null);
   const heading = content.querySelector('.disc-comments-heading');
   if (heading) heading.textContent = `${(d.comments||[]).length} Comment${(d.comments||[]).length===1?'':'s'}`;
-  bindDiscussionDetailEvents(content, d);
+  bindDiscussionCommentEvents(content, d);
   document.querySelectorAll(`.disc-item[data-id="${discussionId}"] .disc-comment-count`).forEach(node => {
     node.innerHTML = `<i class="fas fa-comment"></i> ${(d.comments||[]).length}`;
   });
@@ -6962,8 +6976,11 @@ function toggleCommentVote(discussionId, commentId, dir, content) {
     else            { up   = up.filter(u=>u!==uname);   down = down.includes(uname)?down.filter(u=>u!==uname):[...down,uname]; }
     return { ...c, upvotes:up, downvotes:down };
   };
+  // Same shared-object issue as addDiscussionCommentToStores() — applying
+  // this toggle a second time to the identical object flipped the vote
+  // right back off, which is why votes on comments looked like they
+  // silently did nothing.
   d.comments = (d.comments||[]).map(applyVote);
-  if (S._discussions) { const sd = S._discussions.find(x=>x.id===discussionId); if (sd) sd.comments = (sd.comments||[]).map(applyVote); }
   const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]');
   const li = local.findIndex(x=>x.id===discussionId);
   if (li>=0) { local[li].comments = d.comments; localStorage.setItem('dl_discussions', JSON.stringify(local)); }
@@ -6978,7 +6995,6 @@ function deleteDiscussionComment(discussionId, commentId, content) {
   // same "[deleted]" convention Reddit itself uses.
   const softDelete = c => c.id===commentId ? { ...c, text:'[deleted]', user:'[deleted]' } : c;
   d.comments = (d.comments||[]).map(softDelete);
-  if (S._discussions) { const sd = S._discussions.find(x=>x.id===discussionId); if (sd) sd.comments = (sd.comments||[]).map(softDelete); }
   const local = JSON.parse(localStorage.getItem('dl_discussions')||'[]');
   const li = local.findIndex(x=>x.id===discussionId);
   if (li>=0) { local[li].comments = d.comments; localStorage.setItem('dl_discussions', JSON.stringify(local)); }
