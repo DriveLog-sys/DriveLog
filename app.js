@@ -1581,7 +1581,7 @@ function loginUser(username) {
   el('authModal') && el('authModal').classList.remove('open');
   updateAuthUI(); updateProfilePage(); updateDmBadge();
   setupRealtimeSubscriptions();
-  toastSignIn(username);
+  toast(`Welcome back, ${username}!`, 'ok');
 }
 
 async function registerUser(username, email, password, googleId) {
@@ -4107,13 +4107,9 @@ function initCarPage() {
     const btn = el('cpLike');
     if (btn) { btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop'); setTimeout(() => btn.classList.remove('pop'), 400); }
   });
-  // BOTM vote button — appears on each post
-  const botmBtn = el('cpBotmVote');
-  if (botmBtn) {
-    botmBtn.dataset.id = post.id;
-    renderBotmVoteBtn(post.id);
-    botmBtn.addEventListener('click', () => castBotmVote(botmBtn.dataset.id));
-  }
+  // BOTM vote button — wiring happens in renderCarPage(post) instead,
+  // since a real post doesn't exist yet at boot time (this function
+  // runs once during DOMContentLoaded, before any build page is open).
   el('cpSave')?.addEventListener('click', () => {
     cpHandleSave();
     const btn = el('cpSave');
@@ -4196,6 +4192,15 @@ function renderCarPage(post) {
   if (!post) return;
   // Gallery
   cpRenderGallery(post);
+  // BOTM vote button — wired here (not initCarPage) since we need a
+  // real post.id, and this function re-runs fresh every time a build
+  // page opens so re-wiring the click listener each time is correct.
+  const botmBtn = el('cpBotmVote');
+  if (botmBtn) {
+    botmBtn.dataset.id = post.id;
+    renderBotmVoteBtn(post.id);
+    botmBtn.onclick = () => castBotmVote(botmBtn.dataset.id);
+  }
   // Category badge
   const cfg = catCfg(post.category);
   const cpCats = Array.isArray(post.categories) && post.categories.length ? post.categories : [post.category].filter(Boolean);
