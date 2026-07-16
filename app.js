@@ -4280,17 +4280,22 @@ function renderCarPage(post) {
   // Specs table — two column layout (specs left, blank right for future use)
   const cpChipsEl = el('cpChips');
   if (cpChipsEl) {
+    // Performance stats get a warm orange/red accent (fast = hot),
+    // informational stats get the cool blue accent — gives the grid
+    // real visual rhythm instead of every card looking identical.
+    const PERF_COLOR = '#f0503a';
+    const INFO_COLOR = '#3b82f6';
     const specRows = [
-      { icon:'fas fa-calendar-alt', label:'Year',         val: post.year },
-      { icon:'fas fa-industry',     label:'Make',         val: post.make },
-      { icon:'fas fa-car',          label:'Model',        val: post.model },
-      { icon:'fas fa-bolt',         label:'Power',        val: post.hp,           accent:true },
-      { icon:'fas fa-cogs',         label:'Transmission', val: post.transmission },
-      { icon:'fas fa-road',         label:'Mileage',      val: post.mileage ? Number(post.mileage).toLocaleString()+' mi' : '' },
-      { icon:'fas fa-stopwatch',    label:'0–60 mph',     val: post.zeroSixty,    accent:true },
-      { icon:'fas fa-flag',         label:'¼ Mile',       val: post.quarterMile,  accent:true },
-      { icon:'fas fa-tachometer-alt',label:'Top Speed',   val: post.topSpeed,     accent:true },
-      { icon:'fas fa-map-marker-alt',label:'State',       val: post.buildState },
+      { icon:'fas fa-calendar-alt', label:'Year',         val: post.year,         color:INFO_COLOR },
+      { icon:'fas fa-industry',     label:'Make',         val: post.make,         color:INFO_COLOR },
+      { icon:'fas fa-car',          label:'Model',        val: post.model,        color:INFO_COLOR },
+      { icon:'fas fa-bolt',         label:'Power',        val: post.hp,           color:PERF_COLOR, accent:true },
+      { icon:'fas fa-cogs',         label:'Transmission', val: post.transmission, color:INFO_COLOR },
+      { icon:'fas fa-road',         label:'Mileage',      val: post.mileage ? Number(post.mileage).toLocaleString()+' mi' : '', color:INFO_COLOR },
+      { icon:'fas fa-stopwatch',    label:'0–60 mph',     val: post.zeroSixty,    color:PERF_COLOR, accent:true },
+      { icon:'fas fa-flag',         label:'¼ Mile',       val: post.quarterMile,  color:PERF_COLOR, accent:true },
+      { icon:'fas fa-tachometer-alt',label:'Top Speed',   val: post.topSpeed,     color:PERF_COLOR, accent:true },
+      { icon:'fas fa-map-marker-alt',label:'State',       val: post.buildState,   color:INFO_COLOR },
     ].filter(r => r.val && r.val.toString().trim());
 
     cpChipsEl.innerHTML = `
@@ -4298,12 +4303,12 @@ function renderCarPage(post) {
         <div class="specs-table-wrap">
           <div class="specs-table">
             ${specRows.map(r => `
-              <div class="spec-row">
+              <div class="spec-row" style="--spec-color:${r.color}">
                 <div class="spec-label">
-                  <i class="fas ${r.icon.replace('fas ','')} spec-icon"></i>
+                  <i class="fas ${r.icon.replace('fas ','')} spec-icon" style="color:${r.color}"></i>
                   ${r.label}
                 </div>
-                <div class="spec-value${r.accent?' spec-accent':''}">
+                <div class="spec-value${r.accent?' spec-accent':''}" ${r.accent?`style="color:${r.color}"`:''}>
                   ${esc(r.val.toString())}
                 </div>
               </div>`).join('')}
@@ -4320,15 +4325,23 @@ function renderCarPage(post) {
   }
   // Structured mods — or fall back to legacy string
   const modsEl = el('cpMods');
+  // Each category gets its own accent color so the mods grid has real
+  // visual variety instead of every card looking identical in blue.
   const MOD_CATS = [
-    { key:'engine',     icon:'fas fa-cog',          label:'Engine'              },
-    { key:'drivetrain', icon:'fas fa-circle-notch',   label:'Drivetrain'          },
-    { key:'suspension', icon:'fas fa-sliders-h',      label:'Suspension & Brakes' },
-    { key:'wheels',     icon:'fas fa-circle',         label:'Wheels & Tires'      },
-    { key:'exterior',   icon:'fas fa-paint-brush',    label:'Exterior'            },
-    { key:'interior',   icon:'fas fa-couch',          label:'Interior'            },
-    { key:'other',      icon:'fas fa-wrench',         label:'Other'               },
+    { key:'engine',     icon:'fas fa-cog',           label:'Engine',              color:'#f0503a' },
+    { key:'drivetrain', icon:'fas fa-circle-notch',  label:'Drivetrain',          color:'#3b82f6' },
+    { key:'suspension', icon:'fas fa-sliders-h',     label:'Suspension & Brakes', color:'#22c55e' },
+    { key:'wheels',     icon:'fas fa-circle',        label:'Wheels & Tires',      color:'#a855f7' },
+    { key:'exterior',   icon:'fas fa-paint-brush',   label:'Exterior',            color:'#ec4899' },
+    { key:'interior',   icon:'fas fa-couch',         label:'Interior',            color:'#14b8a6' },
+    { key:'other',      icon:'fas fa-wrench',        label:'Other',               color:'#f0a030' },
   ];
+  // Placeholder words like "none" / "n/a" mean the user left it blank —
+  // treat them as empty so we don't render a fake mod item with a save
+  // button for the literal word "none".
+  const PLACEHOLDER_WORDS = ['none','n/a','na','-','--','tbd','n\\a'];
+  const isPlaceholder = (t) => PLACEHOLDER_WORDS.includes((t||'').trim().toLowerCase());
+
   // Check modsDetail — handle null, empty object, and populated object
   const hasModsDetail = post.modsDetail && typeof post.modsDetail === 'object' &&
     Object.values(post.modsDetail).some(v => Array.isArray(v) ? v.length > 0 : !!(v && v.toString().trim()));
@@ -4339,60 +4352,69 @@ function renderCarPage(post) {
     });
     modsEl.innerHTML = '<div class="cp-mods-section-label"><i class="fas fa-wrench"></i> Modifications</div><div class="cp-mods-grid">' + filled.map(c => {
       const val = post.modsDetail[c.key];
-      const items = Array.isArray(val)
+      const rawItems = Array.isArray(val)
         ? val
         : val.split(/[,\n]/).map(s => s.trim()).filter(Boolean);
-      const listHTML = items.map(rawItem => {
-        // Support both old string and new {text, url} format
+      // Parse every item first so we can check if ALL of them are placeholders
+      const parsed = rawItems.map(rawItem => {
         let text, url;
         if (typeof rawItem === 'object' && rawItem !== null) {
           text = rawItem.text || '';
           url  = rawItem.url  || '';
         } else {
-          // Try parsing as JSON (stored from new form)
           try { const p = JSON.parse(rawItem); text = p.text||''; url = p.url||''; }
           catch(_) { text = String(rawItem); url = ''; }
         }
-        if (!text) return '';
-        // Build the link preview
-        let thumbHTML = '';
-        if (url) {
-          try {
-            const domain = new URL(url).hostname;
-            // Use Google's favicon API for a clean 32px icon — works for any site
-            thumbHTML = `<div class="cp-part-thumb">
-              <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64"
-                   alt="" class="cp-part-favicon" loading="lazy"
-                   onerror="this.parentElement.innerHTML='<i class=\\'fas fa-link cp-part-link-icon\\'></i>'"/>
-            </div>`;
-          } catch(_) { thumbHTML = '<div class="cp-part-thumb-placeholder"><i class="fas fa-link"></i></div>'; }
-        }
-        // Encode for data attribute
-        const encodedPart = encodeURIComponent(JSON.stringify({text, url, fromUser: post.user, fromPostId: post.id}));
-        return `<li class="cp-mod-item${url?' has-link':''}">
-          ${thumbHTML}
-          <div class="cp-mod-item-body">
-            <span class="cp-mod-item-text">${esc(text)}</span>
-            ${url ? `<a class="cp-mod-item-link" href="${esc(url)}" target="_blank" rel="noopener">
-              <i class="fas fa-external-link-alt"></i> View Part
-            </a>` : ''}
-          </div>
-          <button class="cp-save-part-btn" data-part="${esc(encodedPart)}" title="Save part to Garage">
-            <i class="fas fa-bookmark"></i>
-          </button>
-        </li>`;
-      }).join('');
-      return `<div class="cp-mod-section">
-        <div class="cp-mod-head"><span class="cp-mod-icon-wrap"><i class="${c.icon}"></i></span><span class="cp-mod-label">${c.label}</span></div>
+        return { text, url };
+      }).filter(p => p.text);
+
+      const realItems = parsed.filter(p => !isPlaceholder(p.text));
+
+      let listHTML;
+      if (!realItems.length) {
+        // Every entry was blank/placeholder — show a clean muted line,
+        // no save button, no clutter.
+        listHTML = `<li class="cp-mod-item cp-mod-item-empty">No modifications listed</li>`;
+      } else {
+        listHTML = realItems.map(({text, url}) => {
+          let thumbHTML = '';
+          if (url) {
+            try {
+              const domain = new URL(url).hostname;
+              thumbHTML = `<div class="cp-part-thumb">
+                <img src="https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64"
+                     alt="" class="cp-part-favicon" loading="lazy"
+                     onerror="this.parentElement.innerHTML='<i class=\\'fas fa-link cp-part-link-icon\\'></i>'"/>
+              </div>`;
+            } catch(_) { thumbHTML = '<div class="cp-part-thumb-placeholder"><i class="fas fa-link"></i></div>'; }
+          }
+          const encodedPart = encodeURIComponent(JSON.stringify({text, url, fromUser: post.user, fromPostId: post.id}));
+          return `<li class="cp-mod-item${url?' has-link':''}">
+            ${thumbHTML}
+            <div class="cp-mod-item-body">
+              <span class="cp-mod-item-text">${esc(text)}</span>
+              ${url ? `<a class="cp-mod-item-link" href="${esc(url)}" target="_blank" rel="noopener">
+                <i class="fas fa-external-link-alt"></i> View Part
+              </a>` : ''}
+            </div>
+            <button class="cp-save-part-btn" data-part="${esc(encodedPart)}" title="Save part to Garage">
+              <i class="fas fa-bookmark"></i>
+            </button>
+          </li>`;
+        }).join('');
+      }
+
+      return `<div class="cp-mod-section" style="--mod-color:${c.color}">
+        <div class="cp-mod-head"><span class="cp-mod-icon-wrap" style="background:${c.color}22;color:${c.color}"><i class="${c.icon}"></i></span><span class="cp-mod-label">${c.label}</span></div>
         <ul class="cp-mod-list">${listHTML}</ul>
       </div>`;
     }).join('') + '</div>';
   } else if (post.mods) {
     // Legacy plain string — split into bullet list
-    const legacyItems = post.mods.split(',').map(s=>s.trim()).filter(Boolean);
-    modsEl.innerHTML = `<div class="cp-mods-legacy-list">
+    const legacyItems = post.mods.split(',').map(s=>s.trim()).filter(Boolean).filter(m => !isPlaceholder(m));
+    modsEl.innerHTML = legacyItems.length ? `<div class="cp-mods-legacy-list">
       ${legacyItems.map(m=>`<span class="legacy-mod-item">— ${esc(m)}</span>`).join('')}
-    </div>`;
+    </div>` : '';
   } else {
     modsEl.innerHTML = '';
   }
@@ -4522,6 +4544,39 @@ function cpRenderGallery(post) {
   };
 
   setMain(0);
+
+  // ── Size the grid to exactly match the main image's rendered height ──
+  // CSS alone can't reliably keep 2 rows of thumbnails proportional to
+  // the main image (aspect-ratio + grid-auto-rows:1fr fights itself and
+  // distorts/crops thumbnails unevenly). Measuring in JS and setting an
+  // explicit pixel row height guarantees clean, undistorted tiles no
+  // matter the image's aspect ratio — extra thumbnails simply scroll.
+  function sizeGalleryGrid() {
+    if (window.innerWidth <= 900) {
+      // Mobile/tablet: grid becomes a horizontal scroll row, no height sync needed
+      gridEl.style.height = '';
+      gridEl.style.gridAutoRows = '';
+      return;
+    }
+    const mainH = gallMain.offsetHeight;
+    if (!mainH) return;
+    const rowsVisible = 2;
+    const gap = 8;
+    const rowH = Math.max(60, (mainH - gap * (rowsVisible - 1)) / rowsVisible);
+    gridEl.style.height = mainH + 'px';
+    gridEl.style.gridAutoRows = rowH + 'px';
+  }
+  sizeGalleryGrid();
+  // Re-measure on resize (debounced) since column width — and therefore
+  // the aspect-ratio'd main image height — changes at breakpoints
+  clearTimeout(window._cpGalResizeT);
+  window._cpGalResizeT = null;
+  window.removeEventListener('resize', window._cpGalResizeFn || (()=>{}));
+  window._cpGalResizeFn = () => {
+    clearTimeout(window._cpGalResizeT);
+    window._cpGalResizeT = setTimeout(sizeGalleryGrid, 120);
+  };
+  window.addEventListener('resize', window._cpGalResizeFn);
 }
 
 function syncCpActions(post) {

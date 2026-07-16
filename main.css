@@ -2683,6 +2683,7 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
 }
 .cp-mod-section{
   background:var(--raised);border:1px solid var(--border);
+  border-left:3px solid var(--mod-color, var(--border));
   border-radius:var(--r-lg);padding:18px 20px;
   color:var(--text);
 }
@@ -2707,8 +2708,14 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
   padding:6px 0;border-bottom:1px solid var(--subtle);
   display:flex;align-items:flex-start;gap:7px;
 }
-.cp-mod-item::before{content:'—';color:var(--accent);font-weight:700;flex-shrink:0}
+.cp-mod-item::before{content:'—';color:var(--mod-color, var(--accent));font-weight:700;flex-shrink:0}
 .cp-mod-item:last-child{border-bottom:none;padding-bottom:0}
+/* Empty-category placeholder — no colored dash, muted italic, no border clutter */
+.cp-mod-item-empty{
+  color:var(--muted);font-style:italic;font-size:.82rem;
+  border-bottom:none;padding:2px 0 0;
+}
+.cp-mod-item-empty::before{content:'';display:none}
 
 @media(max-width:900px){
   .specs-layout{grid-template-columns:1fr;gap:20px}
@@ -7532,23 +7539,29 @@ html, body { overflow-x: hidden; }
   letter-spacing:.5px;padding:6px 12px;border-radius:20px;
   display:flex;align-items:center;gap:6px;pointer-events:none;
 }
-/* Right-side grid — 2 columns, scrolls vertically if many photos */
+/* Right-side grid — 2 columns. Height and row size are set inline via
+   JS (cpRenderGallery → sizeGalleryGrid) so thumbnails always match the
+   main image's rendered height exactly, with zero distortion. Extra
+   thumbnails beyond 2 rows simply scroll — see overflow-y below. */
 .cp-gallery-grid{
   display:grid;grid-template-columns:1fr 1fr;
-  grid-auto-rows:1fr;gap:8px;
-  max-height:calc(2 * ((300px - 8px) / 2 * 0.75) + 8px); /* roughly 2 rows tall to match aspect */
+  gap:8px;
   overflow-y:auto;scrollbar-width:thin;
 }
 .cp-gallery-grid::-webkit-scrollbar{width:6px}
+.cp-gallery-grid::-webkit-scrollbar-track{background:transparent}
 .cp-gallery-grid::-webkit-scrollbar-thumb{background:var(--mid);border-radius:3px}
+/* Hide the up/down arrow buttons some browsers render on scrollbars —
+   we only want the plain thumb, no native arrow buttons */
+.cp-gallery-grid::-webkit-scrollbar-button{display:none;width:0;height:0}
 .cp-grid-thumb{
   position:relative;border-radius:var(--r-md);overflow:hidden;
-  cursor:pointer;aspect-ratio:4/3;background:var(--card);
-  border:2px solid transparent;transition:border-color .12s ease,opacity .12s ease;
+  cursor:pointer;background:var(--card);width:100%;height:100%;
+  border:2px solid transparent;transition:border-color .12s ease,opacity .12s ease,transform .12s ease;
 }
 .cp-grid-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.cp-grid-thumb:hover{opacity:.85}
-.cp-grid-thumb.active{border-color:var(--accent)}
+.cp-grid-thumb:hover{opacity:.88;transform:scale(1.02)}
+.cp-grid-thumb.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
 .cp-grid-thumb-play{
   position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   background:rgba(0,0,0,.4);color:#fff;font-size:1.1rem;
@@ -7579,44 +7592,52 @@ html, body { overflow-x: hidden; }
 .spec-row{
   display:flex !important;flex-direction:column !important;
   align-items:flex-start !important;gap:6px !important;
-  padding:16px 16px !important;
+  padding:16px 16px 16px 18px !important;
   background:var(--card);border:1px solid var(--border);
+  border-left:3px solid var(--spec-color, var(--accent));
   border-radius:var(--r-lg);transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease;
 }
 .spec-row:hover{
   background:var(--card) !important;
   transform:translateY(-2px);
-  border-color:rgba(59,130,246,.3);
-  box-shadow:0 6px 20px rgba(0,0,0,.12);
+  border-left-color:var(--spec-color, var(--accent));
+  box-shadow:0 6px 20px rgba(0,0,0,.14);
 }
 .spec-label{
   font-size:.68rem !important;letter-spacing:1px !important;
   color:var(--muted) !important;gap:6px !important;
 }
-.spec-icon{color:var(--accent);font-size:.72rem}
+.spec-icon{color:var(--spec-color, var(--accent));font-size:.72rem}
 .spec-value{
   font-size:1.15rem !important;letter-spacing:0 !important;
   color:var(--text) !important;font-weight:800 !important;
 }
-.spec-value.spec-accent{color:var(--accent) !important}
+.spec-value.spec-accent{color:var(--spec-color, var(--accent))}
 
-/* Mod cards — subtle hover lift for modern feel */
+/* Mod cards — subtle hover lift, color matches the card's category */
 .cp-mod-section{
   transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease;
 }
 .cp-mod-section:hover{
   transform:translateY(-2px);
-  border-color:rgba(59,130,246,.25);
-  box-shadow:0 8px 24px rgba(0,0,0,.14);
+  border-left-color:var(--mod-color, var(--accent));
+  box-shadow:0 8px 24px rgba(0,0,0,.16);
 }
 
 /* ── Responsive ─────────────────────────────────────────────────── */
 @media(max-width:900px){
   .cp-gallery-modern{grid-template-columns:1fr;gap:8px}
+  /* Below 900px, JS skips setting inline height/row sizing (see
+     sizeGalleryGrid in cpRenderGallery) — grid becomes a single
+     horizontally-scrolling row of fixed-size square-ish tiles. */
   .cp-gallery-grid{
-    grid-template-columns:repeat(4,1fr);
-    max-height:none;grid-auto-rows:auto;
+    display:flex !important;
+    grid-template-columns:none !important;
     overflow-x:auto;overflow-y:hidden;
+    padding-bottom:2px;
+  }
+  .cp-grid-thumb{
+    width:110px;height:82px;flex:0 0 auto;
   }
   .specs-layout{grid-template-columns:1fr}
   .cp-poster-right{width:100%;justify-content:flex-end}
@@ -7627,11 +7648,11 @@ html, body { overflow-x: hidden; }
   .cp-poster-left .car-page-poster-name{font-size:1rem}
   .cp-title-block .car-page-title{font-size:1.5rem}
   .cp-gallery-modern{margin-bottom:16px}
-  .cp-gallery-grid{grid-template-columns:repeat(3,minmax(90px,1fr))}
+  .cp-grid-thumb{width:92px;height:70px}
   .specs-table{grid-template-columns:repeat(auto-fill,minmax(100px,1fr)) !important}
   .spec-row{padding:12px 12px !important}
   .spec-value{font-size:.95rem !important}
 }
 @media(max-width:480px){
-  .cp-gallery-grid{grid-template-columns:repeat(3,minmax(72px,1fr))}
+  .cp-grid-thumb{width:78px;height:60px}
 }
