@@ -547,6 +547,61 @@ const DB = {
     return data || [];
   },
 
+  // ─── SOCIAL POSTS (Car Spotting) ──────────────────────────
+  // Stored in social_posts table — separate from main build posts.
+  // Media URLs point to Supabase Storage (never store raw base64).
+  // Requires social_posts_migration.sql to have been run in Supabase.
+  async getSocialPosts({ limit = 30, offset = 0 } = {}) {
+    if (!_sbOk()) return [];
+    const { data, error } = await _sb
+      .from('social_posts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (error) console.error('getSocialPosts error:', error.message);
+    return data || [];
+  },
+
+  async createSocialPost(userId, username, postData) {
+    if (!_sbOk()) return { error: { message: 'Not connected.' } };
+    const { data, error } = await _sb
+      .from('social_posts')
+      .insert({ user_id: userId, username, ...postData })
+      .select()
+      .single();
+    return { data, error };
+  },
+
+  async toggleSocialLike(postId, username) {
+    if (!_sbOk()) return;
+    const { data: post } = await _sb.from('social_posts').select('liked_by,likes').eq('id', postId).single();
+    if (!post) return;
+    const liked = post.liked_by || [];
+    const already = liked.includes(username);
+    const newLikedBy = already ? liked.filter(u => u !== username) : [...liked, username];
+    return _sb.from('social_posts').update({ liked_by: newLikedBy, likes: newLikedBy.length }).eq('id', postId);
+  },
+
+  async deleteSocialPost(postId, userId) {
+    if (!_sbOk()) return;
+    return _sb.from('social_posts').delete().eq('id', postId).eq('user_id', userId);
+  },
+
+  // Upload a Car Spotting image to post-images bucket
+  async uploadSpottingImage(userId, base64DataUrl, index) {
+    if (!_sbOk()) return { url: base64DataUrl };
+    try {
+      const arr   = base64DataUrl.split(',');
+      const mime  = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+      const bstr  = atob(arr[1]);
+      const bytes = new Uint8Array(bstr.length);
+      for (let i = 0; i < bstr.length; i++) bytes[i] = bstr.charCodeAt(i);
+      const file = new File([bytes], `spot_${index}.jpg`, { type: mime });
+      const path = `spotting/${userId}/${Date.now()}_${index}.jpg`;
+      return DB._uploadFile('post-images', path, file);
+    } catch(e) { return { url: base64DataUrl }; }
+  },
+
 };
 
 // ─── DATA FORMAT HELPERS ───────────────────────────────────────

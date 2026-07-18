@@ -4143,7 +4143,14 @@ async function openCarPage(post) {
   S.openCarPost = freshPost;
   S.openPost    = freshPost;
   goTo('car');
-  renderCarPage(freshPost);
+  // Wrapped in try/catch deliberately: renderCarPage() touches many
+  // sub-systems (gallery, specs, mods, comments). A single uncaught
+  // exception anywhere in that chain used to silently abort everything
+  // below this line too — the real Supabase fetch for fresh post data
+  // and real comments, the Build Costs tab, and the meta tags — since
+  // openCarPage is async and nothing here was catching errors. Now a
+  // rendering bug stays contained to rendering; the data fetch always runs.
+  try { renderCarPage(freshPost); } catch(e) { console.error('renderCarPage failed:', e); }
   setMetaTags(freshPost.title, freshPost.desc, freshPost.images?.[0]);
   setTimeout(() => addCostTab(freshPost), 50);
 
@@ -4167,7 +4174,7 @@ async function openCarPage(post) {
     S.openPost    = updatedPost;
     const idx = S.posts.findIndex(p => p.id === updatedPost.id);
     if (idx >= 0) S.posts[idx] = { ...S.posts[idx], ...updatedPost };
-    renderCarPage(updatedPost);
+    try { renderCarPage(updatedPost); } catch(e) { console.error('renderCarPage failed:', e); }
   } else if (postResult.status === 'rejected') {
     console.warn('Fresh post fetch failed', postResult.reason);
   }
@@ -4636,10 +4643,10 @@ function cpHandleShare() {
 
 // ─── CAR PAGE COMMENTS WITH REPLIES + UPVOTES ─────────────────
 function cpRenderComments(post) {
-  const comments = post.comments || [];
+  const rawComments = post.comments || [];
   const cc = el('cpCommentCount');
-  if (cc) cc.textContent = comments.length ? `(${comments.length})` : '';
-  const count = comments.length;
+  if (cc) cc.textContent = rawComments.length ? `(${rawComments.length})` : '';
+  const count = rawComments.length;
   el('cpCommentCount').textContent = count > 0 ? `(${count})` : '';
   // Update avatar
   const av = el('cpCommentAv');
@@ -4662,8 +4669,26 @@ function cpRenderComments(post) {
       });
     }
   }
-  if (!comments.length) {
+  if (!rawComments.length) {
     el('cpCommentsList').innerHTML = '<p class="no-comments">No comments yet. Be the first!</p>';
+    return;
+  }
+  // IMPORTANT: post.comments can temporarily contain placeholder `null`
+  // entries — openCarPage() fills comments with Array(count).fill(null)
+  // so the comment-count badge shows instantly, before the real comment
+  // list has loaded from Supabase. Filtering them out here is required:
+  // without this, `.filter(c => !c.parentId)` below throws trying to read
+  // .parentId off a null entry. That crash was previously UNCAUGHT and
+  // synchronous, which — since openCarPage() is async and this call isn't
+  // wrapped in try/catch — silently aborted everything after it: the real
+  // comments fetch, the fresh post-data refresh, and the Build Costs tab
+  // never ran. This one bug was responsible for a lot more than just a
+  // blank comments section.
+  const comments = rawComments.filter(c => c && typeof c === 'object');
+  if (!comments.length) {
+    // We know there ARE comments (rawComments.length > 0) — the real
+    // content just hasn't arrived from Supabase yet.
+    el('cpCommentsList').innerHTML = '<p class="no-comments"><i class="fas fa-spinner fa-spin"></i> Loading comments…</p>';
     return;
   }
   // Top-level comments only (no parentId), sorted by upvotes then date
@@ -6617,20 +6642,32 @@ async function submitSocialPost() {
   const btn     = el('socialSubmitBtn');
   const progBar = el('socialUploadProgress');
   if (btn) { btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Posting…'; }
-  if (progBar) { progBar.style.display='block'; progBar.value=0; }
+  if (progBar) { progBar.style.display='block'; progBar.value=10; }
 
-  // Use blurred images (or original if no images)
-  const mediaItems = _blurredDataURLs.map(url => ({ type:'image', url }));
-  if (progBar) progBar.value = 90;
+  // Upload blurred images to Supabase Storage — never upload the
+  // unblurred original, only the client-side-blurred version
+  const mediaItems = [];
+  for (let i = 0; i < _blurredDataURLs.length; i++) {
+    const result = await DB.uploadSpottingImage(S.user.id, _blurredDataURLs[i], i);
+    mediaItems.push({ type:'image', url: result.url || _blurredDataURLs[i] });
+    if (progBar) progBar.value = 10 + Math.round(((i+1)/_blurredDataURLs.length)*70);
+  }
+  if (progBar) progBar.value = 85;
 
-  const post = {
-    id:'sp'+Date.now(), user:S.user.username, caption, tag,
-    media:mediaItems, likes:0, likedBy:[], comments:[],
-    reactions:{}, ts:Date.now(), date:new Date().toISOString().slice(0,10),
+  const postId = 'sp' + Date.now();
+  const postData = {
+    id: postId, caption, tag,
+    media: mediaItems, liked_by: [], likes: 0,
+    comments: [], reactions: {},
   };
-  const stored = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-  stored.unshift(post);
-  localStorage.setItem('dl_social_posts', JSON.stringify(stored));
+
+  const { error } = await DB.createSocialPost(S.user.id, S.user.username, postData);
+  if (error) {
+    console.warn('Social post save failed (table may not exist — run social_posts_migration.sql), storing locally:', error);
+    const stored = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+    stored.unshift({ ...postData, user: S.user.username, ts: Date.now(), date: new Date().toISOString().slice(0,10) });
+    localStorage.setItem('dl_social_posts', JSON.stringify(stored));
+  }
 
   if (progBar) { progBar.value=100; setTimeout(()=>{ progBar.style.display='none'; progBar.value=0; },400); }
   el('socialUploadModal').classList.remove('open');
@@ -6640,7 +6677,33 @@ async function submitSocialPost() {
   socialPage=0; renderSocialFeed(true);
 }
 
+// Convert Supabase social_posts row to app format
+function dbSocialToApp(row) {
+  if (!row) return null;
+  return {
+    id:       row.id,
+    user:     row.username || row.user || '',
+    user_id:  row.user_id  || null,
+    caption:  row.caption  || '',
+    tag:      row.tag      || '',
+    media:    row.media    || [],
+    likes:    row.likes    || 0,
+    likedBy:  row.liked_by || row.likedBy || [],
+    comments: row.comments || [],
+    reactions:row.reactions|| {},
+    ts:       row.ts || (row.created_at ? new Date(row.created_at).getTime() : Date.now()),
+    date:     row.date || (row.created_at||'').slice(0,10),
+  };
+}
+
+// getSocialPosts — S._socialPosts (populated from Supabase) takes priority;
+// falls back to localStorage for any local-only posts or if Supabase is unreachable
 function getSocialPosts() {
+  if (S._socialPosts?.length) {
+    if (socialTab === 'following' && S.user)
+      return S._socialPosts.filter(p => S.following.includes(p.user) || p.user === S.user.username);
+    return S._socialPosts;
+  }
   const stored = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
   if (socialTab==='following' && S.user)
     return stored.filter(p => S.following.includes(p.user) || p.user===S.user.username);
@@ -6650,28 +6713,57 @@ function getSocialPosts() {
 function renderSocialFeed(reset) {
   if (reset) socialPage=0;
   const wrap = el('socialPostsWrap'); if (!wrap) return;
-  // If search is active, delegate to doSocialSearch
   if (S._socialSearchQ) { doSocialSearch(); return; }
-  const all   = getSocialPosts();
-  const slice = all.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
-  if (reset) wrap.innerHTML='';
 
-  if (!all.length) {
-    wrap.innerHTML=`<div class="social-empty"><i class="fas fa-camera-retro social-empty-icon"></i><h3>Nothing here yet</h3><p>Be the first to share a moment from your build.</p>${S.user?'<button class="btn-primary" onclick="el(\'socialUploadBtn\').click()"><i class="fas fa-plus"></i> Share Something</button>':''}</div>`;
-    return;
+  // Show whatever we have immediately (cache or previous Supabase fetch)
+  const cached = getSocialPosts();
+  if (reset) wrap.innerHTML='';
+  if (cached.length) {
+    const slice = cached.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
+    renderSocialCards(wrap, slice, cached.length);
   }
 
-  const from = reset ? 0 : socialPage*SOCIAL_PAGE_SIZE;
-  const newPosts = all.slice(from, (socialPage+1)*SOCIAL_PAGE_SIZE);
+  // Fetch from Supabase — this is the source of truth for cross-device sync
+  DB.getSocialPosts({ limit: SOCIAL_PAGE_SIZE * (socialPage+1) }).then(rows => {
+    const sbPosts = (rows||[]).map(dbSocialToApp).filter(Boolean);
+    const localOnly = JSON.parse(localStorage.getItem('dl_social_posts')||'[]').map(dbSocialToApp).filter(Boolean);
+    const merged = [...sbPosts];
+    localOnly.forEach(lp => { if (!merged.find(sp => sp.id === lp.id)) merged.push(lp); });
+    merged.sort((a,b) => b.ts - a.ts);
+    S._socialPosts = merged;
 
-  newPosts.forEach(post => {
+    const all = getSocialPosts();
+    if (!all.length) {
+      wrap.innerHTML=`<div class="social-empty"><i class="fas fa-camera-retro social-empty-icon"></i><h3>Nothing here yet</h3><p>Be the first to share a moment from your build.</p>${S.user?'<button class="btn-primary" onclick="el(\'socialUploadBtn\').click()"><i class="fas fa-plus"></i> Share Something</button>':''}</div>`;
+      return;
+    }
+    const slice = all.slice(0, (socialPage+1)*SOCIAL_PAGE_SIZE);
+    renderSocialCards(wrap, slice, all.length);
+  }).catch(err => {
+    console.warn('Social posts fetch failed (table may not exist yet — run social_posts_migration.sql):', err?.message || err);
+    if (!cached.length) {
+      wrap.innerHTML=`<div class="social-empty"><i class="fas fa-camera-retro social-empty-icon"></i><h3>Car Spotting</h3><p>Run social_posts_migration.sql in Supabase to enable cross-device posts.</p>${S.user?'<button class="btn-primary" onclick="el(\'socialUploadBtn\').click()"><i class="fas fa-plus"></i> Post Locally</button>':''}</div>`;
+    }
+  });
+}
+
+// Extracted so both the instant-cache render and the Supabase-fresh render
+// use identical card-building logic (previously duplicated inline).
+// renderSocialCards — builds full card markup (avatar, tag badge, media +
+// multi-photo strip preview, caption, like/comment/delete/report actions,
+// inline comment thread) and wires every interaction. Shared by both the
+// instant cache-render and the post-Supabase-fetch render so there's only
+// one place that builds Car Spotting cards.
+function renderSocialCards(wrap, posts, totalCount) {
+  wrap.innerHTML = '';
+  posts.forEach(post => {
     const card = document.createElement('div');
     card.className='social-post-card'; card.dataset.id=post.id;
-    const liked = post.likedBy.includes(S.user ? S.user.username : getDeviceId());
+    const liked = (post.likedBy||[]).includes(S.user ? S.user.username : getDeviceId());
     const mainMedia = post.media[0];
     card.innerHTML=`
       <div class="social-post-head">
-        ${(()=>{const _su=getAvatarUrl(post.user);return _su?`<div class="social-post-av av-circle clickable-user has-photo" data-user="${post.user}"><img src="${_su}" alt="" class="av-photo"/></div>`:`<div class="social-post-av av-circle clickable-user" data-user="${post.user}" style="background:${avColor(post.user)}">${post.user[0].toUpperCase()}</div>`;})()} 
+        ${(()=>{const _su=getAvatarUrl(post.user);return _su?`<div class="social-post-av av-circle clickable-user has-photo" data-user="${post.user}"><img src="${_su}" alt="" class="av-photo"/></div>`:`<div class="social-post-av av-circle clickable-user" data-user="${post.user}" style="background:${avColor(post.user)}">${post.user[0].toUpperCase()}</div>`;})()}
         <div class="social-post-user-info">
           <span class="social-post-username clickable-user" data-user="${post.user}">${esc(post.user)}</span>
           <span class="social-post-time">${timeAgo(post.ts)}</span>
@@ -6702,14 +6794,29 @@ function renderSocialFeed(reset) {
 
   // Events
   wrap.querySelectorAll('.social-like-btn').forEach(btn => btn.addEventListener('click', () => {
+    // Sync to Supabase if this post came from there, plus keep localStorage in sync
+    DB.toggleSocialLike?.(btn.dataset.id, S.user ? S.user.username : getDeviceId()).catch(()=>{});
     const all2=JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-    const p=all2.find(x=>x.id===btn.dataset.id); if(!p) return;
-    const vid=voterId(), idx=p.likedBy.indexOf(vid);
-    if(idx>=0){p.likes=Math.max(0,p.likes-1);p.likedBy.splice(idx,1);}
-    else{p.likes++;p.likedBy.push(vid);}
-    localStorage.setItem('dl_social_posts',JSON.stringify(all2));
-    btn.className='social-action-btn social-like-btn'+(idx<0?' liked':'');
-    btn.querySelector('span').textContent=p.likes;
+    const p=all2.find(x=>x.id===btn.dataset.id);
+    const vid=voterId();
+    const wasLiked = btn.classList.contains('liked');
+    const countEl = btn.querySelector('span');
+    if (countEl) countEl.textContent = Math.max(0, parseInt(countEl.textContent||'0') + (wasLiked?-1:1));
+    btn.classList.toggle('liked', !wasLiked);
+    if (p) {
+      const idx=(p.likedBy||[]).indexOf(vid);
+      if(idx>=0){p.likes=Math.max(0,p.likes-1);p.likedBy.splice(idx,1);}
+      else{p.likes=(p.likes||0)+1;p.likedBy=[...(p.likedBy||[]),vid];}
+      localStorage.setItem('dl_social_posts',JSON.stringify(all2));
+    }
+    if (S._socialPosts) {
+      const sp = S._socialPosts.find(x=>x.id===btn.dataset.id);
+      if (sp) {
+        const idx=(sp.likedBy||[]).indexOf(vid);
+        if(idx>=0){sp.likes=Math.max(0,sp.likes-1);sp.likedBy.splice(idx,1);}
+        else{sp.likes=(sp.likes||0)+1;sp.likedBy=[...(sp.likedBy||[]),vid];}
+      }
+    }
   }));
   wrap.querySelectorAll('.social-comment-toggle').forEach(btn => btn.addEventListener('click', () => {
     const pnl=el('spc-'+btn.dataset.id); if(!pnl) return;
@@ -6731,21 +6838,23 @@ function renderSocialFeed(reset) {
   }));
   wrap.querySelectorAll('.social-delete-btn').forEach(btn => btn.addEventListener('click', () => {
     if(!confirm('Delete this post?')) return;
+    if (S.user) DB.deleteSocialPost?.(btn.dataset.id, S.user.id).catch(()=>{});
     const all2=JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
     localStorage.setItem('dl_social_posts',JSON.stringify(all2.filter(p=>p.id!==btn.dataset.id)));
+    if (S._socialPosts) S._socialPosts = S._socialPosts.filter(p=>p.id!==btn.dataset.id);
     renderSocialFeed(true);
   }));
   wrap.querySelectorAll('.social-report-btn').forEach(btn => btn.addEventListener('click', e => {
     e.stopPropagation();
     const all2=JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
-    const p=all2.find(x=>x.id===btn.dataset.id);
+    const p=all2.find(x=>x.id===btn.dataset.id) || (S._socialPosts||[]).find(x=>x.id===btn.dataset.id);
     openReport('social',btn.dataset.id,p?.caption||'');
   }));
 
   // Infinite scroll
   if (socialSentinelObs) socialSentinelObs.disconnect();
   const sentinel=el('socialSentinel');
-  if (sentinel && slice.length<all.length) {
+  if (sentinel && posts.length < (totalCount ?? posts.length)) {
     socialSentinelObs=new IntersectionObserver(entries=>{
       if(entries[0].isIntersecting){socialPage++;renderSocialFeed(false);}
     },{rootMargin:'300px'});
