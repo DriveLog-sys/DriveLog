@@ -394,17 +394,36 @@ async function loadStorage() {
   // Process session
   if (sessionResult.value) {
     // Supabase confirmed a live session — use it, merge with cache.
-    // Matching by id (not username) — id is the one thing that can't
-    // legitimately change, whereas username is exactly the field a sync
-    // bug (or any future one like it) could leave mismatched, which used
-    // to cause the entire local profile (bio, socials, etc.) to be
-    // silently discarded and reverted.
     const authUser = dbUserToApp(sessionResult.value);
     S.user = (cachedUser?.id && cachedUser.id === authUser.id)
-      ? { ...authUser, ...cachedUser, id: authUser.id }
+      // IMPORTANT: username is deliberately taken from authUser (fresh),
+      // not cachedUser (stale). This used to spread cachedUser last,
+      // which meant once a stale username got written to localStorage
+      // even a single time, it would win over the real one on every
+      // future load forever — with nothing to ever break the cycle.
+      // That's exactly what happened here: an old auth-metadata username
+      // got cached once and then silently overrode the correct one
+      // indefinitely, no matter what Supabase actually returned.
+      // Other cached fields (bio, socials, etc.) still take priority
+      // over authUser so local edits aren't lost, just not username.
+      ? { ...authUser, ...cachedUser, id: authUser.id, username: authUser.username }
       : authUser;
     localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
     localStorage.setItem('dl_user', JSON.stringify(S.user));
+    // Self-correcting fetch: authUser.username comes from Supabase Auth's
+    // user_metadata, which is set once at signup and can drift out of sync
+    // with the actual profiles.username column (exactly what happened here
+    // — metadata still said an old username after a rename). Fetching the
+    // real profile by the immutable user id (never by username) and
+    // re-applying it closes that gap permanently instead of just once.
+    DB.getProfile(S.user.id).then(profile => {
+      if (profile?.username && profile.username !== S.user.username) {
+        S.user = { ...S.user, ...profile };
+        localStorage.setItem('dl_user_cache', JSON.stringify(S.user));
+        localStorage.setItem('dl_user', JSON.stringify(S.user));
+        updateAuthUI();
+      }
+    }).catch(() => {});
   } else if (sessionResult.status === 'fulfilled' && !sessionResult.value) {
     // Supabase returned null session. This can happen if:
     // 1. User genuinely logged out
