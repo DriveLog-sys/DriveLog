@@ -22,10 +22,15 @@
   --disp:  'Bebas Neue', Impact, 'Arial Narrow', sans-serif;
   --cond:  'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
   --body:  'Inter', 'Barlow', -apple-system, BlinkMacSystemFont, sans-serif;
-  --r-sm:3px; --r-md:6px; --r-lg:10px; --r-xl:16px; --r-img:5px;
+  /* Modern polish pass: radii bumped one step rounder across the board
+     (Instagram-style soft geometry). Every component reads these tokens,
+     so this one block modernizes ~180 corner treatments consistently. */
+  --r-sm:8px; --r-md:12px; --r-lg:16px; --r-xl:22px; --r-img:10px;
   --tr: .22s cubic-bezier(.4,0,.2,1);
-  --sh: 0 2px 16px rgba(0,0,0,.08);
-  --shm: 0 24px 80px rgba(0,0,0,.18);
+  /* Layered ambient shadows — a tight contact shadow plus a soft wide
+     bloom reads far more modern than one hard drop shadow. */
+  --sh: 0 1px 2px rgba(0,0,0,.05), 0 8px 28px rgba(0,0,0,.07);
+  --shm: 0 8px 24px rgba(0,0,0,.10), 0 32px 90px rgba(0,0,0,.16);
 }
 
 /* Dark mode override */
@@ -33,7 +38,8 @@ body.dark {
   --bg:#141414; --surface:#1a1a1a; --card:#1f1f1f; --raised:#252525; --hover:#2a2a2a;
   --border:#2e2e2e; --mid:#383838; --subtle:#202020;
   --text:#f0f0f0; --sec:#d1d5db; --muted:#9ca3af;
-  --sh:0 4px 24px rgba(0,0,0,.45); --shm:0 28px 90px rgba(0,0,0,.75);
+  --sh:0 1px 2px rgba(0,0,0,.4), 0 10px 32px rgba(0,0,0,.42);
+  --shm:0 12px 32px rgba(0,0,0,.5), 0 36px 100px rgba(0,0,0,.72);
 }
 
 /* ─── RESET ─────────────────────────────────────────────────── */
@@ -46,10 +52,12 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 input,select,textarea{font-family:inherit}
 ::selection{background:var(--accent);color:#fff}
 /* Global focus reset — every button/pill gets ONE consistent focus style,
-   never a browser/OS default color (Windows can render system-accent rings) */
+   never a browser/OS default color (Windows can render system-accent rings).
+   Modern polish: the ring is now genuinely visible (3px at 20% accent) —
+   the old 2px/9% ring was effectively invisible for keyboard users. */
 button{outline:none}
 button:focus{outline:none}
-button:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent-soft)}
+button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-glow)}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(120,120,128,.5);border-radius:6px}
@@ -61,8 +69,8 @@ button:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent-soft)}
 h1,h2,h3{font-family:var(--disp);letter-spacing:1px}
 
 /* ─── BUTTONS ───────────────────────────────────────────────── */
-.btn-primary{background:var(--accent);color:#fff;padding:10px 24px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.92rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;transition:background var(--tr),transform var(--tr),box-shadow var(--tr);display:inline-flex;align-items:center;gap:8px}
-.btn-primary:hover{background:var(--accent-dim);transform:translateY(-1px);box-shadow:0 8px 24px var(--accent-glow)}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#fff;padding:10px 24px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.92rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;transition:background var(--tr),transform var(--tr),box-shadow var(--tr);display:inline-flex;align-items:center;gap:8px;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 4px 14px var(--accent-glow)}
+.btn-primary:hover{background:linear-gradient(135deg,var(--accent-dim),var(--accent));transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 8px 24px var(--accent-glow)}
 .btn-primary.full{width:100%;justify-content:center}
 .btn-primary.small{padding:7px 16px;font-size:.8rem}
 .btn-primary.large{padding:12px 28px;font-size:1rem}
@@ -72,14 +80,14 @@ h1,h2,h3{font-family:var(--disp);letter-spacing:1px}
 .btn-ghost.large{padding:12px 28px;font-size:1rem}
 .icon-btn{width:38px;height:38px;border-radius:50%;background:var(--raised);border:1px solid var(--mid);color:var(--sec);display:flex;align-items:center;justify-content:center;font-size:.85rem;transition:all var(--tr);position:relative}
 .icon-btn:hover{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn-post{background:var(--accent);color:#fff;padding:8px 18px;border-radius:var(--r-sm);font-family:var(--cond);font-weight:700;font-size:.88rem;letter-spacing:1px;text-transform:uppercase;transition:all var(--tr)}
-.btn-post:hover{background:var(--accent-dim);box-shadow:0 4px 16px var(--accent-glow)}
+.btn-post{background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#fff;padding:8px 18px;border-radius:var(--r-sm);font-family:var(--cond);font-weight:700;font-size:.88rem;letter-spacing:1px;text-transform:uppercase;transition:all var(--tr);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 4px 14px var(--accent-glow)}
+.btn-post:hover{background:linear-gradient(135deg,var(--accent-dim),var(--accent));box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 8px 24px var(--accent-glow)}
 .btn-auth{background:transparent;color:var(--sec);padding:8px 16px;border-radius:var(--r-sm);font-family:var(--cond);font-weight:600;font-size:.88rem;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--mid);transition:all var(--tr)}
 .btn-auth:hover{border-color:#555;color:var(--text)}
 
 /* ─── FORM ELEMENTS ─────────────────────────────────────────── */
-.finput{width:100%;background:var(--raised);border:1px solid var(--border);border-radius:var(--r-sm);padding:11px 14px;color:var(--text);font-size:.9rem;outline:none;transition:border-color var(--tr);margin-bottom:12px;display:block}
-.finput:focus{border-color:var(--accent)}
+.finput{width:100%;background:var(--raised);border:1px solid var(--border);border-radius:var(--r-sm);padding:11px 14px;color:var(--text);font-size:.9rem;outline:none;transition:border-color var(--tr),box-shadow var(--tr);margin-bottom:12px;display:block}
+.finput:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .finput::placeholder{color:var(--muted)}
 select.finput{appearance:none;cursor:pointer}
 textarea.finput{resize:vertical}
@@ -98,10 +106,10 @@ textarea.finput{resize:vertical}
 @keyframes tickerScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 
 /* ─── HEADER ─────────────────────────────────────────────────── */
-.site-header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.92);backdrop-filter:blur(18px);border-bottom:1px solid var(--border);transition:background var(--tr),box-shadow var(--tr)}
-body.dark .site-header{background:rgba(20,20,20,.95);border-bottom-color:rgba(255,255,255,.07)}
-.site-header.scrolled{background:rgba(255,255,255,.98);box-shadow:0 2px 16px rgba(0,0,0,.1);border-bottom-color:var(--border)}
-body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
+.site-header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.88);backdrop-filter:blur(20px) saturate(1.8);-webkit-backdrop-filter:blur(20px) saturate(1.8);border-bottom:1px solid var(--border);transition:background var(--tr),box-shadow var(--tr)}
+body.dark .site-header{background:rgba(20,20,20,.9);border-bottom-color:rgba(255,255,255,.07)}
+.site-header.scrolled{background:rgba(255,255,255,.96);box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06);border-bottom-color:var(--border)}
+body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
 .header-inner{max-width:1440px;margin:0 auto;padding:0 24px;height:62px;display:flex;align-items:center;gap:28px}
 .hamburger{display:none;width:38px;height:38px;align-items:center;justify-content:center;border-radius:var(--r-sm);color:var(--sec);font-size:1.1rem;transition:color var(--tr)}
 .hamburger:hover{color:var(--text)}
@@ -117,14 +125,14 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 .notif-badge{position:absolute;top:-3px;right:-3px;width:16px;height:16px;background:var(--accent);border-radius:50%;font-family:var(--cond);font-size:.6rem;font-weight:700;color:#fff;display:none;align-items:center;justify-content:center;border:2px solid var(--bg)}
 .notif-badge[style*="flex"]{display:flex}
 .notif-wrap{position:relative}
-.notif-drop{position:absolute;top:calc(100% + 10px);right:0;width:320px;background:var(--raised);border:1px solid var(--mid);border-radius:var(--r-lg);box-shadow:0 16px 48px rgba(0,0,0,.7);display:none;z-index:200;overflow:hidden;animation:slideUp .18s ease}
+.notif-drop{position:absolute;top:calc(100% + 10px);right:0;width:320px;background:var(--raised);border:1px solid var(--mid);border-radius:var(--r-lg);box-shadow:var(--shm);display:none;z-index:200;overflow:hidden;animation:slideUp .18s ease}
 .notif-drop.open{display:block}
 .notif-drop-head{padding:13px 16px 10px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-family:var(--cond);font-size:.82rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase}
 .notif-clear{color:var(--accent);cursor:pointer;font-size:.72rem;letter-spacing:1px}
 #notifList{max-height:340px;overflow-y:auto}
 .notif-item{display:flex;gap:10px;padding:11px 14px;border-bottom:1px solid var(--subtle);cursor:pointer;transition:background var(--tr)}
 .notif-item:hover{background:var(--hover)}
-.notif-item.unread{background:rgba(232,57,42,.04)}
+.notif-item.unread{background:rgba(59,130,246,.05)}
 .notif-av{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.75rem}
 .notif-body{flex:1}
 .notif-msg{font-size:.81rem;color:var(--sec);line-height:1.4}
@@ -137,10 +145,27 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 .av-chip{display:flex;align-items:center;gap:8px;background:var(--raised);border:1px solid var(--mid);border-radius:30px;padding:4px 12px 4px 4px;cursor:pointer;transition:border-color var(--tr)}
 .av-chip:hover{border-color:var(--accent)}
 .av-circle{width:28px;height:28px;border-radius:50%;font-family:var(--disp);font-size:.9rem;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
+
+/* ═══ Universal "active Car Spotting story" ring ═══
+   Applied via JS (setAvEl) to any avatar, anywhere on the site, when that
+   user has posted to Car Spotting in the last 24 hours — matching the
+   Instagram/Snapchat convention. Uses a pseudo-element sized slightly
+   larger than the avatar itself so it never affects layout/sizing at any
+   of the many places avatars render (header, cards, members, profile,
+   comments, DMs, notifications). */
+.has-story-ring{position:relative}
+.has-story-ring::before{
+  content:'';position:absolute;inset:-3px;border-radius:50%;
+  background:conic-gradient(from 180deg,#f0a030,#3b82f6,#e8392a,#f0a030);
+  z-index:-1;
+}
 .av-chip span{font-family:var(--cond);font-size:.85rem;font-weight:600}
-.av-drop{position:absolute;top:calc(100% + 8px);right:0;background:var(--raised);border:1px solid var(--mid);border-radius:var(--r-lg);padding:6px;min-width:190px;box-shadow:0 12px 40px rgba(0,0,0,.7);display:none;z-index:200}
+.av-drop{position:absolute;top:calc(100% + 8px);right:0;background:var(--raised);border:1px solid var(--mid);border-radius:var(--r-lg);padding:6px;min-width:190px;box-shadow:var(--shm);display:none;z-index:200}
 .av-drop.open{display:block;animation:slideUp .18s ease}
-.av-wrap:hover .av-drop,.av-drop.open{display:block}
+/* Hover-open only on devices that actually hover — on touch screens iOS
+   treats the first tap as :hover (showing the drop) and needs a second
+   tap to register click, which made the avatar need two taps on mobile */
+@media(hover:hover){.av-wrap:hover .av-drop{display:block}}
 .av-drop-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r-md);font-family:var(--cond);font-size:.88rem;font-weight:600;color:var(--sec);cursor:pointer;transition:all var(--tr)}
 .av-drop-item:hover{background:var(--hover);color:var(--text)}
 .av-drop-item.danger:hover{color:var(--accent);background:var(--accent-soft)}
@@ -162,7 +187,7 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 .mob-nav-foot{padding:14px 0;border-top:1px solid var(--border)}
 
 /* ─── SEARCH OVERLAY ────────────────────────────────────────── */
-.search-overlay{position:fixed;inset:0;background:rgba(5,5,5,.97);z-index:300;display:none;align-items:flex-start;justify-content:center;padding:100px 20px 40px}
+.search-overlay{position:fixed;inset:0;background:rgba(8,8,8,.92);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);z-index:300;display:none;align-items:flex-start;justify-content:center;padding:100px 20px 40px}
 .search-overlay.open{display:flex;animation:fadeIn .2s ease}
 .search-inner{width:100%;max-width:700px}
 .search-close-btn{position:fixed;top:22px;right:22px;width:40px;height:40px;border-radius:50%;background:var(--raised);border:1px solid var(--mid);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--sec);font-size:1rem;transition:all var(--tr)}
@@ -185,7 +210,7 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 .stag:hover{background:var(--accent);border-color:var(--accent);color:#fff}
 
 /* ─── MODALS ────────────────────────────────────────────────── */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(10px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
 .modal-overlay.open{display:flex;animation:fadeIn .2s ease}
 .modal-box{background:var(--surface);border:1px solid var(--mid);border-radius:var(--r-xl);padding:32px;width:100%;max-width:500px;position:relative;box-shadow:var(--shm);animation:slideUp .28s cubic-bezier(.4,0,.2,1);max-height:90vh;overflow-y:auto}
 .modal-box.wide{max-width:720px}
@@ -194,7 +219,7 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 .modal-close:hover{background:var(--accent);border-color:var(--accent);color:#fff}
 .modal-close-sm{width:28px;height:28px;border-radius:50%;background:var(--raised);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:.8rem;transition:all var(--tr)}
 .modal-close-sm:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
-.modal-tabs{display:flex;gap:0;margin-bottom:26px;background:var(--raised);border-radius:var(--r-sm);padding:3px}
+.modal-tabs{display:flex;gap:0;margin-bottom:26px;background:var(--raised);border-radius:var(--r-md);padding:3px}
 .mtab{flex:1;padding:8px;font-family:var(--cond);font-size:.85rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border-radius:var(--r-sm);transition:all var(--tr)}
 .mtab.active{background:var(--accent);color:#fff}
 .mform{display:none}
@@ -215,7 +240,7 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 .prev-thumb{width:78px;height:58px;object-fit:cover;border-radius:var(--r-img);border:2px solid var(--border);cursor:pointer;transition:border-color var(--tr)}
 .prev-thumb.cover{border-color:var(--accent)}
 .prev-rm{position:absolute;top:-5px;right:-5px;width:17px;height:17px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.55rem;color:#fff;border:1px solid var(--bg)}
-.prev-cover-tag{position:absolute;bottom:0;left:0;right:0;background:rgba(232,57,42,.85);color:#fff;font-family:var(--cond);font-size:.6rem;font-weight:700;text-align:center;letter-spacing:.5px;padding:2px}
+.prev-cover-tag{position:absolute;bottom:0;left:0;right:0;background:rgba(59,130,246,.9);color:#fff;font-family:var(--cond);font-size:.6rem;font-weight:700;text-align:center;letter-spacing:.5px;padding:2px}
 .add-more-btn{background:var(--raised);border:1px dashed var(--mid);border-radius:var(--r-sm);padding:6px 14px;font-family:var(--cond);font-size:.78rem;font-weight:700;color:var(--sec);cursor:pointer;transition:all var(--tr);display:inline-flex;align-items:center;gap:6px}
 .add-more-btn:hover{border-color:var(--accent);color:var(--accent)}
 .post-fields>*{margin-bottom:12px}
@@ -253,7 +278,7 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 .car-right h2{font-size:1.85rem;margin-bottom:9px;line-height:1}
 .car-chips{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:9px}
 .chip{background:var(--raised);border:1px solid var(--border);border-radius:30px;padding:5px 13px;font-family:var(--cond);font-size:.76rem;font-weight:700;color:var(--text)}
-.chip-hp{border-color:rgba(232,57,42,.4);color:var(--accent);background:var(--accent-soft)}
+.chip-hp{border-color:rgba(59,130,246,.4);color:var(--accent);background:var(--accent-soft)}
 .car-mods{font-family:var(--cond);font-size:.8rem;color:var(--sec);margin-bottom:9px}
 .mods-label{color:var(--muted)}
 .car-desc{font-size:.85rem;color:var(--sec);line-height:1.6;margin-bottom:16px}
@@ -411,18 +436,22 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.99)}
 .sort-btn{appearance:none;-webkit-appearance:none;-moz-appearance:none;background:var(--card);padding:5px 13px;font-family:var(--cond);font-size:.78rem;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);border-radius:30px;border:1px solid var(--border);cursor:pointer;transition:all var(--tr);outline:none}
 .sort-btn:hover{color:var(--text);border-color:var(--mid)}
 .sort-btn:focus{outline:none}
-.sort-btn:focus-visible{outline:none;box-shadow:0 0 0 2px var(--accent-soft);border-color:var(--accent)}
+.sort-btn:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-glow);border-color:var(--accent)}
 .sort-btn.active{color:#fff;border-color:var(--accent);background:var(--accent)}
-.sort-btn.active:focus-visible{box-shadow:0 0 0 2px var(--accent-soft)}
+.sort-btn.active:focus-visible{box-shadow:0 0 0 3px var(--accent-glow)}
 .load-more-wrap{text-align:center;margin-top:30px}
 
 /* ─── CARDS ──────────────────────────────────────────────────── */
 .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:17px}
-.card{background:var(--card);border-radius:var(--r-img);overflow:hidden;border:1px solid var(--border);cursor:pointer;animation:cardIn .4s ease both;transition:transform var(--tr),box-shadow var(--tr),border-color var(--tr)}
-.card:hover{transform:translateY(-5px);box-shadow:0 14px 44px rgba(0,0,0,.6);border-color:#303030}
+/* Modern polish: cards share the widget radius (--r-lg) for one consistent
+   corner system, hover lift is gentler, and the shadow is theme-aware
+   (the old rgba(0,0,0,.6) drop was far too heavy in light mode). */
+.card{background:var(--card);border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--border);cursor:pointer;animation:cardIn .4s ease both;transition:transform var(--tr),box-shadow var(--tr),border-color var(--tr)}
+.card:hover{transform:translateY(-3px);box-shadow:0 2px 6px rgba(0,0,0,.06),0 16px 44px rgba(0,0,0,.14);border-color:var(--mid)}
+body.dark .card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 16px 48px rgba(0,0,0,.5);border-color:#3a3a3a}
 .card-img-wrap{position:relative;overflow:hidden}
-.card-img{width:100%;aspect-ratio:16/10;object-fit:cover;background:var(--raised);display:block;transition:transform .4s ease}
-.card:hover .card-img{transform:scale(1.05)}
+.card-img{width:100%;aspect-ratio:16/10;object-fit:cover;background:var(--raised);display:block;transition:transform .45s cubic-bezier(.4,0,.2,1)}
+.card:hover .card-img{transform:scale(1.03)}
 .cat-badge{position:absolute;top:9px;left:9px;font-family:var(--cond);font-size:.67rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:30px;color:#fff}
 .badge-jdm{background:#e8392a}.badge-euro{background:#3b82f6}.badge-muscle{background:#f0a030}
 .badge-classic{background:#c9a84c}.badge-offroad{background:#22c55e}.badge-collector{background:#14b8a6}
@@ -631,7 +660,8 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
 .evt-empty i{font-size:3rem;margin-bottom:14px;display:block}
 .evt-empty h3{font-family:var(--disp);font-size:1.7rem;color:var(--sec);margin-bottom:7px}
 .evt-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;display:flex;flex-direction:column;animation:cardIn .4s ease both;transition:all var(--tr);position:relative}
-.evt-card:hover{border-color:var(--mid);transform:translateY(-3px);box-shadow:0 12px 36px rgba(0,0,0,.5)}
+.evt-card:hover{border-color:var(--mid);transform:translateY(-3px);box-shadow:0 2px 6px rgba(0,0,0,.06),0 14px 40px rgba(0,0,0,.13)}
+body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(0,0,0,.48)}
 .evt-card.past{opacity:.55}
 .evt-accent{height:3px;width:100%;flex-shrink:0}
 .evt-date-pill{position:absolute;top:14px;right:14px;background:var(--raised);border:1px solid var(--mid);border-radius:var(--r-md);padding:5px 9px;text-align:center;min-width:46px}
@@ -661,7 +691,7 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
 .members-search-input::placeholder{color:var(--muted)}
 .members-grid{max-width:1440px;margin:0 auto;padding:0 48px 60px;display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:18px}
 .members-empty{grid-column:1/-1;text-align:center;padding:60px;color:var(--muted);font-size:.88rem}
-.member-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-img);overflow:hidden;animation:cardIn .4s ease both;transition:all var(--tr)}
+.member-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;animation:cardIn .4s ease both;transition:all var(--tr)}
 .member-card:hover{border-color:var(--mid);transform:translateY(-3px);box-shadow:var(--sh)}
 .member-cover{height:90px;position:relative;overflow:hidden;background:var(--raised);border-radius:var(--r-img) var(--r-img) 0 0;display:flex;align-items:center;justify-content:center}
 .member-cover img{width:100%;height:100%;object-fit:cover}
@@ -705,9 +735,9 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
 
 /* ─── PROFILE ────────────────────────────────────────────────── */
 .profile-banner{position:relative;background:linear-gradient(160deg,#160806 0%,var(--bg) 65%);border-bottom:1px solid var(--border);padding:68px 48px 42px;overflow:hidden}
-.profile-glow{position:absolute;top:-60px;left:-60px;width:400px;height:400px;background:radial-gradient(circle,rgba(232,57,42,.12) 0%,transparent 70%);pointer-events:none}
+.profile-glow{position:absolute;top:-60px;left:-60px;width:400px;height:400px;background:radial-gradient(circle,rgba(59,130,246,.12) 0%,transparent 70%);pointer-events:none}
 .profile-top{display:flex;align-items:flex-end;gap:22px;max-width:1000px;margin:0 auto;position:relative}
-.profile-av{width:88px;height:88px;border-radius:50%;font-family:var(--disp);font-size:2.3rem;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;border:3px solid var(--bg);box-shadow:0 0 0 1px rgba(232,57,42,.3)}
+.profile-av{width:88px;height:88px;border-radius:50%;font-family:var(--disp);font-size:2.3rem;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0;border:3px solid var(--bg);box-shadow:0 0 0 1px rgba(59,130,246,.3)}
 .profile-meta{flex:1}
 .profile-meta h1{font-size:2.1rem;margin-bottom:4px}
 .profile-bio{color:var(--sec);font-size:.86rem;margin-bottom:4px;}
@@ -760,8 +790,11 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
 
 .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--raised);border:1px solid var(--mid);border-radius:30px;padding:9px 22px;font-family:var(--cond);font-size:.86rem;font-weight:700;color:var(--text);z-index:9999;opacity:0;transition:all .3s ease;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.toast.ok{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.1);color:#4ade80}
-.toast.err{border-color:rgba(232,57,42,.4);background:var(--accent-soft);color:var(--accent)}
+/* Toast states — solid gradient pills (documented convention: .ok is a
+   solid green gradient, never a transparent tint). Solid snackbars with
+   white text read modern and are legible over any page content. */
+.toast.ok{border-color:transparent;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;box-shadow:0 6px 20px rgba(34,197,94,.35)}
+.toast.err{border-color:transparent;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 6px 20px rgba(239,68,68,.35)}
 
 /* ─── RESPONSIVE ────────────────────────────────────────────── */
 @media(max-width:1100px){.feed-wrap{grid-template-columns:1fr}.sidebar{display:none}.footer-inner{grid-template-columns:1fr 1fr}.footer-brand{grid-column:1/-1}}
@@ -821,8 +854,8 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
 .fs-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0;background:var(--surface)}
 
 /* Filter trigger button in sort row */
-.filter-trigger-btn{display:inline-flex;align-items:center;gap:7px;padding:6px 16px;background:var(--accent);color:#fff;border-radius:var(--r-sm);font-family:var(--cond);font-size:.82rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all var(--tr);border:none;white-space:nowrap}
-.filter-trigger-btn:hover{background:var(--accent-dim);transform:translateY(-1px)}
+.filter-trigger-btn{display:inline-flex;align-items:center;gap:7px;padding:6px 16px;background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#fff;border-radius:var(--r-sm);font-family:var(--cond);font-size:.82rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all var(--tr);border:none;white-space:nowrap;box-shadow:0 4px 12px var(--accent-glow)}
+.filter-trigger-btn:hover{background:linear-gradient(135deg,var(--accent-dim),var(--accent));transform:translateY(-1px);box-shadow:0 6px 18px var(--accent-glow)}
 .filter-trigger-count{background:rgba(255,255,255,.3);border-radius:30px;padding:1px 7px;font-size:.7rem}
 .sort-divider{width:1px;height:22px;background:var(--border);margin:0 4px;flex-shrink:0}
 .feed-results-info{font-family:var(--cond);font-size:.78rem;color:var(--muted);margin-bottom:14px;letter-spacing:.5px}
@@ -1075,12 +1108,13 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
 
 /* ─── GENERAL SITE POLISH ────────────────────────────────────── */
 /* Smoother card image fade-in */
-.card-img{transition:transform .4s ease,opacity .3s ease;opacity:0}
+.card-img{transition:transform .45s cubic-bezier(.4,0,.2,1),opacity .3s ease;opacity:0}
 .card-img.loaded,.card-img[src]{opacity:1}
 
-/* Card hover shadow is more dramatic in light mode */
-.card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,.12)}
-body.dark .card:hover{box-shadow:0 12px 40px rgba(0,0,0,.55)}
+/* Card hover — gentle lift with layered theme-aware shadows.
+   NOTE: these rules win the cascade over the base .card:hover above. */
+.card:hover{transform:translateY(-3px);box-shadow:0 2px 6px rgba(0,0,0,.06),0 16px 44px rgba(0,0,0,.14)}
+body.dark .card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 16px 48px rgba(0,0,0,.5)}
 
 /* Pill filter bar — active pill border glow */
 .fpill.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 3px 10px var(--accent-glow)}
@@ -1486,9 +1520,6 @@ body.dark .card:hover{box-shadow:0 12px 40px rgba(0,0,0,.55)}
 .card,.member-card,.evt-card,.lb-row{will-change:transform}
 /* Focus ring accessibility */
 button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-/* Header search input has its own border-highlight treatment — no outline box */
-.header-search-input:focus-visible,
-.mob-search-input:focus-visible{outline:none}
 
 /* ═══════════════════════════════════════════════════════════════
    ICON SYSTEM — replaces emoji throughout
@@ -1899,11 +1930,338 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
    SOCIAL FEED PAGE
    ═══════════════════════════════════════════════════════════════ */
 #page-social{padding:0}
-.social-layout{display:grid;grid-template-columns:1fr 300px;gap:28px;max-width:1100px;margin:0 auto;padding:28px 24px 80px}
-.social-feed-header{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+/* ═══════════════════════════════════════════════════════════════
+   DISCUSSIONS — Reddit-style community board
+   ═══════════════════════════════════════════════════════════════ */
+.disc-wrap{max-width:760px;margin:0 auto;padding:28px 24px 80px}
+.disc-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}
+.disc-title{font-family:var(--disp);font-size:1.8rem;letter-spacing:1px;color:var(--text);margin:0}
+.disc-subtitle{color:var(--muted);font-size:.86rem;margin:4px 0 0}
+
+/* Category pills — single-select */
+.disc-cat-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.disc-cat-pill{
+  display:inline-flex;align-items:center;gap:6px;padding:6px 14px;
+  background:var(--raised);border:1px solid var(--border);border-radius:30px;
+  font-family:var(--cond);font-size:.78rem;font-weight:700;letter-spacing:.4px;
+  color:var(--sec);cursor:pointer;transition:all var(--tr);white-space:nowrap;
+}
+.disc-cat-pill:hover{border-color:var(--accent);color:var(--text)}
+.disc-cat-pill.active{
+  background:linear-gradient(135deg,var(--accent),var(--accent-dim));
+  border-color:transparent;color:#fff;box-shadow:0 4px 12px var(--accent-glow);
+}
+
+/* Sort tabs + search */
+.disc-controls-row{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.disc-sort-tabs{display:flex;gap:4px;background:var(--raised);border:1px solid var(--border);border-radius:30px;padding:3px}
+.disc-sort-tabs .sort-btn{display:inline-flex;align-items:center;gap:5px}
+.disc-search-bar{
+  flex:1;min-width:180px;display:flex;align-items:center;gap:8px;
+  background:var(--raised);border:1px solid var(--border);border-radius:10px;
+  padding:8px 14px;color:var(--muted);
+}
+.disc-search-bar input{flex:1;background:none;border:none;outline:none;color:var(--text);font-family:var(--body);font-size:.86rem}
+
+/* ── Discussion list rows ── */
+.disc-list{display:flex;flex-direction:column;gap:10px}
+.disc-item{display:flex;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;transition:all var(--tr);cursor:pointer}
+.disc-item:hover{border-color:var(--accent);transform:translateY(-1px)}
+.discussion-row{
+  display:flex;gap:14px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:14px 16px;cursor:pointer;transition:all var(--tr);
+}
+.discussion-row:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,.15)}
+.discussion-row.pinned{border-color:var(--accent);background:var(--accent-soft)}
+
+.disc-vote-col{display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;width:36px;padding-top:2px}
+.disc-vote-btn{
+  width:28px;height:24px;display:flex;align-items:center;justify-content:center;
+  background:none;border:none;color:var(--muted);cursor:pointer;border-radius:6px;
+  font-size:.8rem;transition:all var(--tr);
+}
+.disc-vote-btn:hover{background:var(--hover);color:var(--text)}
+.disc-vote-btn.disc-up.active{color:var(--green)}
+.disc-vote-btn.disc-down.active{color:var(--red)}
+.disc-vote-count{font-family:var(--cond);font-weight:800;font-size:.86rem;color:var(--text)}
+
+.disc-row-content{flex:1;min-width:0}
+.disc-row-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.disc-cat-badge{
+  background:var(--raised);border:1px solid var(--border);color:var(--accent);
+  font-family:var(--cond);font-size:.68rem;font-weight:700;letter-spacing:.5px;
+  padding:2px 9px;border-radius:20px;text-transform:uppercase;
+}
+.disc-row-meta-av{width:20px;height:20px;border-radius:50%;flex-shrink:0}
+.disc-row-meta-user{font-size:.78rem;font-weight:600;color:var(--sec)}
+.disc-row-meta-time{font-size:.78rem;color:var(--muted)}
+.disc-row-title{font-family:var(--body);font-size:1.08rem;font-weight:700;letter-spacing:normal;color:var(--text);margin:0 0 4px;line-height:1.35}
+.disc-row-preview{
+  color:var(--muted);font-size:.85rem;line-height:1.5;margin:0;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+}
+.disc-row-footer{display:flex;align-items:center;gap:14px;margin-top:10px}
+.disc-comment-count{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.8rem;font-weight:600}
+.disc-pin-badge{color:var(--accent);font-size:.75rem;font-weight:700;display:flex;align-items:center;gap:4px}
+
+.disc-empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.disc-empty i{font-size:2.5rem;opacity:.3;display:block;margin-bottom:14px}
+.disc-empty h3{color:var(--text);margin-bottom:6px}
+.disc-load-sentinel{height:1px}
+
+/* ── Composer modal ── */
+.disc-composer-title{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.disc-composer-title i{color:var(--accent)}
+.disc-char-count{text-align:right;font-size:.72rem;color:var(--muted);margin-top:4px}
+
+/* ── Detail view ── */
+.disc-detail-box{max-width:680px;padding:32px}
+.disc-detail-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-right:42px}
+.disc-detail-time{color:var(--muted);font-size:.82rem;margin-left:auto}
+.disc-detail-del{background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:.8rem;transition:all var(--tr)}
+.disc-detail-del:hover{color:#e8392a;border-color:#e8392a}
+.disc-detail-title{font-family:var(--body);font-size:1.5rem;font-weight:800;letter-spacing:normal;color:var(--text);margin:0 0 14px;line-height:1.35}
+.disc-detail-author{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.disc-detail-author-av{width:34px;height:34px;border-radius:50%;flex-shrink:0}
+.disc-detail-author-name{font-weight:700;color:var(--text);font-size:.92rem}
+.disc-detail-body{color:var(--sec);font-size:.95rem;line-height:1.7;white-space:pre-wrap;margin-bottom:18px}
+
+.disc-detail-votes{display:flex;align-items:center;gap:8px;background:var(--raised);border:1px solid var(--border);border-radius:30px;padding:6px 8px;width:fit-content;margin-bottom:20px}
+.disc-detail-votes .disc-vote-btn{width:34px;height:30px}
+.disc-detail-votes .disc-vote-count{font-size:1rem;padding:0 4px}
+
+.disc-comment-composer{display:flex;gap:10px;align-items:flex-start;margin-bottom:22px;padding-bottom:20px;border-bottom:1px solid var(--subtle)}
+.disc-comment-composer-av{width:32px;height:32px;border-radius:50%;flex-shrink:0}
+.disc-comment-composer-body{flex:1;display:flex;flex-direction:column;gap:8px}
+.disc-comment-composer textarea{
+  width:100%;background:var(--raised);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:10px 12px;color:var(--text);font-family:var(--body);font-size:.88rem;resize:vertical;min-height:44px;outline:none;
+}
+.disc-comment-composer textarea:focus{border-color:var(--accent)}
+.disc-comment-submit{
+  align-self:flex-end;background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#fff;
+  border:none;border-radius:20px;padding:7px 18px;font-family:var(--cond);font-weight:700;
+  font-size:.8rem;letter-spacing:.5px;cursor:pointer;box-shadow:0 4px 12px var(--accent-glow);transition:all var(--tr);
+}
+.disc-comment-submit:hover{transform:translateY(-1px);box-shadow:0 6px 16px var(--accent-glow)}
+.disc-comment-signin{color:var(--muted);font-size:.85rem;text-align:center;padding:14px 0;border-bottom:1px solid var(--subtle);margin-bottom:18px}
+
+.disc-comments-heading{font-family:var(--cond);font-size:.78rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:14px}
+.disc-comments-list{display:flex;flex-direction:column;gap:16px}
+.disc-comment{display:flex;gap:10px}
+.disc-comment-vote{display:flex;flex-direction:column;align-items:center;gap:0;flex-shrink:0;width:22px;padding-top:2px}
+.disc-comment-vote .disc-vote-btn{width:22px;height:20px;font-size:.68rem}
+.disc-comment-vote .disc-vote-count{font-size:.72rem}
+.disc-comment-body-wrap{flex:1;min-width:0}
+.disc-comment-meta{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.disc-comment-av{width:22px;height:22px;border-radius:50%;flex-shrink:0}
+.disc-comment-author{font-weight:700;font-size:.82rem;color:var(--text)}
+.disc-comment-time{font-size:.74rem;color:var(--muted)}
+.disc-comment-text{font-size:.86rem;line-height:1.55;color:var(--sec);margin-bottom:6px;white-space:pre-wrap}
+.disc-comment-actions{display:flex;gap:14px}
+.disc-reply-btn,.disc-comment-del-btn{background:none;border:none;color:var(--muted);font-size:.76rem;font-weight:700;cursor:pointer;padding:0;transition:color var(--tr)}
+.disc-reply-btn:hover{color:var(--accent)}
+.disc-comment-del-btn:hover{color:#e8392a}
+
+.disc-reply-composer{display:none;gap:8px;margin-top:10px}
+.disc-reply-composer.open{display:flex}
+.disc-reply-composer input{
+  flex:1;background:var(--raised);border:1px solid var(--border);border-radius:20px;
+  padding:7px 14px;color:var(--text);font-size:.82rem;outline:none;
+}
+.disc-reply-composer input:focus{border-color:var(--accent)}
+.disc-reply-send{background:var(--accent);color:#fff;border:none;border-radius:50%;width:30px;height:30px;flex-shrink:0;cursor:pointer;transition:all var(--tr)}
+.disc-reply-send:hover{background:var(--accent-dim)}
+
+/* Nested replies — indented with a left rail, classic Reddit thread look */
+.disc-replies{margin-top:12px;padding-left:16px;border-left:2px solid var(--subtle);display:flex;flex-direction:column;gap:14px}
+.disc-no-comments{color:var(--muted);font-size:.85rem;text-align:center;padding:20px 0}
+
+@media(max-width:768px){
+  .disc-wrap{padding:14px 12px 90px}
+  .disc-header{flex-direction:column;gap:12px}
+  .disc-header .btn-primary{width:100%;justify-content:center}
+  .disc-title{font-size:1.4rem}
+  .disc-cat-pills{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+  .disc-cat-pills::-webkit-scrollbar{display:none}
+  .disc-controls-row{flex-direction:column;align-items:stretch}
+  .discussion-row{padding:12px}
+  .disc-detail-box{padding:20px 16px}
+  .disc-detail-title{font-size:1.3rem}
+}
+
+.social-page-layout{max-width:1240px;margin:0 auto;padding:28px 24px 80px;display:grid;grid-template-columns:1fr 295px;gap:28px;align-items:start}
+.social-discover-wrap{min-width:0;max-width:640px;margin:0 auto}
+
+/* ═══ Sidebar: Spotting Map teaser + Instagram ad ═══ */
+.social-sidebar-col{display:flex;flex-direction:column;gap:20px;position:sticky;top:80px;margin-top:190px}
+
+.spot-map-teaser{padding:0;overflow:hidden}
+.spot-map-teaser-preview{
+  width:100%;aspect-ratio:2/1;background:linear-gradient(180deg,#0d1830,#0a1220);
+  overflow:hidden;position:relative;
+}
+.spot-map-mini-svg{width:100%;height:100%;display:block}
+.spot-map-teaser .widget-title{padding:14px 16px 0}
+.spot-map-teaser-sub{font-size:.78rem;color:var(--muted);padding:6px 16px 14px;line-height:1.4}
+.spot-map-teaser .btn-primary{margin:0 16px 16px;width:calc(100% - 32px)}
+
+.ig-ad-widget{padding:0;overflow:hidden}
+.ig-ad-link{display:block;line-height:0}
+.ig-ad-img{width:100%;height:auto;display:block;transition:transform var(--tr)}
+.ig-ad-link:hover .ig-ad-img{transform:scale(1.02)}
+
+/* ═══ World map — continents + graticule ═══ */
+.spot-map-mini-svg .wm-ocean, .spot-map-svg .wm-ocean{fill:#0d1830}
+.spot-map-mini-svg .wm-grat, .spot-map-svg .wm-grat{stroke:rgba(255,255,255,.06);stroke-width:1;fill:none}
+.spot-map-mini-svg .wm-land, .spot-map-svg .wm-land{fill:#1b2b4d;stroke:#2a3f6b;stroke-width:1.2;transition:fill var(--tr)}
+.spot-map-svg .wm-land:hover{fill:#22335c}
+.spot-map-svg .wm-pin{cursor:pointer}
+.spot-map-svg .wm-pin-dot{fill:var(--accent);stroke:#fff;stroke-width:1.5;transition:r var(--tr)}
+.spot-map-svg .wm-pin:hover .wm-pin-dot{r:7}
+.spot-map-svg .wm-pin-pulse{fill:var(--accent);opacity:.35;animation:wmPulse 2.2s ease-out infinite}
+.spot-map-mini-svg .wm-mini-pin{fill:var(--accent);stroke:#fff;stroke-width:.6}
+@keyframes wmPulse{0%{r:5;opacity:.45}100%{r:14;opacity:0}}
+
+/* ═══ Full map modal ═══ */
+.spot-map-box{max-width:960px;width:95vw;padding:26px}
+.spot-map-header{display:flex;align-items:baseline;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.spot-map-header h2{font-family:var(--disp);font-size:1.4rem;color:var(--text);display:flex;align-items:center;gap:10px;letter-spacing:.5px}
+.spot-map-header h2 i{color:var(--accent)}
+.spot-map-header p{font-size:.84rem;color:var(--muted)}
+.spot-map-wrap{position:relative;border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--border)}
+.spot-map-svg{width:100%;height:auto;display:block;max-height:65vh}
+.spot-map-hint{font-size:.76rem;color:var(--muted);margin-top:12px;display:flex;align-items:center;gap:6px}
+
+.spot-map-popup{
+  position:absolute;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-md);box-shadow:0 12px 40px rgba(0,0,0,.4);
+  padding:0;width:180px;z-index:20;cursor:pointer;overflow:hidden;
+  transform:translate(-50%,-100%);margin-top:-14px;
+}
+.spot-map-popup-img{width:100%;aspect-ratio:4/5;object-fit:cover;background:var(--raised);display:block}
+.spot-map-popup-body{padding:8px 10px}
+.spot-map-popup-user{font-weight:700;font-size:.78rem;color:var(--text)}
+.spot-map-popup-loc{font-size:.72rem;color:var(--muted);display:flex;align-items:center;gap:4px;margin-top:2px}
+.spot-map-popup-close{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.7rem;cursor:pointer;z-index:2}
+
+@media(max-width:900px){
+  .social-page-layout{grid-template-columns:1fr}
+  .social-sidebar-col{position:static;flex-direction:row;flex-wrap:wrap}
+  .spot-map-teaser,.ig-ad-widget{flex:1;min-width:260px}
+}
+.social-feed-header{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap}
 .social-feed-title{font-family:var(--disp);font-size:1.8rem;letter-spacing:1px;color:var(--text);margin-right:auto}
-.social-feed-tabs{display:flex;gap:4px;background:var(--raised);border:1px solid var(--border);border-radius:30px;padding:3px}
+
+/* ═══ STORY BAR — horizontal-scrolling profile bubbles ═══ */
+.story-bar-wrap{margin-bottom:10px;margin-top:-8px}
+.story-bar{
+  display:flex;gap:16px;overflow-x:auto;padding:6px 2px 10px;
+  scrollbar-width:none;-ms-overflow-style:none;
+}
+.story-bar::-webkit-scrollbar{display:none}
+.story-bubble{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  flex-shrink:0;width:74px;cursor:pointer;
+}
+.story-bubble-ring{
+  width:70px;height:70px;border-radius:50%;padding:3px;flex-shrink:0;
+  background:conic-gradient(from 180deg,#f0a030,#3b82f6,#e8392a,#f0a030);
+  display:flex;align-items:center;justify-content:center;position:relative;
+  transition:transform var(--tr);
+}
+.story-bubble:hover .story-bubble-ring{transform:scale(1.05)}
+.story-bubble-ring .av-circle,.story-bubble-ring .has-photo{
+  width:100%!important;height:100%!important;border:2px solid var(--surface);
+}
+.story-bubble-own .story-bubble-ring{background:var(--border)}
+.story-bubble-own.has-story .story-bubble-ring{background:conic-gradient(from 180deg,#f0a030,#3b82f6,#e8392a,#f0a030)}
+.story-bubble-own-plus{
+  position:absolute;bottom:-1px;right:-1px;width:20px;height:20px;
+  border-radius:50%;background:var(--accent);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.6rem;border:2px solid var(--surface);
+}
+.story-bubble-name{
+  font-size:.72rem;color:var(--text);max-width:74px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;
+}
+.story-bar-empty{color:var(--muted);font-size:.85rem;padding:8px 2px}
+
+/* ═══ Trending tags strip ═══ */
+.social-tags-strip{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+
+.social-feed-tabs{display:flex;gap:4px;background:var(--raised);border:1px solid var(--border);border-radius:30px;padding:3px;width:fit-content;margin-bottom:14px}
 .soc-tab{padding:5px 16px;border-radius:30px;font-family:var(--cond);font-size:.76rem;font-weight:700;letter-spacing:.8px;color:var(--muted);cursor:pointer;transition:all var(--tr)}
+
+/* ═══ Discover grid — two posts side by side, 4:5 ═══ */
+.social-discover-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.social-grid-card{
+  position:relative;aspect-ratio:9/16;border-radius:var(--r-md);
+  overflow:hidden;cursor:pointer;background:var(--raised);
+}
+.social-grid-card img,.social-grid-card video{
+  width:100%;height:100%;object-fit:cover;display:block;
+}
+.social-grid-card-overlay{
+  position:absolute;left:0;right:0;bottom:0;padding:10px;
+  background:linear-gradient(to top,rgba(0,0,0,.72),transparent 70%);
+  display:flex;align-items:center;gap:6px;
+}
+.social-grid-card-user{color:#fff;font-size:.76rem;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.social-grid-card-likes{margin-left:auto;color:#fff;font-size:.72rem;display:flex;align-items:center;gap:4px;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.social-grid-multi-badge{position:absolute;top:8px;right:8px;color:#fff;font-size:.8rem;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+.social-grid-card:hover{transform:scale(1.01)}
+
+/* ═══ Detail modal — the full rich card, opened on tap ═══ */
+.social-detail-box{
+  max-width:900px;padding:44px 0 40px;background:transparent;
+  box-shadow:none;border:none;border-radius:0;
+  max-height:none;overflow:visible;
+}
+/* Let the overlay itself scroll for tall posts, instead of the box having
+   its own inner scrollbar — no visible scrollbar chrome, just natural
+   page scroll if the post is taller than the screen. */
+#socialDetailModal{align-items:flex-start;overflow-y:auto}
+.social-detail-box .social-post-card{max-width:none;margin:0}
+
+/* ═══ Two-column desktop layout (Instagram-style): media left,
+   header + caption + comments + input right ═══ */
+.soc-detail-layout{
+  display:flex;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);overflow:hidden;max-height:85vh;
+}
+.soc-detail-media{
+  flex:1 1 58%;min-width:0;background:#000;
+  display:flex;align-items:center;justify-content:center;
+}
+.soc-detail-media .soc-post-media-wrap,
+.soc-detail-media .soc-carousel,
+.soc-detail-media .soc-carousel-track,
+.soc-detail-media .soc-slide{width:100%;height:100%}
+.soc-detail-media .soc-slide-media{width:100%;height:100%;max-height:85vh;object-fit:contain}
+.soc-detail-info{
+  flex:1 1 42%;min-width:320px;max-width:400px;
+  display:flex;flex-direction:column;border-left:1px solid var(--border);
+  background:var(--surface);
+}
+.soc-detail-info .soc-post-head{padding:14px 16px;border-bottom:1px solid var(--subtle);flex-shrink:0}
+.soc-detail-scroll{flex:1;overflow-y:auto;padding:14px 16px;min-height:0}
+.soc-caption-row{display:flex;gap:10px;padding-bottom:14px;margin-bottom:12px;border-bottom:1px solid var(--subtle)}
+.soc-caption-row .soc-av{flex-shrink:0}
+.soc-caption-text{font-size:.87rem;line-height:1.45;color:var(--text)}
+.soc-detail-info .soc-post-actions{padding:10px 16px;border-top:1px solid var(--subtle);flex-shrink:0;margin:0}
+.soc-detail-info .soc-comment-input-row{padding:10px 16px;border-top:1px solid var(--subtle);flex-shrink:0;margin:0}
+
+/* Stacks vertically on narrower screens — same content, just not side by
+   side, since there isn't room for two columns */
+@media(max-width:900px){
+  .soc-detail-layout{flex-direction:column;max-height:none}
+  .soc-detail-media{max-height:70vh}
+  .soc-detail-media .soc-slide-media{max-height:70vh}
+  .soc-detail-info{border-left:none;border-top:1px solid var(--border);max-width:none;min-width:0}
+  .soc-detail-scroll{max-height:50vh}
+}
 .soc-tab.active{background:var(--accent);color:#fff}
 
 /* Social post card */
@@ -1969,6 +2327,18 @@ video.social-post-media{max-height:480px;background:#000}
 .upload-zone-sm i{font-size:1.6rem}
 
 /* Report modal head */
+/* ═══ Followers / Following list ═══ */
+.follow-list-body{max-height:60vh;overflow-y:auto;margin-top:14px;display:flex;flex-direction:column;gap:2px}
+.follow-list-item{display:flex;align-items:center;gap:12px;padding:10px 4px;border-radius:var(--r-md);cursor:pointer;transition:background var(--tr)}
+.follow-list-item:hover{background:var(--hover)}
+.follow-list-av{width:42px;height:42px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;overflow:hidden}
+.follow-list-info{flex:1;min-width:0}
+.follow-list-name{font-weight:700;font-size:.9rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.follow-list-empty{text-align:center;padding:40px 20px;color:var(--muted);font-size:.85rem}
+.follow-list-empty i{font-size:1.8rem;opacity:.3;display:block;margin-bottom:12px}
+.pstat.clickable{cursor:pointer;transition:opacity var(--tr)}
+.pstat.clickable:hover{opacity:.7}
+
 .report-modal-head{margin-bottom:6px}
 .report-modal-head h2{font-size:1.6rem}
 .report-target-label{font-family:var(--cond);font-size:.76rem;font-weight:700;color:var(--muted);margin-top:4px;letter-spacing:.3px}
@@ -1985,8 +2355,7 @@ video.social-post-media{max-height:480px;background:#000}
 .profile-bio{font-size:.88rem;color:var(--text);line-height:1.7;margin-bottom:6px;max-width:520px;font-style:normal}
 
 @media(max-width:800px){
-  .social-layout{grid-template-columns:1fr;padding:16px 14px 60px}
-  .social-sidebar-col{display:none}
+  .social-page-layout{padding:16px 14px 60px}
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -2683,7 +3052,6 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
 }
 .cp-mod-section{
   background:var(--raised);border:1px solid var(--border);
-  border-left:3px solid var(--mod-color, var(--border));
   border-radius:var(--r-lg);padding:18px 20px;
   color:var(--text);
 }
@@ -2708,14 +3076,8 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
   padding:6px 0;border-bottom:1px solid var(--subtle);
   display:flex;align-items:flex-start;gap:7px;
 }
-.cp-mod-item::before{content:'—';color:var(--mod-color, var(--accent));font-weight:700;flex-shrink:0}
+.cp-mod-item::before{content:'—';color:var(--accent);font-weight:700;flex-shrink:0}
 .cp-mod-item:last-child{border-bottom:none;padding-bottom:0}
-/* Empty-category placeholder — no colored dash, muted italic, no border clutter */
-.cp-mod-item-empty{
-  color:var(--muted);font-style:italic;font-size:.82rem;
-  border-bottom:none;padding:2px 0 0;
-}
-.cp-mod-item-empty::before{content:'';display:none}
 
 @media(max-width:900px){
   .specs-layout{grid-template-columns:1fr;gap:20px}
@@ -3243,6 +3605,36 @@ body:not(.dark) .lb-list { border-color: #c8cdd6; }
 }
 .lb-standalone-sub{font-size:.84rem;color:var(--muted);margin-top:3px}
 
+/* ═══ Members page — community stats + BOTM nomination ═══ */
+.mem-stats-bar{display:flex;gap:16px;max-width:900px;margin:0 auto 28px;padding:0 48px;flex-wrap:wrap}
+.mem-stat-card{flex:1;min-width:140px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;text-align:center;transition:all var(--tr)}
+.mem-stat-card:hover{border-color:var(--accent)}
+.mem-stat-num{font-family:var(--disp);font-size:1.8rem;color:var(--accent);display:block;line-height:1.2}
+.mem-stat-label{font-size:.74rem;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;font-weight:700}
+
+.mem-section-divider{max-width:900px;margin:0 auto 32px;padding:0 48px}
+.mem-section-divider::after{content:'';display:block;height:1px;background:var(--border)}
+
+.mem-botm-nominate{margin-top:26px;padding-top:24px;border-top:1px solid var(--subtle)}
+.mem-nominate-head{margin-bottom:16px}
+.mem-nominate-title{font-family:var(--disp);font-size:1.1rem;color:var(--text);display:flex;align-items:center;gap:8px;letter-spacing:.5px}
+.mem-nominate-title i{color:#d97706}
+.mem-nominate-sub{display:block;font-size:.78rem;color:var(--muted);margin-top:4px}
+
+.mem-botm-candidates{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.mem-botm-candidate{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;transition:all var(--tr);cursor:pointer}
+.mem-botm-candidate:hover{border-color:var(--accent);transform:translateY(-2px)}
+.mem-botm-cand-img{width:100%;aspect-ratio:16/10;background:var(--raised);overflow:hidden}
+.mem-botm-cand-img img{width:100%;height:100%;object-fit:cover;display:block}
+.mem-botm-cand-body{padding:10px 12px}
+.mem-botm-cand-title{font-weight:700;font-size:.85rem;color:var(--text);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mem-botm-cand-user{font-size:.74rem;color:var(--muted);margin-bottom:10px}
+.mem-botm-cand-footer{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mem-botm-vote-count{font-family:var(--cond);font-weight:800;font-size:.88rem;color:var(--text);display:flex;align-items:center;gap:5px;white-space:nowrap}
+.mem-botm-vote-count i{color:#d97706}
+.mem-botm-candidates .botm-vote-btn{margin-top:0;padding:6px 12px;font-size:.68rem}
+.mem-botm-empty{grid-column:1/-1;text-align:center;padding:30px 20px;color:var(--muted);font-size:.85rem}
+
 /* ─── BOTM cinematic card ─────────────────────────────────────── */
 .botm-cinematic{
   position:relative;border-radius:var(--r-lg);overflow:hidden;
@@ -3503,8 +3895,6 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
   .atg-grid{grid-template-columns:1fr 1fr}
 
   /* ─── Social ─── */
-  .social-layout{grid-template-columns:1fr}
-  .social-sidebar-col{display:none}
   .social-feed-header{flex-wrap:wrap;gap:8px}
 
   /* ─── Messages ─── */
@@ -3564,6 +3954,7 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
   .header-actions .icon-btn{width:34px;height:34px;font-size:.82rem}
   .av-chip{padding:4px 8px;gap:6px;font-size:.78rem}
   .av-chip .av-chip-av{width:26px;height:26px;font-size:.7rem}
+  .header-right{padding-right:6px!important}
 }
 
 /* ─── MOBILE NAVIGATION DRAWER ────────────────────────────────── */
@@ -3571,13 +3962,15 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
   position:fixed;top:0;left:-100%;width:80%;max-width:300px;
   height:100dvh;background:var(--surface);
   border-right:1px solid var(--border);
-  z-index:1000;transition:left .28s cubic-bezier(.4,0,.2,1);
+  border-radius:0 22px 22px 0;
+  z-index:1000;transition:left .28s cubic-bezier(.4,0,.2,1),box-shadow .28s ease;
   display:flex;flex-direction:column;overflow-y:auto;
 }
-.mob-nav.open{left:0}
+.mob-nav.open{left:0;box-shadow:8px 0 24px rgba(0,0,0,.12),24px 0 80px rgba(0,0,0,.18)}
+body.dark .mob-nav.open{box-shadow:8px 0 24px rgba(0,0,0,.4),24px 0 80px rgba(0,0,0,.5)}
 .mob-overlay{
-  position:fixed;inset:0;background:rgba(0,0,0,.6);
-  z-index:999;display:none;backdrop-filter:blur(2px);
+  position:fixed;inset:0;background:rgba(0,0,0,.55);
+  z-index:999;display:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
 }
 .mob-overlay.open{display:block}
 .mob-nav-top{
@@ -3791,12 +4184,89 @@ body:not(.dark) .botw-ph span{color:rgba(255,255,255,.2)}
 
 /* ─── SOCIAL — MOBILE ─────────────────────────────────────────── */
 @media(max-width:768px){
-  .social-layout{grid-template-columns:1fr;padding:0}
-  .social-sidebar-col{display:none}
-  .social-feed-col{padding:12px}
+  .social-page-layout{padding:12px 12px 90px}
+  .social-discover-grid{gap:6px}
   .social-feed-header{flex-wrap:wrap;gap:8px}
   .social-feed-title{font-size:1.1rem}
+  .story-bar{gap:12px;-webkit-overflow-scrolling:touch}
+  .story-bubble{width:60px}
+  .story-bubble-ring{width:56px;height:56px}
+  .story-bubble-name{max-width:60px;font-size:.68rem}
+  .story-bar-wrap{margin-top:0}
+  .social-tags-strip{margin-bottom:12px}
+  .social-feed-tabs{width:100%;justify-content:space-between}
+  .soc-tab{flex:1;text-align:center;padding:5px 8px}
+  .social-detail-box{max-width:100%}
+  .modal-overlay{padding:12px}
+
+  /* Sidebar — the 900px breakpoint puts these two panels side by side
+     (fine on a tablet), but neither can shrink below ~260px, so on an
+     actual phone that overflows. Stack them back to full-width instead. */
+  .social-sidebar-col{flex-direction:column!important;margin-top:20px!important}
+  .spot-map-teaser,.ig-ad-widget{min-width:0!important;flex:none!important}
+
+  /* Spotting Map modal */
+  .spot-map-box{padding:16px;width:100vw;max-width:100vw;max-height:100dvh;border-radius:0}
+  .spot-map-header{gap:8px}
+  .spot-map-header h2{font-size:1.15rem}
+  .spot-map-svg{max-height:50vh}
+  .spot-map-popup{width:140px}
+  .spot-map-hint{font-size:.72rem}
 }
+
+@media(max-width:390px){
+  .disc-detail-box, .spot-map-box{padding:14px}
+}
+
+/* ─── DISCUSSIONS — MOBILE ────────────────────────────────────── */
+@media(max-width:768px){
+  .disc-wrap{padding:16px 14px 90px}
+  .disc-header{flex-wrap:wrap;gap:10px}
+  .disc-title{font-size:1.4rem}
+  .disc-subtitle{font-size:.78rem}
+  #newDiscussionBtn{width:100%;justify-content:center}
+
+  /* Category pills — horizontal scroll instead of wrapping into several
+     rows, which was eating a lot of vertical space before scrolling to
+     any actual discussions */
+  .disc-cat-pills{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;margin-bottom:12px}
+  .disc-cat-pills::-webkit-scrollbar{display:none}
+  .disc-cat-pill{flex-shrink:0}
+
+  .disc-controls-row{flex-wrap:wrap;gap:8px}
+  .disc-sort-tabs{width:100%;justify-content:space-between}
+  .disc-sort-tabs .sort-btn{flex:1;justify-content:center;padding:6px 4px;font-size:.72rem}
+  .disc-search-bar{width:100%}
+
+  .disc-item{padding:12px;gap:8px}
+  .disc-vote-col{width:30px}
+  .disc-row-title{font-size:1rem}
+  .disc-row-preview{font-size:.82rem}
+  .disc-row-meta{gap:6px}
+  .disc-row-footer{gap:10px}
+
+  /* Detail modal */
+  .disc-detail-box{max-width:100%;width:100%;padding:18px}
+  .disc-detail-title{font-size:1.3rem}
+  .disc-detail-header{flex-wrap:wrap;gap:8px}
+  .disc-detail-time{margin-left:0}
+  .disc-detail-body{font-size:.88rem}
+  .disc-detail-votes{width:100%;justify-content:center}
+
+  .disc-comment-composer{flex-direction:column}
+  .disc-comment-composer-av{display:none} /* redundant with your own avatar context on a narrow screen */
+  .disc-comment-submit{align-self:flex-end}
+
+  /* Nested replies — 16px indent per level adds up fast on a narrow
+     screen with a few levels of back-and-forth; tighten it */
+  .disc-replies{padding-left:10px;margin-top:10px;gap:10px}
+  .disc-comment{gap:8px}
+  .disc-comment-text{font-size:.84rem}
+
+  /* Composer modal */
+  #discComposerModal .modal-box{padding:20px;max-width:100%;width:100%}
+}
+
 
 /* ─── PROFILE — MOBILE ────────────────────────────────────────── */
 @media(max-width:768px){
@@ -4422,9 +4892,13 @@ html, body {
    ═══════════════════════════════════════════════════════════════ */
 .signup-nudge{
   position:fixed;bottom:0;left:0;right:0;z-index:1500;
-  background:linear-gradient(135deg,#1a1f35 0%,#111827 100%);
-  border-top:1px solid rgba(59,130,246,.3);
-  box-shadow:0 -4px 32px rgba(0,0,0,.4);
+  /* Semi-transparent blue gradient + frosted glass — the feed stays
+     visible behind the bar as you scroll */
+  background:linear-gradient(135deg,rgba(37,66,138,.72) 0%,rgba(23,37,84,.68) 55%,rgba(17,24,39,.66) 100%);
+  -webkit-backdrop-filter:blur(14px) saturate(1.4);
+  backdrop-filter:blur(14px) saturate(1.4);
+  border-top:1px solid rgba(96,150,246,.35);
+  box-shadow:0 -4px 32px rgba(0,0,0,.35);
   padding:14px 24px;
   transform:translateY(100%);
   transition:transform .4s cubic-bezier(.34,1.56,.64,1);
@@ -4455,6 +4929,16 @@ html, body {
   transition:all var(--tr);
 }
 .signup-nudge-btn:hover{background:var(--accent-dim);transform:scale(1.03)}
+.signup-nudge-signin{
+  background:rgba(255,255,255,.94);color:#111827;
+  font-family:var(--cond);font-size:.82rem;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;
+  padding:9px 22px;border-radius:var(--r-sm);
+  border:1px solid rgba(255,255,255,.6);
+  cursor:pointer;white-space:nowrap;flex-shrink:0;
+  transition:all var(--tr);
+}
+.signup-nudge-signin:hover{background:#fff;transform:scale(1.03)}
 .signup-nudge-close{
   width:32px;height:32px;border-radius:50%;
   background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
@@ -6389,7 +6873,7 @@ body:not(.dark) .save-btn {
 .sidebar-post-btn {
   width: 100%;
   padding: 9px 14px;
-  background: var(--accent);
+  background: linear-gradient(135deg,var(--accent),var(--accent-dim));
   color: #fff;
   border: none;
   border-radius: var(--r-sm);
@@ -6402,9 +6886,10 @@ body:not(.dark) .save-btn {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  transition: background var(--tr);
+  transition: all var(--tr);
+  box-shadow: 0 4px 14px var(--accent-glow);
 }
-.sidebar-post-btn:hover { background: var(--accent-dim); }
+.sidebar-post-btn:hover { background: linear-gradient(135deg,var(--accent-dim),var(--accent)); box-shadow: 0 8px 22px var(--accent-glow); }
 
 /* ─── PLACEHOLDER PAGES (Guidelines/About/Privacy/Help) ───────── */
 .placeholder-page-wrap{
@@ -6837,43 +7322,30 @@ body:not(.dark) .save-btn {
 #profileShareBtn:active { transform: scale(.95); }
 
 /* ═══════════════════════════════════════════════════════════════
-   INLINE EXPANDING SEARCH — header
+   HEADER SEARCH — static bar, always visible (no open/close animation)
    ═══════════════════════════════════════════════════════════════ */
 .header-search-wrap {
   position: relative;
   display: flex;
   align-items: center;
 }
-/* The trigger icon-btn stays visible until opened */
-.header-search-wrap .header-search-trigger { flex-shrink: 0; }
-
-/* The expanding bar — hidden by default, slides in from right */
+/* Styled like the old bar's "already open" state, but permanent — a
+   normal flex child (not position:absolute), so it can never overlay
+   or overlap the nav links to its left. */
 .header-search-bar {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
   display: flex;
   align-items: center;
   gap: 8px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 24px;
-  padding: 5px 12px 5px 14px;
-  width: 0;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-  transition: width .25s cubic-bezier(.4,0,.2,1), opacity .2s ease;
-  white-space: nowrap;
-  box-shadow: 0 4px 20px rgba(0,0,0,.15);
-  z-index: 100;
+  padding: 7px 14px;
+  width: 240px;
+  flex-shrink: 1;
+  min-width: 130px;
+  transition: border-color var(--tr);
 }
-.header-search-wrap.open .header-search-bar {
-  width: min(380px, 70vw);
-  opacity: 1;
-  pointer-events: auto;
-}
+.header-search-bar:focus-within { border-color: var(--accent); }
 .header-search-icon { color: var(--muted); font-size: .82rem; flex-shrink: 0; }
 .header-search-input {
   flex: 1; border: none; background: transparent; outline: none;
@@ -6881,22 +7353,14 @@ body:not(.dark) .save-btn {
   color: var(--text); min-width: 0;
 }
 .header-search-input::placeholder { color: var(--muted); }
-.header-search-expand {
-  color: var(--accent); background: none; border: none;
-  font-family: var(--cond); font-size: .72rem; font-weight: 700;
-  letter-spacing: .5px; cursor: pointer; white-space: nowrap;
-  padding: 2px 0; flex-shrink: 0;
-  transition: opacity var(--tr);
-}
-.header-search-expand:hover { opacity: .7; }
-.header-search-close {
-  width: 24px; height: 24px; border-radius: 50%;
+.header-search-clear {
+  width: 20px; height: 20px; border-radius: 50%;
   background: var(--raised); border: none; color: var(--muted);
-  cursor: pointer; font-size: .7rem; flex-shrink: 0;
+  cursor: pointer; font-size: .62rem; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   transition: all var(--tr);
 }
-.header-search-close:hover { background: var(--hover); color: var(--text); }
+.header-search-clear:hover { background: var(--hover); color: var(--text); }
 
 /* Inline search results dropdown */
 .header-search-results {
@@ -7032,6 +7496,158 @@ body:not(.dark) .save-btn {
   padding: 8px 0;
 }
 
+/* ============================================================
+   SPOT POST PAGE — full-page Car Spotting composer
+   ============================================================ */
+.spotpost-wrap{max-width:820px;margin:0 auto;padding:28px 48px 80px}
+.spotpost-head{margin-bottom:22px}
+.spotpost-title{font-family:var(--disp);font-size:2.4rem;letter-spacing:1px;color:var(--text);display:flex;align-items:center;gap:12px}
+.spotpost-title i{color:var(--accent);font-size:1.6rem}
+.spotpost-sub{color:var(--muted);font-size:.95rem;margin-top:4px}
+.spotpost-steps{display:flex;align-items:center;gap:10px;margin-bottom:24px}
+.spot-step{display:flex;align-items:center;gap:8px;font-family:var(--cond);font-size:.82rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);white-space:nowrap;transition:color var(--tr)}
+.spot-step-num{width:26px;height:26px;border-radius:50%;background:var(--raised);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.8rem;transition:all var(--tr)}
+.spot-step.active{color:var(--accent)}
+.spot-step.active .spot-step-num{background:var(--accent);border-color:var(--accent);color:#fff}
+.spot-step.done{color:var(--text)}
+.spot-step.done .spot-step-num{background:#16a34a;border-color:#16a34a;color:#fff}
+.spot-step-line{flex:1;height:1px;background:var(--border)}
+.spotpost-body{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);padding:22px}
+.spot-location-row{display:flex;align-items:center;gap:10px;margin-top:10px}
+.spot-map-optin{display:flex;align-items:flex-start;gap:8px;margin-top:10px;cursor:pointer;font-size:.78rem;color:var(--muted);line-height:1.4}
+.spot-map-optin input{margin-top:2px;flex-shrink:0;accent-color:var(--accent)}
+.spot-map-optin i{color:var(--accent);margin-right:2px}
+.spot-location-row i{color:var(--accent);font-size:.95rem;flex-shrink:0}
+.spot-location-row .finput{flex:1}
+.spot-add-more{align-self:flex-start}
+
+/* ── Spot card media grid ── */
+.soc-post-media-wrap{display:grid;gap:2px;background:var(--border)}
+.soc-media-1{grid-template-columns:1fr}
+.soc-media-2{grid-template-columns:1fr 1fr}
+.soc-media-3{grid-template-columns:1fr 1fr}
+.soc-media-3 .soc-media-cell:first-child{grid-column:1 / -1}
+.soc-media-4{grid-template-columns:1fr 1fr}
+.soc-media-cell{position:relative;overflow:hidden;background:#000}
+.soc-media-2 .social-post-media,.soc-media-3 .social-post-media,.soc-media-4 .social-post-media{height:240px;object-fit:cover}
+.soc-media-3 .soc-media-cell:first-child .social-post-media{height:300px}
+.soc-media-more{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);color:#fff;font-family:var(--disp);font-size:1.8rem;letter-spacing:1px;z-index:2;pointer-events:none}
+
+/* ── Spot card extras ── */
+.soc-post-del{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;padding:6px 8px;border-radius:6px;font-size:.85rem;transition:all var(--tr)}
+.soc-post-close{margin-left:auto;background:var(--raised);border:1px solid var(--border);color:var(--muted);cursor:pointer;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.78rem;transition:all var(--tr);flex-shrink:0}
+.soc-post-close:hover{background:var(--accent);border-color:var(--accent);color:#fff}
+.soc-post-del:hover{color:#dc2626;background:rgba(220,38,38,.08)}
+.soc-post-location{display:inline-flex;align-items:center;gap:5px;color:var(--accent);font-size:.83rem;font-weight:600}
+.soc-post-location i{font-size:.78rem}
+.soc-hashtag{color:var(--accent);cursor:pointer;font-weight:600}
+.soc-hashtag:hover{text-decoration:underline}
+
+/* ── Spot card comments ── */
+.soc-comments{border-top:1px solid var(--border);padding:12px 16px 14px;background:var(--surface)}
+.soc-comments-list{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-bottom:10px}
+.soc-comment-input-row{display:flex;align-items:center;gap:8px}
+.soc-comment-my-av{flex-shrink:0}
+.soc-comment-input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:8px 14px;font-size:.86rem;color:var(--text);outline:none;transition:border-color var(--tr)}
+.soc-comment-input:focus{border-color:var(--accent)}
+.soc-comment-send{background:var(--accent);border:none;color:#fff;width:34px;height:34px;border-radius:50%;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.8rem;transition:background var(--tr)}
+.soc-comment-send:hover{background:var(--accent-dim)}
+.soc-comment-signin{color:var(--muted);font-size:.84rem;text-align:center;padding:4px 0 0}
+.social-comment-av.has-photo{overflow:hidden;padding:0}
+.social-comment-av.has-photo .av-photo{width:100%;height:100%;object-fit:cover;border-radius:50%}
+
+/* ── Trending tags widget ── */
+.social-trend-tag{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;background:none;border:none;padding:7px 8px;border-radius:8px;cursor:pointer;transition:background var(--tr);text-align:left}
+.social-trend-tag:hover{background:var(--raised)}
+.social-trend-name{color:var(--accent);font-weight:600;font-size:.88rem}
+.social-trend-count{color:var(--muted);font-size:.76rem;background:var(--raised);border-radius:10px;padding:2px 8px;font-weight:600}
+
+/* ── Garage polish ── */
+.garage-head{padding-bottom:18px}
+.gtab-count{background:var(--raised);color:var(--muted);border-radius:10px;padding:1px 8px;font-size:.72rem;font-weight:700;min-width:20px;text-align:center}
+.gtab.active .gtab-count{background:var(--accent-soft);color:var(--accent)}
+.gtab-count:empty{display:none}
+.garage-signin{text-align:center;padding:70px 20px;color:var(--muted)}
+.garage-signin i{font-size:3rem;margin-bottom:14px;display:block;color:var(--mid)}
+.garage-signin h3{font-family:var(--disp);font-size:1.7rem;letter-spacing:1px;color:var(--text);margin-bottom:6px}
+.garage-signin p{margin-bottom:18px}
+
+/* ============================================================
+   SPOT CARD CHROME — restored + Instagram-style interactions
+   (these classes were lost in an earlier CSS cleanup)
+   ============================================================ */
+.soc-post-head{display:flex;align-items:center;gap:11px;padding:12px 16px}
+.soc-av{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:1.05rem;flex-shrink:0;cursor:pointer;overflow:hidden}
+.soc-av.has-photo{background:var(--raised)}
+.soc-av .av-photo{width:100%;height:100%;object-fit:cover;display:block}
+.soc-post-head-info{display:flex;flex-direction:column;min-width:0}
+.soc-post-user{font-weight:700;font-size:.93rem;color:var(--text);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.soc-post-user:hover{color:var(--accent)}
+.soc-post-time{color:var(--muted);font-size:.76rem;margin-top:1px}
+.soc-post-caption{padding:12px 16px 4px;font-size:.92rem;line-height:1.55;color:var(--text);word-break:break-word}
+.soc-post-actions{display:flex;align-items:center;gap:6px;padding:8px 12px 12px}
+.soc-like-btn,.soc-comment-btn{display:flex;align-items:center;gap:7px;background:none;border:none;color:var(--muted);font-size:.9rem;font-weight:600;cursor:pointer;padding:7px 12px;border-radius:20px;transition:all var(--tr)}
+.soc-like-btn:hover{color:#e8392a;background:rgba(232,57,42,.07)}
+.soc-comment-btn:hover{color:var(--accent);background:var(--accent-soft)}
+.soc-like-btn.active{color:#e8392a}
+.soc-like-btn.active i{animation:socLikePop .35s cubic-bezier(.2,1.6,.4,1)}
+@keyframes socLikePop{0%{transform:scale(.6)}60%{transform:scale(1.35)}100%{transform:scale(1)}}
+.soc-post-media-wrap{position:relative}
+.soc-heart-burst{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:5}
+.soc-heart-burst i{font-size:5.5rem;color:#fff;filter:drop-shadow(0 4px 18px rgba(0,0,0,.45));animation:socHeartBurst .9s cubic-bezier(.2,1.4,.4,1) forwards}
+@keyframes socHeartBurst{0%{transform:scale(0);opacity:0}20%{transform:scale(1.15);opacity:1}45%{transform:scale(1);opacity:1}100%{transform:scale(1);opacity:0}}
+
+/* ============================================================
+   SPOT COMPOSER — privacy warning, upload zone, blur editor
+   (fully restored — this entire suite was missing)
+   ============================================================ */
+.cs-privacy-warn{display:flex;gap:14px;background:rgba(240,160,48,.08);border:1px solid rgba(240,160,48,.35);border-radius:var(--r-lg);padding:16px;margin-bottom:16px}
+.cs-warn-icon{width:42px;height:42px;border-radius:50%;background:rgba(240,160,48,.15);color:#d97706;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.cs-warn-title{font-family:var(--cond);font-weight:700;letter-spacing:1px;text-transform:uppercase;font-size:.86rem;color:#b45309;margin-bottom:5px}
+.cs-warn-text{font-size:.86rem;line-height:1.5;color:var(--text)}
+.cs-warn-accept{display:flex;align-items:flex-start;gap:9px;margin-top:12px;cursor:pointer;font-size:.86rem;font-weight:600;color:var(--text)}
+.cs-warn-accept input{width:17px;height:17px;margin-top:1px;accent-color:#d97706;cursor:pointer;flex-shrink:0}
+.cs-warn-shake{animation:csShake .5s ease}
+@keyframes csShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+.cs-upload-zone{opacity:.45;pointer-events:auto;cursor:not-allowed;transition:opacity var(--tr)}
+.cs-upload-zone.cs-enabled{opacity:1;cursor:pointer}
+.cs-blur-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.cs-blur-label{font-size:.85rem;color:var(--muted);display:flex;align-items:center;gap:7px}
+.cs-blur-label i{color:var(--accent)}
+.cs-blur-tools{display:flex;gap:6px}
+.cs-tool-btn{display:flex;align-items:center;gap:6px;background:var(--raised);border:1px solid var(--border);color:var(--text);font-size:.8rem;font-weight:600;padding:7px 13px;border-radius:8px;cursor:pointer;transition:all var(--tr)}
+.cs-tool-btn:hover{border-color:var(--accent);color:var(--accent)}
+.cs-tool-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.cs-canvas-wrap{position:relative;margin:0 auto;border-radius:10px;overflow:hidden;background:#000;max-width:100%;box-shadow:0 4px 20px rgba(0,0,0,.15)}
+.cs-canvas-wrap canvas{display:block;max-width:100%}
+#csOverlay{position:absolute;top:0;left:0;z-index:2;cursor:crosshair;touch-action:none}
+.cs-blur-nav{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:12px}
+.cs-blur-nav span{font-size:.86rem;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+.cs-apply-btn{margin-top:14px}
+.cs-preview-strip{display:flex;gap:10px;flex-wrap:wrap}
+.cs-preview-item{position:relative;width:110px;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:#000}
+.cs-preview-item img{width:100%;height:82px;object-fit:cover;display:block}
+.cs-preview-label{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);color:#fff;font-size:.66rem;font-weight:600;text-align:center;padding:3px 0}
+.social-tag-pills{display:flex;flex-wrap:wrap;gap:7px}
+
+/* ============================================================
+   SPOT CAROUSEL — uniform 4:5 (1080x1350) post format, IG-style
+   ============================================================ */
+.social-post-card{max-width:560px;margin-left:auto;margin-right:auto}
+.soc-carousel{position:relative;aspect-ratio:4/5;overflow:hidden;background:#000}
+.soc-carousel-track{display:flex;height:100%;transition:transform .32s cubic-bezier(.25,.8,.35,1)}
+.soc-slide{flex:0 0 100%;height:100%;position:relative}
+.soc-slide-media{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer}
+video.soc-slide-media{object-fit:contain;background:#000}
+.soc-car-arrow{position:absolute;top:50%;transform:translateY(-50%);width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.92);border:none;color:#111;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.75rem;z-index:4;box-shadow:0 2px 10px rgba(0,0,0,.3);transition:all var(--tr)}
+.soc-car-arrow:hover{background:#fff;transform:translateY(-50%) scale(1.08)}
+.soc-car-prev{left:12px}
+.soc-car-next{right:12px}
+.soc-car-count{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.6);color:#fff;font-size:.72rem;font-weight:700;padding:4px 10px;border-radius:12px;z-index:4;font-variant-numeric:tabular-nums}
+.soc-car-dots{position:absolute;bottom:12px;left:0;right:0;display:flex;justify-content:center;gap:5px;z-index:4}
+.soc-car-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.45);transition:all var(--tr)}
+.soc-car-dot.active{background:#fff;transform:scale(1.25)}
+
 /* ═══════════════════════════════════════════════════════════════
    MOBILE STYLES — single consolidated block
    Only for ≤768px. Desktop browser is completely unchanged.
@@ -7079,7 +7695,7 @@ html, body { overflow-x: hidden; }
     font-size: 1.4rem !important;
     letter-spacing: 2px !important;
     line-height: 1 !important;
-    padding: 3px 0 0 0 !important;
+    padding: 6px 0 0 0 !important;
     display: flex !important;
     align-items: center !important;
     flex-shrink: 0 !important;
@@ -7089,6 +7705,11 @@ html, body { overflow-x: hidden; }
   /* Hide desktop-only header items */
   .site-nav, .main-nav { display: none !important; flex: 0 !important; }
   #themeToggleBtn  { display: none !important; }
+  /* FIX: this was never actually hidden on mobile before — mobile already
+     has its own persistent .mob-search-bar next to the logo, so this
+     desktop-only bar (like its sibling #themeToggleBtn) needs an explicit
+     mobile override too, or the two search bars show side by side. */
+  #headerSearchWrap { display: none !important; }
   #openPostBtn     { display: none !important; }
   #avName          { display: none !important; }
   .av-chip .fa-chevron-down { display: none !important; }
@@ -7168,21 +7789,36 @@ html, body { overflow-x: hidden; }
   .card:hover  { transform: none !important; box-shadow: none !important; }
   .card:active { transform: scale(.97) !important; }
 
-  /* Filter bar — horizontal scroll */
-  .filter-bar {
+  /* Filter bar (category pills) — hidden on mobile. Categories are still
+     fully available via the Filters drawer's multi-select, so nothing is
+     lost; the Filters+Sort row takes this spot instead. */
+  .filter-bar { display: none !important; }
+
+  /* Filters + Sort row — the top control strip on mobile. Sticky under the
+     header, horizontally scrollable so all controls stay reachable.
+     Frosted like the header so feed content scrolls beneath it. */
+  .sort-row {
+    position: sticky !important;
+    top: 64px !important;
+    z-index: 90 !important;
+    background: rgba(234,236,241,.82) !important;
+    backdrop-filter: blur(16px) saturate(1.6) !important;
+    -webkit-backdrop-filter: blur(16px) saturate(1.6) !important;
+    margin: -10px -8px 12px !important;   /* bleed to feed-wrap edges */
+    padding: 10px 12px !important;
     overflow-x: auto !important;
     flex-wrap: nowrap !important;
-    padding: 8px 8px !important;
-    gap: 6px !important;
     scrollbar-width: none !important;
+    border-bottom: 1px solid var(--subtle) !important;
   }
-  .filter-bar::-webkit-scrollbar { display: none !important; }
-  .fpill {
-    flex-shrink: 0 !important;
-    padding: 5px 12px !important;
-    font-size: .72rem !important;
-    white-space: nowrap !important;
+  body.dark .sort-row {
+    background: rgba(20,20,20,.82) !important;
   }
+  .sort-row::-webkit-scrollbar { display: none !important; }
+  .sort-row .sort-label, .sort-row .sort-divider { display: none !important; }
+  .sort-btn { flex-shrink: 0 !important; }
+  .filter-trigger-btn { flex-shrink: 0 !important; padding: 6px 14px !important; }
+
   .sort-btn  { font-size: .72rem !important; padding: 4px 10px !important; }
 
   /* ── BUILD / CAR PAGE ────────────────────────────────────── */
@@ -7279,9 +7915,7 @@ html, body { overflow-x: hidden; }
 
   /* ── SOCIAL / CAR SPOTTING ───────────────────────────────── */
   #page-social { padding: 0 !important; overflow-x: hidden !important; }
-  .social-layout { display: flex !important; flex-direction: column !important; padding: 0 !important; }
-  .social-sidebar-col { display: none !important; }
-  .social-feed-col { width: 100% !important; padding: 0 !important; }
+  .social-discover-wrap { width: 100% !important; padding: 12px !important; }
   .social-feed-header {
     display: flex !important;
     flex-wrap: wrap !important;
@@ -7294,18 +7928,36 @@ html, body { overflow-x: hidden; }
   .social-feed-tabs { flex: 0 0 100% !important; display: flex !important; }
   .soc-tab { flex: 1 !important; text-align: center !important; font-size: .73rem !important; padding: 7px 4px !important; }
   .social-posts-wrap { padding: 0 10px 80px !important; }
-  .social-post-card { border-radius: 10px !important; margin-bottom: 10px !important; }
+  .social-post-card { border-radius: 16px !important; margin-bottom: 10px !important; }
 
   /* ── MODALS ──────────────────────────────────────────────── */
+  /* Modern bottom-sheet treatment: rounder top corners matching --r-xl,
+     plus a CSS-only drag-handle pill (standard iOS/Android sheet
+     affordance). Pure ::before — no HTML or JS changes needed. */
   .modal-overlay { align-items: flex-end !important; padding: 0 !important; }
   .modal-box {
     width: 100% !important;
-    border-radius: 16px 16px 0 0 !important;
+    border-radius: 22px 22px 0 0 !important;
     max-height: 94dvh !important;
     overflow-y: auto !important;
-    padding: 20px 16px 28px !important;
+    padding: 26px 16px 28px !important;
     margin: 0 !important;
   }
+  .modal-box::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 9px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 36px !important;
+    height: 4px !important;
+    border-radius: 4px !important;
+    background: var(--mid) !important;
+    pointer-events: none !important;
+  }
+  /* xlarge modals manage their own padding — keep the handle off them */
+  .modal-box.xlarge { padding: 0 !important; }
+  .modal-box.xlarge::before { display: none !important; }
 
   /* ── SEARCH OVERLAY ──────────────────────────────────────── */
   .search-overlay { padding: 64px 12px 20px !important; }
@@ -7322,11 +7974,14 @@ html, body { overflow-x: hidden; }
   .toast.show { transform: translateX(-50%) translateY(-4px) !important; }
 
   /* ── SIGNUP NUDGE ────────────────────────────────────────── */
+  /* Floats as a rounded banner just above the pill bottom nav —
+     the old full-bleed square edges clashed with the floating pill. */
   .signup-nudge {
     bottom: 78px !important;
-    left: 0 !important;
-    right: 0 !important;
-    border-radius: 0 !important;
+    left: 12px !important;
+    right: 12px !important;
+    border-radius: 16px !important;
+    border: 1px solid rgba(96,150,246,.35) !important;
     padding: 10px 14px !important;
   }
   .signup-nudge-sub { display: none !important; }
@@ -7358,7 +8013,7 @@ html, body { overflow-x: hidden; }
     width: calc(100% - 24px) !important;
     max-width: 420px !important;
     height: 56px !important;
-    border-radius: 20px !important;
+    border-radius: 22px !important;
     /* Dark mode frosted glass */
     background: rgba(18, 18, 22, 0.78) !important;
     backdrop-filter: blur(20px) !important;
@@ -7470,6 +8125,18 @@ html, body { overflow-x: hidden; }
   #page-messages.active { padding-bottom: 0 !important; }
 }
 
+/* ── iOS input zoom fix ────────────────────────────────────────
+   iOS Safari force-zooms the whole page when a focused input has a
+   font-size under 16px. Every input on the site is smaller than that,
+   so on touch phones we bump inputs to exactly 16px to stop the jarring
+   zoom-in when tapping search, comments, messages, etc. */
+@media (max-width: 768px) {
+  input[type="text"], input[type="email"], input[type="password"],
+  input[type="search"], input[type="number"], textarea, select {
+    font-size: 16px !important;
+  }
+}
+
 /* ── Very small phones ≤390px ──────────────────────────────── */
 @media (max-width: 390px) {
   .card-grid { grid-template-columns: 1fr !important; }
@@ -7490,239 +8157,47 @@ html, body { overflow-x: hidden; }
     }
     #page-messages.active { padding-bottom: 0 !important; }
   }
-}
 
-/* ═══════════════════════════════════════════════════════════════
-   BUILD PAGE REDESIGN — Cars & Bids style layout
-   Poster info top → title → large+grid gallery → description →
-   modernized specs/mods below. Supersedes old .car-page-layout
-   two-column grid (that CSS is now unused, left in place, harmless).
-   ═══════════════════════════════════════════════════════════════ */
+  /* FIX: everything below was labeled "(mobile)" but sat inside @supports
+     with NO @media wrapper — so these rules were silently applying on
+     desktop too (forcing mobile media heights, 36px avatars, and killing
+     the intended 560px IG-style spotting column on desktop). Wrapped in
+     the media query they were always meant for. */
+  @media (max-width: 768px) {
 
-/* ── Poster header — full width, sits above the gallery ───────── */
-.cp-poster-header{
-  display:flex;align-items:center;justify-content:space-between;
-  gap:16px;padding:4px 0 18px;flex-wrap:wrap;
-}
-.cp-poster-left{display:flex;align-items:center;gap:12px;min-width:0}
-.cp-poster-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
-.cp-poster-left .car-page-av{width:46px;height:46px;font-size:1.05rem}
-.cp-poster-left .car-page-poster-info{display:flex;flex-direction:column;gap:2px;min-width:0}
-.cp-poster-left .car-page-poster-nameline{display:flex;align-items:center;gap:8px}
-.cp-poster-left .car-page-poster-name{font-size:1.1rem}
-.cp-poster-left .car-page-poster-date{font-size:.76rem}
-.cp-poster-left .car-page-poster-socials{margin-left:0;margin-top:2px}
+  /* ── Spot composer page (mobile) ── */
+  .spotpost-wrap { padding: 16px 14px 60px !important; }
+  .spotpost-title { font-size: 1.8rem !important; }
+  .spotpost-body { padding: 14px !important; }
+  .spot-step { font-size: .7rem !important; gap: 5px !important; }
+  .spot-step-num { width: 22px !important; height: 22px !important; font-size: .7rem !important; }
 
-/* ── Title block — sits between poster row and gallery ─────────── */
-.cp-title-block{padding-bottom:18px}
-.cp-title-block .car-page-cat{margin-bottom:10px}
-.cp-title-block .car-page-title{font-family:var(--disp);font-size:clamp(1.9rem,3.6vw,2.6rem);letter-spacing:1px;line-height:1.05;color:var(--text)}
+  /* ── Spot card media grid (mobile) ── */
+  .soc-media-2 .social-post-media,
+  .soc-media-3 .social-post-media,
+  .soc-media-4 .social-post-media { height: 150px !important; }
+  .soc-media-3 .soc-media-cell:first-child .social-post-media { height: 200px !important; }
+  .soc-comments-list { max-height: 200px !important; }
 
-/* ── Gallery — large image + right-side grid, Cars & Bids style ── */
-.cp-gallery-modern{
-  display:grid;
-  grid-template-columns:1fr 300px;
-  gap:10px;
-  margin-bottom:26px;
-}
-.cp-gallery-main{
-  position:relative;border-radius:var(--r-img);overflow:hidden;
-  background:var(--raised);aspect-ratio:16/10;width:100%;
-}
-.cp-gallery-main img,.cp-gallery-main video{
-  width:100%;height:100%;object-fit:cover;display:block;
-}
-.cp-gallery-count-badge{
-  position:absolute;bottom:14px;right:14px;
-  background:rgba(0,0,0,.72);backdrop-filter:blur(8px);
-  color:#fff;font-family:var(--cond);font-size:.78rem;font-weight:700;
-  letter-spacing:.5px;padding:6px 12px;border-radius:20px;
-  display:flex;align-items:center;gap:6px;pointer-events:none;
-}
-/* Right-side grid — 2 columns. Height and row size are set inline via
-   JS (cpRenderGallery → sizeGalleryGrid) so thumbnails always match the
-   main image's rendered height exactly, with zero distortion. Extra
-   thumbnails beyond 2 rows simply scroll — see overflow-y below. */
-.cp-gallery-grid{
-  display:grid;grid-template-columns:1fr 1fr;
-  gap:8px;
-  overflow-y:auto;scrollbar-width:thin;
-}
-.cp-gallery-grid::-webkit-scrollbar{width:6px}
-.cp-gallery-grid::-webkit-scrollbar-track{background:transparent}
-.cp-gallery-grid::-webkit-scrollbar-thumb{background:var(--mid);border-radius:3px}
-/* Hide the up/down arrow buttons some browsers render on scrollbars —
-   we only want the plain thumb, no native arrow buttons */
-.cp-gallery-grid::-webkit-scrollbar-button{display:none;width:0;height:0}
-.cp-grid-thumb{
-  position:relative;border-radius:var(--r-md);overflow:hidden;
-  cursor:pointer;background:var(--card);width:100%;height:100%;
-  border:2px solid transparent;transition:border-color .12s ease,opacity .12s ease,transform .12s ease;
-}
-.cp-grid-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.cp-grid-thumb:hover{opacity:.88;transform:scale(1.02)}
-.cp-grid-thumb.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-.cp-grid-thumb-play{
-  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  background:rgba(0,0,0,.4);color:#fff;font-size:1.1rem;
-}
+  /* ── Garage (mobile) ── */
+  .garage-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .garage-tabs::-webkit-scrollbar { display: none; }
+  .gtab { padding: 10px 14px !important; white-space: nowrap; flex-shrink: 0; }
 
-/* ── Below-gallery content — description, actions, reactions ──── */
-.cp-below-gallery{
-  display:flex;flex-direction:column;gap:14px;
-  max-width:900px;margin-bottom:8px;
-}
-.cp-below-gallery .car-page-desc{font-size:.95rem;line-height:1.65;color:var(--sec)}
-.cp-below-gallery .car-page-actions{display:flex;gap:8px;flex-wrap:wrap}
-.cp-below-gallery .car-page-actions .act-btn{flex:0 0 auto}
+  /* ── Spot card + composer restored styles (mobile) ── */
+  .soc-av { width: 36px !important; height: 36px !important; font-size: .9rem !important; }
+  .soc-post-head { padding: 10px 12px !important; }
+  .soc-post-caption { padding: 10px 12px 2px !important; font-size: .88rem !important; }
+  .soc-heart-burst i { font-size: 4rem !important; }
+  .cs-privacy-warn { flex-direction: column; gap: 10px !important; padding: 13px !important; }
+  .cs-blur-toolbar { justify-content: center; }
+  .cs-preview-item { width: 88px !important; }
+  .cs-preview-item img { height: 66px !important; }
 
-/* ═══════════════════════════════════════════════════════════════
-   SPECS — modern stat-card grid (replaces plain bordered list)
-   ═══════════════════════════════════════════════════════════════ */
-.specs-layout{
-  display:grid;grid-template-columns:1fr 300px;gap:24px;margin-bottom:28px;
-}
-.specs-table{
-  display:grid !important;
-  grid-template-columns:repeat(auto-fill,minmax(130px,1fr)) !important;
-  gap:10px !important;
-  border:none !important;border-radius:0 !important;
-  background:transparent !important;overflow:visible !important;
-}
-.spec-row{
-  display:flex !important;flex-direction:column !important;
-  align-items:flex-start !important;gap:6px !important;
-  padding:16px 16px 16px 18px !important;
-  background:var(--card);border:1px solid var(--border);
-  border-left:3px solid var(--spec-color, var(--accent));
-  border-radius:var(--r-lg);transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease;
-}
-.spec-row:hover{
-  background:var(--card) !important;
-  transform:translateY(-2px);
-  border-left-color:var(--spec-color, var(--accent));
-  box-shadow:0 6px 20px rgba(0,0,0,.14);
-}
-.spec-label{
-  font-size:.68rem !important;letter-spacing:1px !important;
-  color:var(--muted) !important;gap:6px !important;
-}
-.spec-icon{color:var(--spec-color, var(--accent));font-size:.72rem}
-.spec-value{
-  font-size:1.15rem !important;letter-spacing:0 !important;
-  color:var(--text) !important;font-weight:800 !important;
-}
-.spec-value.spec-accent{color:var(--spec-color, var(--accent))}
+  /* ── Spot carousel + nudge (mobile) ── */
+  .social-post-card { max-width: 100% !important; }
+  .soc-car-arrow { width: 28px !important; height: 28px !important; }
+  .signup-nudge-signin { padding: 9px 14px !important; }
 
-/* Mod cards — subtle hover lift, color matches the card's category */
-.cp-mod-section{
-  transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease;
-}
-.cp-mod-section:hover{
-  transform:translateY(-2px);
-  border-left-color:var(--mod-color, var(--accent));
-  box-shadow:0 8px 24px rgba(0,0,0,.16);
-}
-
-/* ── Responsive ─────────────────────────────────────────────────── */
-@media(max-width:900px){
-  .cp-gallery-modern{grid-template-columns:1fr;gap:8px}
-  /* Below 900px, JS skips setting inline height/row sizing (see
-     sizeGalleryGrid in cpRenderGallery) — grid becomes a single
-     horizontally-scrolling row of fixed-size square-ish tiles. */
-  .cp-gallery-grid{
-    display:flex !important;
-    grid-template-columns:none !important;
-    overflow-x:auto;overflow-y:hidden;
-    padding-bottom:2px;
   }
-  .cp-grid-thumb{
-    width:110px;height:82px;flex:0 0 auto;
-  }
-  .specs-layout{grid-template-columns:1fr}
-  .cp-poster-right{width:100%;justify-content:flex-end}
-}
-@media(max-width:768px){
-  .cp-poster-header{padding:10px 0 14px}
-  .cp-poster-left .car-page-av{width:40px;height:40px}
-  .cp-poster-left .car-page-poster-name{font-size:1rem}
-  .cp-title-block .car-page-title{font-size:1.5rem}
-  .cp-gallery-modern{margin-bottom:16px}
-  .cp-grid-thumb{width:92px;height:70px}
-  .specs-table{grid-template-columns:repeat(auto-fill,minmax(100px,1fr)) !important}
-  .spec-row{padding:12px 12px !important}
-  .spec-value{font-size:.95rem !important}
-}
-@media(max-width:480px){
-  .cp-grid-thumb{width:78px;height:60px}
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   BUILD PAGE — scale down + real polish (replaces "huge/AI-generated" look)
-   ═══════════════════════════════════════════════════════════════ */
-
-/* Title — was clamp(1.9rem,3.6vw,2.6rem), way too dominant. Toned down
-   to feel like a page heading, not a billboard. */
-.cp-title-block .car-page-title{
-  font-size:clamp(1.5rem,2.2vw,2rem) !important;
-  letter-spacing:.5px !important;
-}
-.cp-title-block{padding-bottom:14px !important}
-
-/* Poster header — slightly smaller avatar, tighter spacing */
-.cp-poster-left .car-page-av{width:40px !important;height:40px !important;font-size:.92rem !important}
-.cp-poster-left .car-page-poster-name{font-size:.98rem !important}
-.cp-poster-header{padding:2px 0 14px !important}
-
-/* Gallery — the 16/10 aspect ratio made the hero image enormous on wide
-   screens, pushing everything below the fold. Capped height keeps it
-   substantial without dominating the whole viewport. */
-.cp-gallery-main{
-  aspect-ratio:auto !important;
-  height:clamp(280px, 38vw, 440px) !important;
-}
-.cp-gallery-modern{margin-bottom:20px !important}
-
-/* ── Specs — less "dashboard template", more considered ─────────
-   Smaller cards, tighter grid, subtle glow on the icon instead of a
-   flat tinted-background chip. Glow = box-shadow bloom behind the icon,
-   using the same per-stat color already set via --spec-color.        */
-.specs-layout{gap:18px !important;margin-bottom:22px !important}
-.specs-table{grid-template-columns:repeat(auto-fill,minmax(112px,1fr)) !important;gap:8px !important}
-.spec-row{
-  padding:12px 14px !important;gap:8px !important;
-  border-left-width:2px !important;
-}
-.spec-label{font-size:.62rem !important;gap:5px !important}
-.spec-icon{
-  font-size:.68rem !important;
-  filter:drop-shadow(0 0 4px var(--spec-color, var(--accent)));
-}
-.spec-value{font-size:1.02rem !important}
-
-/* ── Mods — same idea: tighter, glowing icon instead of a flat chip ── */
-.cp-mods-grid{gap:10px !important}
-.cp-mod-section{
-  padding:14px 16px !important;
-  border-left-width:2px !important;
-}
-.cp-mod-head{margin-bottom:9px !important;padding-bottom:8px !important}
-.cp-mod-icon-wrap{
-  width:24px !important;height:24px !important;
-  background:transparent !important;
-  filter:drop-shadow(0 0 5px currentColor);
-  font-size:.85rem !important;
-}
-.cp-mod-label{font-size:.72rem !important;letter-spacing:1px !important}
-.cp-mod-list{gap:5px !important}
-.cp-mod-item{font-size:.84rem !important;padding:4px 0 !important}
-.cp-mods-section-label{margin-bottom:10px !important;padding-top:4px !important}
-
-/* Details section overall — reduce the big empty-feeling padding */
-.car-page-details{padding-top:20px !important}
-.cp-details-label{margin-bottom:12px !important}
-
-@media(max-width:768px){
-  .cp-gallery-main{height:clamp(220px, 50vw, 320px) !important}
-  .cp-title-block .car-page-title{font-size:1.3rem !important}
 }

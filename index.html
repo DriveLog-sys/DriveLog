@@ -2,12 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>DriveLog — The Car Community</title>
+
+  <!-- Preconnects: open TCP+TLS to every third-party origin in parallel, before any request needs them -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin/>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net"/>
+  <link rel="preconnect" href="https://lsnpxneywkrirfkfszbo.supabase.co"/>
 
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&family=Barlow+Condensed:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-  <link rel="stylesheet" href="main.css"/>
+  <link rel="stylesheet" href="main.min.css?v=202607152210"/>
   <!-- Open Graph / Share meta tags -->
   <meta property="og:type"        content="website"/>
   <meta property="og:title"       content="DriveLog — The Car Community"/>
@@ -18,7 +25,6 @@
   <meta name="theme-color"        content="#3b82f6"/>
   <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -42,8 +48,8 @@
   <nav class="mob-links">
     <a class="mob-link active" data-page="home"><i class="fas fa-home"></i> Feed</a>
     <a class="mob-link" data-page="social"><i class="fas fa-camera"></i> Car Spotting</a>
+    <a class="mob-link" data-page="discussions"><i class="fas fa-comments"></i> Discussions</a>
     <a class="mob-link" data-page="members"><i class="fas fa-users"></i> Members</a>
-    <a class="mob-link" data-page="leaderboard"><i class="fas fa-trophy"></i> Leaderboard</a>
     <a class="mob-link" data-page="garage"><i class="fas fa-warehouse"></i> Garage</a>
     <a class="mob-link" data-page="messages"><i class="fas fa-envelope"></i> Messages <span class="nav-dm-badge" id="mobDmBadge" style="display:none"></span></a>
     <a class="mob-link" data-page="explore"><i class="fas fa-compass"></i> More</a>
@@ -192,6 +198,21 @@
   </div>
 </div>
 
+<!-- MFA (2FA) VERIFICATION MODAL — shown mid-login if the account has
+     two-factor authentication enabled -->
+<div class="modal-overlay" id="mfaModal">
+  <div class="modal-box" style="max-width:380px">
+    <button class="modal-close" id="mfaModalClose"><i class="fas fa-times"></i></button>
+    <h2><i class="fas fa-shield-alt"></i> Two-Factor Verification</h2>
+    <p class="form-hint" style="margin-bottom:16px">Enter the 6-digit code from your authenticator app.</p>
+    <div class="auth-field">
+      <input class="finput" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" id="mfaCodeInput" placeholder="123456" style="text-align:center;letter-spacing:4px;font-size:1.3rem"/>
+      <div class="auth-field-err" id="mfaCodeErr"></div>
+    </div>
+    <button class="btn-primary full" id="mfaVerifyBtn">Verify</button>
+  </div>
+</div>
+
 <!-- HEADER -->
 <header class="site-header" id="siteHeader">
   <div class="header-inner">
@@ -200,34 +221,37 @@
     <nav class="main-nav">
       <a class="nav-link active" data-page="home">Feed</a>
       <a class="nav-link" data-page="social">Car Spotting</a>
+      <a class="nav-link" data-page="discussions">Discussions</a>
       <a class="nav-link" data-page="members">Members</a>
-      <a class="nav-link" data-page="leaderboard">Leaderboard</a>
       <a class="nav-link" data-page="garage">Garage</a>
       <a class="nav-link" data-page="messages">Messages <span class="nav-dm-badge" id="navDmBadge" style="display:none"></span></a>
-      <a class="nav-link" data-page="explore">More</a>
+      <a class="nav-link" data-page="explore">More..</a>
     </nav>
     <div class="header-right">
-      <!-- Inline expanding search -->
-      <div class="header-search-wrap" id="headerSearchWrap">
-        <button class="icon-btn header-search-trigger" id="searchBtn" title="Search"><i class="fas fa-search"></i></button>
+      <!-- Persistent search bar — always visible on mobile between logo and avatar -->
+      <div class="mob-search-bar" id="mobSearchBar">
+        <i class="fas fa-search mob-search-icon"></i>
+        <input type="text" class="mob-search-input" id="mobSearchInput" placeholder="Search..." autocomplete="off" spellcheck="false" readonly/>
+      </div>
+      <!-- Desktop: static search bar — always visible, no open/close animation -->
+      <div class="header-search-wrap desk-only" id="headerSearchWrap">
         <div class="header-search-bar" id="headerSearchBar">
           <i class="fas fa-search header-search-icon"></i>
           <input type="text" class="header-search-input" id="headerSearchInput" placeholder="Search builds, members…" autocomplete="off" spellcheck="false"/>
-          <button class="header-search-expand" id="headerSearchExpand" style="display:none">Expand</button>
-          <button class="header-search-close" id="headerSearchClose"><i class="fas fa-times"></i></button>
+          <button class="header-search-clear" id="headerSearchClear" style="display:none"><i class="fas fa-times"></i></button>
         </div>
         <div class="header-search-results" id="headerSearchResults"></div>
       </div>
-      <button class="icon-btn" id="themeToggleBtn" title="Toggle dark/light mode" aria-label="Toggle theme"><i class="fas fa-moon"></i></button>
-      <!-- Notification bell -->
-      <div class="notif-wrap">
+      <button class="icon-btn desk-only" id="themeToggleBtn" title="Toggle dark/light mode" aria-label="Toggle theme"><i class="fas fa-moon"></i></button>
+      <!-- Notification bell — desktop only (mobile uses bottom nav) -->
+      <div class="notif-wrap desk-only">
         <button class="icon-btn" id="notifBtn"><i class="fas fa-bell"></i><span class="notif-badge" id="notifBadge"></span></button>
         <div class="notif-drop" id="notifDrop">
           <div class="notif-drop-head"><span>Notifications</span><span class="notif-clear" id="notifClear">Mark all read</span></div>
           <div id="notifList"><div class="notif-empty">No notifications yet</div></div>
         </div>
       </div>
-      <button class="btn-post" id="openPostBtn">+ Post Build</button>
+      <button class="btn-post desk-only" id="openPostBtn">+ Post Build</button>
       <button class="btn-auth" id="openAuthBtn">Sign In</button>
       <!-- Avatar + dropdown -->
       <div class="av-wrap" id="avWrap" style="display:none">
@@ -276,9 +300,10 @@
     <span>Messages</span>
     <span class="mob-tab-badge" id="mobTabDmBadge" style="display:none"></span>
   </button>
-  <button class="mob-bottom-tab" id="mobBottomMenu" aria-label="Menu">
-    <i class="fas fa-bars"></i>
-    <span>Menu</span>
+  <button class="mob-bottom-tab" data-page="notifications" id="mobBottomNotif" aria-label="Notifications">
+    <i class="fas fa-bell"></i>
+    <span>Alerts</span>
+    <span class="mob-tab-badge" id="mobTabNotifBadge" style="display:none"></span>
   </button>
 </nav>
 
@@ -294,9 +319,6 @@
     <!-- Hot Right Now — Cinematic Slider -->
     <div class="hot-panel" id="hotPanel">
       <div class="hot-panel-inner">
-        <div class="hot-section-head">
-          <span class="hot-section-label"><i class="fas fa-fire"></i> Hot Right Now</span>
-        </div>
         <div class="hot-slider" id="hotSlider">
           <div class="hot-empty" id="hotEmpty" style="display:none">
             <i class="fas fa-fire"></i> No hot builds yet
@@ -456,6 +478,86 @@
     </div>
   </section>
 
+  <!-- DISCUSSIONS — Reddit-style community board -->
+  <section class="page" id="page-discussions">
+    <div class="disc-wrap">
+      <div class="disc-header">
+        <div>
+          <h1 class="disc-title">Discussions</h1>
+          <p class="disc-subtitle">Start a thread, ask a question, talk builds with the community.</p>
+        </div>
+        <button class="btn-primary" id="newDiscussionBtn"><i class="fas fa-plus"></i> New Discussion</button>
+      </div>
+
+      <div class="disc-cat-pills" id="discCatPills">
+        <button class="disc-cat-pill active" data-dcat="">All</button>
+        <button class="disc-cat-pill" data-dcat="General"><i class="fas fa-comment-dots"></i> General</button>
+        <button class="disc-cat-pill" data-dcat="Build Advice"><i class="fas fa-wrench"></i> Build Advice</button>
+        <button class="disc-cat-pill" data-dcat="Buy/Sell/Trade"><i class="fas fa-tags"></i> Buy/Sell/Trade</button>
+        <button class="disc-cat-pill" data-dcat="Events &amp; Meets"><i class="fas fa-calendar-alt"></i> Events &amp; Meets</button>
+        <button class="disc-cat-pill" data-dcat="Off-Topic"><i class="fas fa-comments"></i> Off-Topic</button>
+        <button class="disc-cat-pill" data-dcat="Introductions"><i class="fas fa-hand-sparkles"></i> Introductions</button>
+      </div>
+
+      <div class="disc-controls-row">
+        <div class="disc-sort-tabs">
+          <button class="sort-btn active" data-dsort="hot"><i class="fas fa-fire"></i> Hot</button>
+          <button class="sort-btn" data-dsort="new"><i class="fas fa-clock"></i> New</button>
+          <button class="sort-btn" data-dsort="top"><i class="fas fa-arrow-up"></i> Top</button>
+        </div>
+        <div class="disc-search-bar">
+          <i class="fas fa-search"></i>
+          <input type="text" id="discSearchInput" placeholder="Search discussions…"/>
+        </div>
+      </div>
+
+      <div class="disc-list" id="discList"></div>
+      <div class="disc-load-sentinel" id="discSentinel"></div>
+    </div>
+
+    <!-- New Discussion composer -->
+    <div class="modal-overlay" id="discComposerModal">
+      <div class="modal-box" style="max-width:600px">
+        <button class="modal-close" id="discComposerClose"><i class="fas fa-times"></i></button>
+        <h2 class="disc-composer-title"><i class="fas fa-comments"></i> Start a Discussion</h2>
+
+        <div class="s-field">
+          <label class="s-label">Category</label>
+          <div class="fs-select-wrap"><i class="fas fa-chevron-down fs-select-icon"></i>
+            <select class="fs-select" id="discCatSelect">
+              <option>General</option>
+              <option>Build Advice</option>
+              <option>Buy/Sell/Trade</option>
+              <option>Events &amp; Meets</option>
+              <option>Off-Topic</option>
+              <option>Introductions</option>
+            </select>
+          </div>
+        </div>
+        <div class="s-field">
+          <label class="s-label">Title</label>
+          <input class="finput" id="discTitleInput" maxlength="150" placeholder="What do you want to discuss?"/>
+          <div class="disc-char-count" id="discTitleCount">0 / 150</div>
+        </div>
+        <div class="s-field">
+          <label class="s-label">Details</label>
+          <textarea class="finput" id="discBodyInput" rows="7" maxlength="5000" placeholder="Share more details, ask your question, start the conversation…"></textarea>
+          <div class="disc-char-count" id="discBodyCount">0 / 5000</div>
+        </div>
+        <button class="btn-primary full" id="discSubmitBtn"><i class="fas fa-paper-plane"></i> Post Discussion</button>
+      </div>
+    </div>
+
+    <!-- Discussion detail view -->
+    <div class="modal-overlay" id="discDetailModal">
+      <div class="modal-box disc-detail-box">
+        <button class="modal-close" id="discDetailClose"><i class="fas fa-times"></i></button>
+        <div id="discDetailContent"></div>
+      </div>
+    </div>
+  </section>
+
+
   <!-- EVENTS -->
   <section class="page" id="page-events">
     <div class="page-head events-head">
@@ -502,46 +604,171 @@
   <!-- MEMBERS -->
   <!-- SOCIAL FEED PAGE (replaces members in nav) -->
   <section class="page" id="page-social">
-    <div class="social-layout">
-      <!-- Left: vertical scroll feed -->
-      <div class="social-feed-col" id="socialFeedCol">
-        <div class="social-feed-header">
-          <h2 class="social-feed-title">Car Spotting</h2>
-          <div class="social-feed-tabs">
-            <button class="soc-tab active" data-soctab="foryou">For You</button>
-            <button class="soc-tab" data-soctab="following">Following</button>
-            <button class="soc-tab" data-soctab="builds">Builds</button>
+    <div class="social-page-layout">
+    <div class="social-discover-wrap">
+      <!-- Story bar: horizontal-scrolling profile bubbles, Snapchat-style -->
+      <div class="story-bar-wrap">
+        <div class="story-bar" id="storyBar"><!-- bubbles render here --></div>
+      </div>
+
+      <!-- Trending tags — compact strip -->
+      
+      <div class="social-feed-tabs">
+        <button class="soc-tab active" data-soctab="foryou">For You</button>
+        <button class="soc-tab" data-soctab="following">Following</button>
+        <button class="soc-tab" data-soctab="builds">Builds</button>
+      </div>
+
+      <!-- Social search bar -->
+      <div class="social-search-bar">
+        <i class="fas fa-search social-search-icon"></i>
+        <input type="text" id="socialSearchInput" class="social-search-input" placeholder="Search posts, captions, #hashtags…"/>
+        <button class="social-search-clear" id="socialSearchClear" style="display:none"><i class="fas fa-times"></i></button>
+      </div>
+
+      <!-- Discover grid: two posts side by side, 4:5 thumbnails -->
+      <div class="social-posts-wrap" id="socialPostsWrap">
+        <!-- Posts render here -->
+      </div>
+      <div class="social-load-sentinel" id="socialSentinel"></div>
+    </div>
+
+    <!-- Sidebar: Spotting Map teaser + Instagram ad -->
+    <div class="social-sidebar-col">
+      <div class="widget spot-map-teaser" id="spotMapTeaserBtn">
+        <div class="spot-map-teaser-preview">
+          <svg viewBox="0 0 1000 500" class="spot-map-mini-svg" id="spotMapMiniSvg" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+        <div class="widget-title"><i class="fas fa-map-marked-alt widget-icon"></i> Spotting Map</div>
+        <p class="spot-map-teaser-sub">See where every Car Spotting post was taken, all over the world.</p>
+        <button class="btn-primary small full" id="spotMapOpenBtn"><i class="fas fa-globe-americas"></i> View Map</button>
+      </div>
+
+      <div class="widget ig-ad-widget">
+        <a href="https://instagram.com/drivelogofficial" target="_blank" rel="noopener" class="ig-ad-link" title="Follow DriveLog on Instagram">
+          <img src="instagram-banner.jpg" alt="Follow DriveLog on Instagram — @drivelogofficial" class="ig-ad-img" loading="lazy"/>
+        </a>
+      </div>
+    </div>
+    </div>
+
+    <!-- Detail view — opened when a discover-grid card is tapped. Close
+         button now renders inside the post header itself (see
+         renderSocialCard), not here — it used to float outside the
+         visible card since this outer box is intentionally transparent. -->
+    <div class="modal-overlay" id="socialDetailModal">
+      <div class="modal-box social-detail-box">
+        <div id="socialDetailContent"></div>
+      </div>
+    </div>
+
+    <!-- Spotting Map — full world map of every located Car Spotting post -->
+    <div class="modal-overlay" id="spotMapModal">
+      <div class="modal-box spot-map-box">
+        <button class="modal-close" id="spotMapClose"><i class="fas fa-times"></i></button>
+        <div class="spot-map-header">
+          <h2><i class="fas fa-map-marked-alt"></i> Car Spotting Map</h2>
+          <p id="spotMapCount">Loading…</p>
+        </div>
+        <div class="spot-map-wrap">
+          <svg viewBox="0 0 1000 500" class="spot-map-svg" id="spotMapSvg" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="spot-map-popup" id="spotMapPopup" style="display:none"></div>
+        </div>
+        <p class="spot-map-hint"><i class="fas fa-info-circle"></i> Only posts with a location attached (and shared with permission) appear on the map.</p>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- SPOT POST PAGE — full-page Car Spotting composer -->
+  <section class="page" id="page-spotpost">
+    <div class="spotpost-wrap">
+      <div class="post-page-back">
+        <button class="btn-ghost small" id="spotPostBack"><i class="fas fa-arrow-left"></i> Back to Car Spotting</button>
+      </div>
+      <div class="spotpost-head">
+        <h1 class="spotpost-title"><i class="fas fa-camera"></i> Post a Spot</h1>
+        <p class="spotpost-sub">Share a car you spotted in the wild with the community.</p>
+      </div>
+
+      <!-- Step indicator -->
+      <div class="spotpost-steps">
+        <div class="spot-step active" id="spotStep1"><span class="spot-step-num">1</span> Photos</div>
+        <div class="spot-step-line"></div>
+        <div class="spot-step" id="spotStep2"><span class="spot-step-num">2</span> Blur</div>
+        <div class="spot-step-line"></div>
+        <div class="spot-step" id="spotStep3"><span class="spot-step-num">3</span> Details</div>
+      </div>
+
+      <div class="spotpost-body">
+        <!-- PRIVACY WARNING — shown before user uploads -->
+        <div class="cs-privacy-warn" id="csPrivacyWarn">
+          <div class="cs-warn-icon"><i class="fas fa-shield-alt"></i></div>
+          <div class="cs-warn-body">
+            <div class="cs-warn-title">Privacy Notice — Required</div>
+            <p class="cs-warn-text">Before posting, you <strong>must blur out all license plates and faces</strong> in your photos. Posts containing visible plates or unblurred faces may be removed without notice to protect the privacy of others.</p>
+            <p class="cs-warn-text" style="margin-top:6px">Our blur tool will open automatically after you select a photo.</p>
+            <label class="cs-warn-accept">
+              <input type="checkbox" id="csPrivacyAccept"/>
+              <span>I understand — I will blur any license plates and faces before posting</span>
+            </label>
           </div>
-          <button class="social-upload-btn btn-primary small" id="socialUploadBtn">
-            <i class="fas fa-plus"></i> Post
+        </div>
+
+        <!-- Upload zone — only enabled after accepting warning -->
+        <div class="upload-zone cs-upload-zone" id="socialUploadZone">
+          <i class="fas fa-camera"></i>
+          <p>Drop photos here or <span>browse</span></p>
+          <small>Images · Up to 6 photos · Max 20MB each</small>
+          <input type="file" id="socialFileInput" accept="image/*" multiple hidden/>
+        </div>
+
+        <!-- Blur editor — shown after image selected -->
+        <div class="cs-blur-editor" id="csBlurEditor" style="display:none">
+          <div class="cs-blur-toolbar">
+            <span class="cs-blur-label"><i class="fas fa-mouse-pointer"></i> Drag to blur faces &amp; plates</span>
+            <div class="cs-blur-tools">
+              <button class="cs-tool-btn active" id="csToolBlur" title="Draw blur box"><i class="fas fa-eraser"></i> Blur</button>
+              <button class="cs-tool-btn" id="csToolUndo" title="Undo last box"><i class="fas fa-undo"></i> Undo</button>
+              <button class="cs-tool-btn" id="csToolClear" title="Clear all boxes"><i class="fas fa-trash"></i> Clear</button>
+            </div>
+          </div>
+          <div class="cs-canvas-wrap" id="csCanvasWrap">
+            <canvas id="csCanvas"></canvas>
+            <canvas id="csOverlay"></canvas>
+          </div>
+          <div class="cs-blur-nav" id="csBlurNav" style="display:none">
+            <button class="btn-ghost small" id="csPrevImg"><i class="fas fa-chevron-left"></i></button>
+            <span id="csImgCount">1 / 1</span>
+            <button class="btn-ghost small" id="csNextImg"><i class="fas fa-chevron-right"></i></button>
+          </div>
+          <button class="btn-primary full cs-apply-btn" id="csApplyBlur">
+            <i class="fas fa-check"></i> Apply Blur &amp; Continue
           </button>
         </div>
-        <!-- Social search bar -->
-        <div class="social-search-bar">
-          <i class="fas fa-search social-search-icon"></i>
-          <input type="text" id="socialSearchInput" class="social-search-input" placeholder="Search posts, captions, #hashtags…"/>
-          <button class="social-search-clear" id="socialSearchClear" style="display:none"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="social-posts-wrap" id="socialPostsWrap">
-          <!-- Posts render here -->
-        </div>
-        <div class="social-load-sentinel" id="socialSentinel"></div>
-      </div>
-      <!-- Right: sidebar -->
-      <div class="social-sidebar-col">
-        <div class="widget">
-          <div class="widget-title"><i class="fas fa-users widget-icon"></i> Who to Follow</div>
-          <div id="socialWhoToFollow"></div>
-        </div>
-        <div class="widget">
-          <div class="widget-title"><i class="fas fa-calendar-alt widget-icon"></i> Upcoming Events
-            <a class="widget-see-all" onclick="goTo('events')">See all</a>
+
+        <!-- Post form — shown after blur is applied -->
+        <div class="cs-post-form" id="csPostForm" style="display:none">
+          <div id="socialUploadPreview" class="cs-preview-strip"></div>
+          <button class="btn-ghost small spot-add-more" id="spotAddMoreBtn" style="margin-top:8px"><i class="fas fa-plus"></i> Change photos</button>
+          <textarea class="finput" id="socialCaption" rows="3" maxlength="500"
+            placeholder="Add a caption… describe what you spotted. Use #hashtags to help others find it." style="margin-top:12px;resize:none"></textarea>
+          <div class="spot-location-row">
+            <i class="fas fa-map-marker-alt"></i>
+            <input type="text" class="finput" id="spotLocation" maxlength="80" placeholder="Where did you spot it? (optional — e.g. Cars &amp; Coffee, Denver CO)" style="margin-bottom:0"/>
           </div>
-          <div id="socialEventsPreview"></div>
-        </div>
-        <div class="widget">
-          <div class="widget-title"><i class="fas fa-fire widget-icon"></i> Trending Tags</div>
-          <div class="social-tags" id="socialTags"></div>
+          <label class="spot-map-optin">
+            <input type="checkbox" id="spotShareMapLocation"/>
+            <span><i class="fas fa-globe-americas"></i> Add this spot to the Spotting Map (uses your device's precise location — you'll be asked to allow it)</span>
+          </label>
+          <div class="social-upload-tags" id="socialUploadTags">
+            <div class="post-cat-label" style="margin-bottom:7px;margin-top:12px">Tag a category <span class="post-cat-hint">Optional</span></div>
+            <div class="social-tag-pills" id="socialTagPills"></div>
+          </div>
+          <progress id="socialUploadProgress" value="0" max="100" style="display:none;width:100%;height:5px;margin-top:8px;border-radius:3px;overflow:hidden"></progress>
+          <button class="btn-primary full" id="socialSubmitBtn" style="margin-top:14px;background:#16a34a;border-color:#16a34a">
+            <i class="fas fa-paper-plane"></i> Post to Car Spotting
+          </button>
         </div>
       </div>
     </div>
@@ -550,6 +777,32 @@
   <!-- MEMBERS PAGE (kept for internal use, search from DMs etc) -->
   <section class="page" id="page-members" style="display:none">
     <div class="page-head"><h1>Members</h1><p>Browse the DriveLog community.</p></div>
+
+    <!-- Community stats -->
+    <div class="mem-stats-bar" id="memStatsBar"></div>
+
+    <!-- Build of the Month -->
+    <div class="lb-standalone-section" id="memBotmSection">
+      <div class="lb-standalone-head">
+        <div class="lb-standalone-icon"><i class="fas fa-calendar-star"></i></div>
+        <div>
+          <div class="lb-standalone-title">Build of the Month</div>
+          <div class="lb-standalone-sub" id="memBotmSub">Voted on by the community, first-through-25th each month</div>
+        </div>
+      </div>
+      <div id="memBotmWinner"></div>
+
+      <div class="mem-botm-nominate">
+        <div class="mem-nominate-head">
+          <span class="mem-nominate-title"><i class="fas fa-crown"></i> Nominate a Build</span>
+          <span class="mem-nominate-sub">Vote for next month's winner — one vote per month, change it anytime before the 25th</span>
+        </div>
+        <div class="mem-botm-candidates" id="memBotmCandidates"></div>
+      </div>
+    </div>
+
+    <div class="mem-section-divider"></div>
+
     <div class="members-top">
       <div class="members-search-wrap">
         <i class="fas fa-search"></i>
@@ -564,84 +817,35 @@
     <div class="members-grid" id="membersGrid"></div>
   </section>
 
-  <!-- SOCIAL UPLOAD MODAL -->
-  <div class="modal-overlay" id="socialUploadModal">
-    <div class="modal-box social-upload-box" style="max-width:560px">
-      <button class="modal-close" id="socialUploadClose"><i class="fas fa-times"></i></button>
-      <h2 style="margin-bottom:4px">Car Spotting</h2>
-
-      <!-- PRIVACY WARNING — shown before user uploads -->
-      <div class="cs-privacy-warn" id="csPrivacyWarn">
-        <div class="cs-warn-icon"><i class="fas fa-shield-alt"></i></div>
-        <div class="cs-warn-body">
-          <div class="cs-warn-title">Privacy Notice — Required</div>
-          <p class="cs-warn-text">Before posting, you <strong>must blur out all license plates and faces</strong> in your photos. Posts containing visible plates or unblurred faces may be removed without notice to protect the privacy of others.</p>
-          <p class="cs-warn-text" style="margin-top:6px">Our blur tool will open automatically after you select a photo.</p>
-          <label class="cs-warn-accept">
-            <input type="checkbox" id="csPrivacyAccept"/>
-            <span>I understand — I will blur any license plates and faces before posting</span>
-          </label>
-        </div>
-      </div>
-
-      <!-- Upload zone — only enabled after accepting warning -->
-      <div class="upload-zone upload-zone-sm cs-upload-zone" id="socialUploadZone">
-        <i class="fas fa-camera"></i>
-        <p>Drop photos here or <span>browse</span></p>
-        <small>Images · Max 20MB each</small>
-        <input type="file" id="socialFileInput" accept="image/*" multiple hidden/>
-      </div>
-
-      <!-- Blur editor — shown after image selected -->
-      <div class="cs-blur-editor" id="csBlurEditor" style="display:none">
-        <div class="cs-blur-toolbar">
-          <span class="cs-blur-label"><i class="fas fa-mouse-pointer"></i> Drag to blur faces & plates</span>
-          <div class="cs-blur-tools">
-            <button class="cs-tool-btn active" id="csToolBlur" title="Draw blur box"><i class="fas fa-eraser"></i> Blur</button>
-            <button class="cs-tool-btn" id="csToolUndo" title="Undo last box"><i class="fas fa-undo"></i> Undo</button>
-            <button class="cs-tool-btn" id="csToolClear" title="Clear all boxes"><i class="fas fa-trash"></i> Clear</button>
-          </div>
-        </div>
-        <div class="cs-canvas-wrap" id="csCanvasWrap">
-          <canvas id="csCanvas"></canvas>
-          <canvas id="csOverlay"></canvas>
-        </div>
-        <div class="cs-blur-nav" id="csBlurNav" style="display:none">
-          <button class="btn-ghost small" id="csPrevImg"><i class="fas fa-chevron-left"></i></button>
-          <span id="csImgCount">1 / 1</span>
-          <button class="btn-ghost small" id="csNextImg"><i class="fas fa-chevron-right"></i></button>
-        </div>
-        <button class="btn-primary full cs-apply-btn" id="csApplyBlur">
-          <i class="fas fa-check"></i> Apply Blur & Continue
-        </button>
-      </div>
-
-      <!-- Post form — shown after blur is applied -->
-      <div class="cs-post-form" id="csPostForm" style="display:none">
-        <div id="socialUploadPreview" class="cs-preview-strip"></div>
-        <textarea class="finput" id="socialCaption" rows="3"
-          placeholder="Add a caption… describe what you spotted, where, when." style="margin-top:10px;resize:none"></textarea>
-        <div class="social-upload-tags" id="socialUploadTags">
-          <div class="post-cat-label" style="margin-bottom:7px;margin-top:8px">Tag a category <span class="post-cat-hint">Optional</span></div>
-          <div class="social-tag-pills" id="socialTagPills"></div>
-        </div>
-        <progress id="socialUploadProgress" value="0" max="100" style="display:none;width:100%;height:5px;margin-top:8px;border-radius:3px;overflow:hidden"></progress>
-        <button class="btn-primary full" id="socialSubmitBtn" style="margin-top:10px;background:#16a34a;border-color:#16a34a">
-          <i class="fas fa-paper-plane"></i> Post to Car Spotting
-        </button>
-      </div>
-    </div>
-  </div>
-
   <!-- GARAGE -->
   <section class="page" id="page-garage">
+    <div class="page-head garage-head">
+      <h1>My Garage</h1><p>Everything you've liked, saved, and shared — all in one place.</p>
+    </div>
     <div class="garage-wrap">
-      <div class="garage-tabs">
-        <button class="gtab active" data-gtab="liked"><i class="fas fa-heart"></i> Liked</button>
-        <button class="gtab" data-gtab="saved"><i class="fas fa-bookmark"></i> Saved</button>
-        <button class="gtab" data-gtab="shared"><i class="fas fa-share-alt"></i> Shared</button>
-        <button class="gtab" data-gtab="parts"><i class="fas fa-wrench"></i> Saved Parts</button>
-        <button class="gtab" data-gtab="socials"><i class="fab fa-instagram"></i> Saved Socials</button>
+      <div class="garage-signin" id="garageSignin" style="display:none">
+        <i class="fas fa-warehouse"></i>
+        <h3>Your garage is waiting</h3>
+        <p>Sign in to see your liked builds, saved builds, parts and socials.</p>
+        <button class="btn-primary" onclick="el('authModal').classList.add('open')">Sign In / Register</button>
+      </div>
+      <div class="garage-tabs" id="garageTabs">
+        <button class="gtab active" data-gtab="liked"><i class="fas fa-heart"></i> Liked <span class="gtab-count" id="gcount-liked"></span></button>
+        <button class="gtab" data-gtab="saved"><i class="fas fa-bookmark"></i> Saved <span class="gtab-count" id="gcount-saved"></span></button>
+        <button class="gtab" data-gtab="shared"><i class="fas fa-share-alt"></i> Shared <span class="gtab-count" id="gcount-shared"></span></button>
+        <button class="gtab" data-gtab="parts"><i class="fas fa-wrench"></i> Saved Parts <span class="gtab-count" id="gcount-parts"></span></button>
+        <button class="gtab" data-gtab="socials"><i class="fab fa-instagram"></i> Saved Socials <span class="gtab-count" id="gcount-socials"></span></button>
+      </div>
+
+      <!-- Filter + Sort — only meaningful on Liked/Saved/Shared (build post
+           tabs); hidden automatically on Parts/Socials in renderGarage() -->
+      <div class="sort-row" id="garageSortRow">
+        <button class="filter-trigger-btn" id="openGarageFilterBtn"><i class="fas fa-sliders-h"></i> Filters <span class="filter-trigger-count" id="garageFilterTriggerCount" style="display:none"></span></button>
+        <div class="sort-divider"></div>
+        <span class="sort-label">Sort</span>
+        <button class="sort-btn active" data-gsort="newest">Newest</button>
+        <button class="sort-btn" data-gsort="popular">Most Liked</button>
+        <button class="sort-btn" data-gsort="discussed">Most Comments</button>
       </div>
       <div class="gpanel active" id="gpanel-liked">
         <div class="card-grid" id="likedGrid"></div>
@@ -694,6 +898,7 @@
           <button class="btn-primary small" id="followBtn" style="display:none"><i class="fas fa-user-plus"></i> Follow</button>
           <button class="btn-ghost small" id="profileDmBtn" style="display:none"><i class="fas fa-envelope"></i> Message</button>
           <button class="btn-ghost small" id="profileShareBtn"><i class="fas fa-link"></i> Share</button>
+          <button class="btn-ghost small" id="profileBlockBtn" style="display:none"><i class="fas fa-ban"></i> Block</button>
           <a href="settings.html" class="btn-ghost small" id="editProfileBtn"><i class="fas fa-pencil-alt"></i> Edit Profile</a>
         </div>
       </div>
@@ -982,54 +1187,49 @@
       <div class="car-page-back">
         <button class="btn-ghost small" id="carPageBack"><i class="fas fa-arrow-left"></i> Back to Feed</button>
       </div>
-
-      <!-- Poster header — avatar, name, date, edit build — sits above everything -->
-      <div class="cp-poster-header">
-        <div class="cp-poster-left">
-          <div class="car-page-av" id="cpAv"></div>
-          <div class="car-page-poster-info">
-            <div class="car-page-poster-nameline">
-              <span class="car-page-poster-name" id="cpPosterName"></span>
-              <span class="post-edited-tag" id="cpEditedBadge" style="display:none"><i class="fas fa-pencil-alt"></i> Edited</span>
+      <div class="car-page-layout">
+        <!-- Left: Gallery -->
+        <div class="car-page-left">
+          <div class="car-page-gallery-main" id="cpGallMain"></div>
+          <div class="car-page-gallery-strip" id="cpGallStrip"></div>
+        </div>
+        <!-- Right: Title, poster, description, actions -->
+        <div class="car-page-right">
+          <div class="car-page-header">
+            <div class="car-page-cat" id="cpCat"></div>
+            <h1 class="car-page-title" id="cpTitle"></h1>
+            <div class="car-page-poster-row">
+              <div class="car-page-av" id="cpAv"></div>
+              <div class="car-page-poster-info">
+                <div class="car-page-poster-nameline">
+                  <span class="car-page-poster-name" id="cpPosterName"></span>
+                  <span class="car-page-poster-date" id="cpPosterDate"></span>
+                  <span class="post-edited-tag" id="cpEditedBadge" style="display:none"><i class="fas fa-pencil-alt"></i> Edited</span>
+                </div>
+                <div class="car-page-poster-socials" id="cpSocials"></div>
+              </div>
+              <div class="car-page-poster-actions">
+                <button class="btn-ghost small" id="cpDmBtn" style="display:none"><i class="fas fa-envelope"></i> DM</button>
+                <button class="btn-primary small" id="cpEditBtn" style="display:none"><i class="fas fa-pencil-alt"></i> Edit Build</button>
+              </div>
             </div>
-            <div class="car-page-poster-date" id="cpPosterDate"></div>
-            <div class="car-page-poster-socials" id="cpSocials"></div>
           </div>
+          <!-- Description lives in the right column -->
+          <p class="car-page-desc" id="cpDesc"></p>
+          <div class="car-page-actions">
+            <button class="act-btn like-btn" id="cpLike"><i class="fas fa-heart"></i> <span id="cpLikeCount">0</span></button>
+            <button class="act-btn save-btn" id="cpSave"><i class="fas fa-bookmark"></i> Save</button>
+            <button class="act-btn" id="cpShare"><i class="fas fa-share"></i> Share</button>
+            <button class="act-btn" id="cpCompare" title="Compare this build"><i class="fas fa-balance-scale"></i></button>
+            <button class="act-btn report-btn" id="cpReport" title="Report this build"><i class="fas fa-flag"></i></button>
+            <button class="act-btn delete-btn" id="cpDelete" title="Delete this build" style="display:none"><i class="fas fa-trash-alt"></i></button>
+          </div>
+          <button class="botm-vote-btn" id="cpBotmVote"><i class="fas fa-crown"></i> Nominate for Build of the Month</button>
+          <div class="reactions-row" id="cpReactionsRow"></div>
         </div>
-        <div class="cp-poster-right">
-          <button class="btn-ghost small" id="cpDmBtn" style="display:none"><i class="fas fa-envelope"></i> DM</button>
-          <button class="btn-primary small" id="cpEditBtn" style="display:none"><i class="fas fa-pencil-alt"></i> Edit Build</button>
-        </div>
       </div>
 
-      <!-- Title + category badges -->
-      <div class="cp-title-block">
-        <div class="car-page-cat" id="cpCat"></div>
-        <h1 class="car-page-title" id="cpTitle"></h1>
-      </div>
-
-      <!-- Gallery — Cars & Bids style: large image left, medium image grid right -->
-      <div class="cp-gallery-modern">
-        <div class="cp-gallery-main" id="cpGallMain"></div>
-        <div class="cp-gallery-grid" id="cpGallGrid"></div>
-      </div>
-
-      <!-- Description + actions — full width below gallery -->
-      <div class="cp-below-gallery">
-        <p class="car-page-desc" id="cpDesc"></p>
-        <div class="car-page-actions">
-          <button class="act-btn like-btn" id="cpLike"><i class="fas fa-heart"></i> <span id="cpLikeCount">0</span></button>
-          <button class="act-btn save-btn" id="cpSave"><i class="fas fa-bookmark"></i> Save</button>
-          <button class="act-btn" id="cpShare"><i class="fas fa-share"></i> Share</button>
-          <button class="act-btn" id="cpCompare" title="Compare this build"><i class="fas fa-balance-scale"></i></button>
-          <button class="act-btn report-btn" id="cpReport" title="Report this build"><i class="fas fa-flag"></i></button>
-          <button class="act-btn delete-btn" id="cpDelete" title="Delete this build" style="display:none"><i class="fas fa-trash-alt"></i></button>
-        </div>
-        <button class="botm-vote-btn" id="cpBotmVote"><i class="fas fa-crown"></i> Nominate for Build of the Month</button>
-        <div class="reactions-row" id="cpReactionsRow"></div>
-      </div>
-
-      <!-- Full-width specs + mods -->
+      <!-- Full-width specs + mods below the two-column layout -->
       <div class="car-page-details" id="cpDetails">
         <div class="cp-details-label">Vehicle Specs &amp; Modifications</div>
         <!-- Specs table renders here -->
@@ -1350,6 +1550,19 @@
     </div>
   </section>
 
+  <!-- NOTIFICATIONS PAGE — mobile only (accessed from bottom tab bar) -->
+  <section class="page" id="page-notifications">
+    <div class="notif-page-wrap">
+      <div class="notif-page-head">
+        <h2 class="notif-page-title">Notifications</h2>
+        <button class="notif-page-clear" id="notifPageClear">Mark all read</button>
+      </div>
+      <div id="notifPageList">
+        <div class="notif-empty">No notifications yet</div>
+      </div>
+    </div>
+  </section>
+
 </main>
 
 <!-- FOOTER -->
@@ -1374,6 +1587,15 @@
 
 
 <!-- REPORT MODAL -->
+<!-- Followers / Following list -->
+<div class="modal-overlay" id="followListModal">
+  <div class="modal-box" style="max-width:380px">
+    <button class="modal-close" id="followListClose"><i class="fas fa-times"></i></button>
+    <h2 id="followListTitle">Followers</h2>
+    <div class="follow-list-body" id="followListBody"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="reportModal">
   <div class="modal-box" style="max-width:420px">
     <button class="modal-close" id="reportClose"><i class="fas fa-times"></i></button>
@@ -1470,11 +1692,11 @@
       <div class="fs-group-label">Year Range</div>
       <div class="fs-range-row">
         <div class="fs-range-wrap">
-          <input type="range" id="fsYearMin" min="1900" max="2026" value="1900" step="1"/>
+          <input type="range" id="fsYearMin" min="1900" max="2027" value="1900" step="1"/>
           <div class="fs-range-labels"><span id="fsYearMinVal">Any</span><span>Min Year</span></div>
         </div>
         <div class="fs-range-wrap">
-          <input type="range" id="fsYearMax" min="1900" max="2026" value="2026" step="1"/>
+          <input type="range" id="fsYearMax" min="1900" max="2027" value="2027" step="1"/>
           <div class="fs-range-labels"><span id="fsYearMaxVal">Any</span><span>Max Year</span></div>
         </div>
       </div>
@@ -1504,25 +1726,95 @@
 
     <div class="fs-divider"></div>
 
-    <!-- Has Photos -->
+    <!-- Exterior Color -->
     <div class="fs-group">
-      <div class="fs-group-label">Media</div>
-      <div class="fs-pills">
-        <button class="fs-pill active" data-fmedia="">All Posts</button>
-        <button class="fs-pill" data-fmedia="photos">Has Photos</button>
-        <button class="fs-pill" data-fmedia="multi">Multiple Photos</button>
+      <div class="fs-group-label">Exterior Color <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
+      <div class="fs-pills" id="fsColorPills">
+        <button class="fs-pill" data-fcolor="Black">Black</button>
+        <button class="fs-pill" data-fcolor="White">White</button>
+        <button class="fs-pill" data-fcolor="Silver">Silver</button>
+        <button class="fs-pill" data-fcolor="Gray">Gray</button>
+        <button class="fs-pill" data-fcolor="Red">Red</button>
+        <button class="fs-pill" data-fcolor="Blue">Blue</button>
+        <button class="fs-pill" data-fcolor="Green">Green</button>
+        <button class="fs-pill" data-fcolor="Yellow">Yellow</button>
+        <button class="fs-pill" data-fcolor="Orange">Orange</button>
+        <button class="fs-pill" data-fcolor="Brown">Brown</button>
+        <button class="fs-pill" data-fcolor="Gold">Gold</button>
+        <button class="fs-pill" data-fcolor="Purple">Purple</button>
       </div>
     </div>
 
     <div class="fs-divider"></div>
 
-    <!-- Has Mods listed -->
+    <!-- Body Type -->
     <div class="fs-group">
-      <div class="fs-group-label">Build Type</div>
-      <div class="fs-pills">
-        <button class="fs-pill active" data-fbuild="">All</button>
-        <button class="fs-pill" data-fbuild="modified">Modified</button>
-        <button class="fs-pill" data-fbuild="stock">Stock / Collector</button>
+      <div class="fs-group-label">Body Type <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
+      <div class="fs-pills" id="fsBodyPills">
+        <button class="fs-pill" data-fbody="Sedan">Sedan</button>
+        <button class="fs-pill" data-fbody="Coupe">Coupe</button>
+        <button class="fs-pill" data-fbody="Hatchback">Hatchback</button>
+        <button class="fs-pill" data-fbody="SUV">SUV</button>
+        <button class="fs-pill" data-fbody="Truck">Truck</button>
+        <button class="fs-pill" data-fbody="Convertible">Convertible</button>
+        <button class="fs-pill" data-fbody="Wagon">Wagon</button>
+        <button class="fs-pill" data-fbody="Van/Minivan">Van/Minivan</button>
+      </div>
+    </div>
+
+    <div class="fs-divider"></div>
+
+    <!-- Engine -->
+    <div class="fs-group">
+      <div class="fs-group-label">Engine <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
+      <div class="fs-pills" id="fsEnginePills">
+        <button class="fs-pill" data-fengine="4-Cylinder">4-Cylinder</button>
+        <button class="fs-pill" data-fengine="V6">V6</button>
+        <button class="fs-pill" data-fengine="V8">V8</button>
+        <button class="fs-pill" data-fengine="V10">V10</button>
+        <button class="fs-pill" data-fengine="V12">V12</button>
+        <button class="fs-pill" data-fengine="Rotary">Rotary</button>
+        <button class="fs-pill" data-fengine="Electric">Electric</button>
+        <button class="fs-pill" data-fengine="Hybrid">Hybrid</button>
+      </div>
+    </div>
+
+    <div class="fs-divider"></div>
+
+    <!-- Drivetrain -->
+    <div class="fs-group">
+      <div class="fs-group-label">Drivetrain <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
+      <div class="fs-pills" id="fsDrivePills">
+        <button class="fs-pill" data-fdrive="FWD">FWD</button>
+        <button class="fs-pill" data-fdrive="RWD">RWD</button>
+        <button class="fs-pill" data-fdrive="AWD">AWD</button>
+        <button class="fs-pill" data-fdrive="4WD">4WD</button>
+      </div>
+    </div>
+
+    <div class="fs-divider"></div>
+
+    <!-- Transmission -->
+    <div class="fs-group">
+      <div class="fs-group-label">Transmission <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
+      <div class="fs-pills" id="fsTransPills">
+        <button class="fs-pill" data-ftrans="Automatic">Automatic</button>
+        <button class="fs-pill" data-ftrans="Manual">Manual</button>
+        <button class="fs-pill" data-ftrans="DCT">DCT</button>
+        <button class="fs-pill" data-ftrans="CVT">CVT</button>
+      </div>
+    </div>
+
+    <div class="fs-divider"></div>
+
+    <!-- Fuel Type -->
+    <div class="fs-group">
+      <div class="fs-group-label">Fuel Type <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
+      <div class="fs-pills" id="fsFuelPills">
+        <button class="fs-pill" data-ffuel="Gasoline">Gasoline</button>
+        <button class="fs-pill" data-ffuel="Diesel">Diesel</button>
+        <button class="fs-pill" data-ffuel="Electric">Electric</button>
+        <button class="fs-pill" data-ffuel="Hybrid">Hybrid</button>
       </div>
     </div>
 
@@ -1534,9 +1826,13 @@
   </div>
 </aside>
 
-<script src="data.js"></script>
-<script src="db.js"></script>
-<script src="app.js"></script>
+<!-- Supabase MUST load synchronously here, before db.js — never add defer/async.
+     Moved from <head> to end of <body> so it no longer blocks first paint;
+     load order is unchanged: supabase → data → db → app -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="data.min.js?v=202607152210"></script>
+<script src="db.min.js?v=202607152210"></script>
+<script src="app.min.js?v=202607152210"></script>
 <!-- Sign up nudge banner — shown to signed-out users -->
 <div class="signup-nudge" id="signupNudge" style="display:none">
   <div class="signup-nudge-inner">
@@ -1545,6 +1841,7 @@
       <span class="signup-nudge-sub">Share your build, follow enthusiasts, and climb the leaderboard.</span>
     </div>
     <button class="signup-nudge-btn" id="signupNudgeBtn">Create Account</button>
+    <button class="signup-nudge-signin" id="signupNudgeSignIn">or Sign In</button>
     <button class="signup-nudge-close" id="signupNudgeClose" aria-label="Dismiss"><i class="fas fa-times"></i></button>
   </div>
 </div>
