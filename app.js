@@ -1999,7 +1999,7 @@ function loginUser(username) {
   el('authModal') && el('authModal').classList.remove('open');
   updateAuthUI(); updateProfilePage(); updateDmBadge();
   setupRealtimeSubscriptions();
-  toastSignIn(username);
+  toast(`Welcome back, ${username}!`, 'ok');
 }
 
 async function registerUser(username, email, password, googleId) {
@@ -5056,13 +5056,13 @@ function initCarPage() {
     const btn = el('cpLike');
     if (btn) { btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop'); setTimeout(() => btn.classList.remove('pop'), 400); }
   });
-  // BOTM vote button — appears on each post
-  const botmBtn = el('cpBotmVote');
-  if (botmBtn) {
-    botmBtn.dataset.id = post.id;
-    renderBotmVoteBtn(post.id);
-    botmBtn.addEventListener('click', () => castBotmVote(botmBtn.dataset.id));
-  }
+  // BOTM vote button — wiring happens in renderCarPage(post) instead,
+  // since a real post doesn't exist yet at boot time (this function
+  // runs once during DOMContentLoaded, before any build page is open).
+  // The old code here read post.id with no post in scope, throwing a
+  // ReferenceError on every single page load — and since it ran inside
+  // the DOMContentLoaded init loop uncaught, it also silently prevented
+  // this listener from ever being wired correctly.
   el('cpSave')?.addEventListener('click', () => {
     cpHandleSave();
     const btn = el('cpSave');
@@ -5096,7 +5096,14 @@ async function openCarPage(post) {
   S.openCarPost = freshPost;
   S.openPost    = freshPost;
   goTo('car');
-  renderCarPage(freshPost);
+  // Wrapped in try/catch deliberately: renderCarPage() touches many
+  // sub-systems (gallery, specs, mods, comments). A single uncaught
+  // exception anywhere in that chain used to silently abort everything
+  // below this line too — the real Supabase fetch for fresh post data
+  // and real comments, the Build Costs tab, and the meta tags — since
+  // openCarPage is async and nothing here was catching errors. Now a
+  // rendering bug stays contained to rendering; the data fetch always runs.
+  try { renderCarPage(freshPost); } catch(e) { console.error('renderCarPage failed:', e); }
   setMetaTags(freshPost.title, freshPost.desc, freshPost.images?.[0]);
   setTimeout(() => addCostTab(freshPost), 50);
 
@@ -5120,7 +5127,7 @@ async function openCarPage(post) {
     S.openPost    = updatedPost;
     const idx = S.posts.findIndex(p => p.id === updatedPost.id);
     if (idx >= 0) S.posts[idx] = { ...S.posts[idx], ...updatedPost };
-    renderCarPage(updatedPost);
+    try { renderCarPage(updatedPost); } catch(e) { console.error('renderCarPage failed:', e); }
   } else if (postResult.status === 'rejected') {
     console.warn('Fresh post fetch failed', postResult.reason);
   }
@@ -5145,6 +5152,15 @@ function renderCarPage(post) {
   if (!post) return;
   // Gallery
   cpRenderGallery(post);
+  // BOTM vote button — wired here (not initCarPage) since we need a
+  // real post.id, and this function re-runs fresh every time a build
+  // page opens so re-wiring the click listener each time is correct.
+  const botmBtn = el('cpBotmVote');
+  if (botmBtn) {
+    botmBtn.dataset.id = post.id;
+    renderBotmVoteBtn(post.id);
+    botmBtn.onclick = () => castBotmVote(botmBtn.dataset.id);
+  }
   // Category badge
   const cfg = catCfg(post.category);
   const cpCats = Array.isArray(post.categories) && post.categories.length ? post.categories : [post.category].filter(Boolean);
@@ -5549,10 +5565,10 @@ function cpHandleShare() {
 
 // ─── CAR PAGE COMMENTS WITH REPLIES + UPVOTES ─────────────────
 function cpRenderComments(post) {
-  const comments = post.comments || [];
+  const rawComments = post.comments || [];
   const cc = el('cpCommentCount');
-  if (cc) cc.textContent = comments.length ? `(${comments.length})` : '';
-  const count = comments.length;
+  if (cc) cc.textContent = rawComments.length ? `(${rawComments.length})` : '';
+  const count = rawComments.length;
   el('cpCommentCount').textContent = count > 0 ? `(${count})` : '';
   // Update avatar
   const av = el('cpCommentAv');
@@ -5575,8 +5591,24 @@ function cpRenderComments(post) {
       });
     }
   }
-  if (!comments.length) {
+  if (!rawComments.length) {
     el('cpCommentsList').innerHTML = '<p class="no-comments">No comments yet. Be the first!</p>';
+    return;
+  }
+  // IMPORTANT: post.comments can temporarily contain placeholder `null`
+  // entries — openCarPage() fills comments with Array(count).fill(null)
+  // so the comment-count badge shows instantly, before the real comment
+  // list has loaded from Supabase. Filtering them out here is required:
+  // without this, `.filter(c => !c.parentId)` below throws trying to read
+  // .parentId off a null entry. That crash was previously UNCAUGHT and
+  // synchronous, which — since openCarPage() is async and this call isn't
+  // wrapped in try/catch — silently aborted everything after it: the real
+  // comments fetch, the fresh post-data refresh, and the Build Costs tab
+  // never ran. This one bug was responsible for a lot more than just a
+  // blank comments section.
+  const comments = rawComments.filter(c => c && typeof c === 'object');
+  if (!comments.length) {
+    el('cpCommentsList').innerHTML = '<p class="no-comments"><i class="fas fa-spinner fa-spin"></i> Loading comments…</p>';
     return;
   }
   // Top-level comments only (no parentId), sorted by upvotes then date

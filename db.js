@@ -514,27 +514,24 @@ const DB = {
   //
   // WHY: If we fetched comment counts per-post that would be 60 separate
   // queries for a 60-post feed (N+1 problem). Instead we do ONE query
-  // with .in('post_id', allIds) and count in the result.
+  // with .in('post_id', allIds) and count client-side in the result.
   //
-  // Uses Supabase's count aggregation (id.count()) which returns one
-  // row per post_id with the count. Falls back to manual counting if
-  // the aggregation syntax isn't supported by the Supabase version.
+  // NOTE: PostgREST's count() aggregate only works when counting rows in
+  // a RELATED/joined table (e.g. posts.select('*, comments(count)')).
+  // It cannot be used to group-count rows within the same table, so a
+  // previous version of this query (select('post_id, id.count()')) always
+  // returned a 400 error on every single request. Fetching the post_id
+  // column for matching rows and counting client-side is the correct
+  // approach here — one query, no server-side grouping needed.
   async getCommentCounts(postIds) {
     if (!_sbOk() || !postIds?.length) return {};
-    // Use Supabase's count aggregation — returns one row per post_id, not all comment rows
     const { data, error } = await _sb
       .from('comments')
-      .select('post_id, id.count()')
+      .select('post_id')
       .in('post_id', postIds);
-    if (error) {
-      // Fallback: count manually if aggregation not supported
-      const { data: d2 } = await _sb.from('comments').select('post_id').in('post_id', postIds);
-      const counts = {};
-      (d2||[]).forEach(r => { counts[r.post_id] = (counts[r.post_id]||0)+1; });
-      return counts;
-    }
+    if (error) { console.warn('getCommentCounts error:', error.message); return {}; }
     const counts = {};
-    (data||[]).forEach(row => { counts[row.post_id] = parseInt(row.count||row['id.count()']||0); });
+    (data||[]).forEach(row => { counts[row.post_id] = (counts[row.post_id]||0)+1; });
     return counts;
   },
 
