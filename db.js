@@ -311,6 +311,21 @@ const DB = {
     return data;
   },
 
+  // incrementPostViews — calls the increment_post_views() Postgres function
+  // (added by add_views_migration.sql) rather than doing a client-side
+  // read-then-write. A client-side "read views, add 1, write it back"
+  // approach has a real race condition: two people opening the same post
+  // within the same moment could both read the same starting number and
+  // both write the same +1 result, silently losing a view. The atomic
+  // SQL function increments directly in the database, so this is safe
+  // under concurrent traffic no matter how many people view at once.
+  async incrementPostViews(postId) {
+    if (!_sbOk() || !postId) return null;
+    const { data, error } = await _sb.rpc('increment_post_views', { post_id_input: postId });
+    if (error) { console.warn('incrementPostViews error:', error.message); return null; }
+    return data; // the new total view count
+  },
+
   async createPost(userId, username, postData) {
     if (!_sbOk()) return { error: { message: 'Not connected.' } };
     const { data, error } = await _sb
@@ -580,12 +595,18 @@ const DB = {
   // followers/following system on profile pages ──
   async getFollowerCount(userId) {
     if (!_sbOk() || !userId) return 0;
-    const { count } = await _sb.from('follows').select('id', { count:'exact', head:true }).eq('following_id', userId);
+    // The follows table has no `id` column — it's a pure junction table
+    // keyed on (follower_id, following_id). Selecting a column that
+    // doesn't exist caused a 400 (Postgres error 42703) on every single
+    // call. follower_id always exists, so select that instead — for a
+    // head:true count query the column selected doesn't affect the
+    // count, it just needs to be real.
+    const { count } = await _sb.from('follows').select('follower_id', { count:'exact', head:true }).eq('following_id', userId);
     return count || 0;
   },
   async getFollowingCount(userId) {
     if (!_sbOk() || !userId) return 0;
-    const { count } = await _sb.from('follows').select('id', { count:'exact', head:true }).eq('follower_id', userId);
+    const { count } = await _sb.from('follows').select('following_id', { count:'exact', head:true }).eq('follower_id', userId);
     return count || 0;
   },
   async getFollowersList(userId) {
@@ -1132,6 +1153,7 @@ function dbPostToApp(row) {
     likes:        row.likes       || 0,
     likedBy:      row.liked_by    || [],
     savedBy:      row.saved_by    || [],
+    views:        row.views       || 0,
     reactions:    row.reactions   || {},
     images:       row.images      || [],
     videos:       row.videos      || [],

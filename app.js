@@ -1375,7 +1375,8 @@ const HOT_SLIDE_DURATION = 8000; // ms between automatic slide advances
 
 function renderHotPanel() {
   const slider = el('hotSlider'); if (!slider) return;
-  const top    = [...S.posts].sort((a,b) => b.likes - a.likes).slice(0, 10);
+  // Exactly the top 5 hottest posts by likes — no more, no less
+  const top    = [...S.posts].sort((a,b) => b.likes - a.likes).slice(0, 5);
 
   // Clear previous state
   slider.querySelectorAll('.hot-slide').forEach(s => s.remove());
@@ -3527,6 +3528,7 @@ function cardHTML(post,animIdx) {
         <div class="card-stats">
           <span class="card-comments"><i class="fas fa-comment"></i> ${(post.comments||[]).length}</span>
           <span class="card-likes${liked?' liked':''}" data-id="${post.id}"><i class="fas fa-heart"></i> ${post.likes}</span>
+          <span class="card-views" data-id="${post.id}"><i class="fas fa-eye"></i> ${formatCount(post.views||0)}</span>
         </div>
       </div>
     </div></div>`;
@@ -4995,6 +4997,14 @@ async function updateProfilePage() {
 function el(id)   {return document.getElementById(id);}
 function val(id)  {const e=el(id);return e?e.value.trim():'';}
 function esc(s)   {const d=document.createElement('div');d.textContent=String(s);return d.innerHTML;}
+// formatCount — abbreviates large numbers for compact display on cards
+// (1234 -> "1.2k", 15000 -> "15k"). Used for view counts, like counts, etc.
+function formatCount(n) {
+  n = Number(n) || 0;
+  if (n < 1000) return String(n);
+  if (n < 1000000) return (n/1000).toFixed(n % 1000 >= 100 ? 1 : 0).replace(/\.0$/,'') + 'k';
+  return (n/1000000).toFixed(1).replace(/\.0$/,'') + 'm';
+}
 function fmtDate(d){return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
 function timeAgo(ts){const m=Math.floor((Date.now()-ts)/60000);if(m<1)return'just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
 
@@ -5125,6 +5135,31 @@ async function openCarPage(post) {
   try { renderCarPage(freshPost); } catch(e) { console.error('renderCarPage failed:', e); }
   setMetaTags(freshPost.title, freshPost.desc, freshPost.images?.[0]);
   setTimeout(() => addCostTab(freshPost), 50);
+
+  // ── View counter ──────────────────────────────────────────────
+  // Fires exactly once per genuine "open a build" action, because
+  // openCarPage() itself is only called once per click/navigation —
+  // unlike renderCarPage() below, which runs twice within this same
+  // call (once with cached data, once with fresh Supabase data) and
+  // would double-count if the increment lived there instead.
+  // The _lastViewedPostId guard additionally stops a double-increment
+  // if something re-triggers openCarPage for the post that's already
+  // open (e.g. a stray popstate event), without blocking normal
+  // navigation away and back to the same post later.
+  if (S._lastViewedPostId !== post.id) {
+    S._lastViewedPostId = post.id;
+    DB.incrementPostViews(post.id).then(newCount => {
+      if (typeof newCount !== 'number') return;
+      // Update the open post page and the feed card in place — no
+      // full re-render needed, just patch the number in the DOM
+      if (S.openCarPost?.id === post.id) S.openCarPost.views = newCount;
+      const cached = S.posts.find(p => p.id === post.id);
+      if (cached) cached.views = newCount;
+      document.querySelectorAll(`.card-views[data-id="${post.id}"]`).forEach(elx => {
+        elx.textContent = formatCount(newCount);
+      });
+    }).catch(() => {});
+  }
 
   const targetPostId = post.id;
 

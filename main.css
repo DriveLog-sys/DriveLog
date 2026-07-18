@@ -467,6 +467,8 @@ body.dark .card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 16px 48px rgba(0,0,
 .card-stats{display:flex;align-items:center;gap:9px}
 .card-comments{font-size:.76rem;color:var(--muted);display:flex;align-items:center;gap:3px}
 .card-likes{font-family:var(--cond);font-size:.78rem;font-weight:700;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:3px;transition:color var(--tr)}
+.card-views{font-family:var(--cond);font-size:.78rem;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:3px}
+.card-views i{font-size:.72rem}
 .card-likes:hover,.card-likes.liked{color:#e84242}
 
 /* ─── SIDEBAR ────────────────────────────────────────────────── */
@@ -1520,6 +1522,16 @@ body.dark .card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 16px 48px rgba(0,0,
 .card,.member-card,.evt-card,.lb-row{will-change:transform}
 /* Focus ring accessibility */
 button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* Search inputs keep their own border/glow highlight treatment on focus —
+   the generic accessibility outline above rendered as a small blue box
+   sitting right where the text cursor appears, which read as a UI glitch
+   rather than a normal blinking caret. Every text input the person can
+   actually type into for search is listed here, on both desktop and
+   mobile, so a normal caret shows instead. */
+#searchInput:focus-visible,
+.header-search-input:focus-visible,
+.mob-search-input:focus-visible,
+.social-search-input:focus-visible{outline:none}
 
 /* ═══════════════════════════════════════════════════════════════
    ICON SYSTEM — replaces emoji throughout
