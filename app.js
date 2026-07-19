@@ -764,27 +764,61 @@ function initNavLinks() {
     a.addEventListener('click', e => { e.preventDefault(); goTo(a.dataset.page); }));
   // Dropdown items (Members: Featured/Brands/Dealerships/Top Contributors,
   // More: Our Merch/Help & FAQ/Support Us/Contact Us) — navigate to the
-  // target page, and if a data-scroll-target is set, smooth-scroll to
-  // that section once the page is actually visible. A short delay is
-  // needed because goTo() sets display via a CSS class change — trying
-  // to scrollIntoView() in the same tick, before the page has actually
-  // become visible/laid out, does nothing.
+  // target page, then scroll to the right spot on it.
+  //
+  // Plain scrollIntoView({block:'start'}) aligns the section's top edge
+  // with the very top of the viewport — but the site header is FIXED and
+  // sits on top of the page content, so that top edge (and the section
+  // heading right below it) ends up hidden behind the header. Each
+  // section needs a slightly different correction:
+  //   - Merch is the first section on the page — just go to the literal
+  //     top (0,0) rather than the element's position, which is simpler
+  //     and always correct regardless of any future content above it.
+  //   - Help/FAQ and Support Us need the header height subtracted so
+  //     their heading clears the fixed header instead of hiding under it.
+  //   - Contact Us intentionally uses the SAME plain scrollIntoView with
+  //     no offset that Help/FAQ used to (uncorrected) use — that lands
+  //     it a bit further down, which is where it's supposed to land.
+  const HEADER_H = 62; // must match .header-inner height in main.css
   document.querySelectorAll('.nav-dropdown-item[data-page]').forEach(a =>
     a.addEventListener('click', e => {
       e.preventDefault();
       S._membersFilter = a.dataset.membersFilter || null;
       goTo(a.dataset.page);
       const targetId = a.dataset.scrollTarget;
-      if (targetId) {
-        setTimeout(() => el(targetId)?.scrollIntoView({ behavior:'smooth', block:'start' }), 80);
+      const gtabId   = a.dataset.gtabTarget;
+      if (gtabId) {
+        // Garage dropdown (e.g. Dream Garage) — switch to that tab once
+        // the garage page has rendered, rather than scrolling anywhere
+        setTimeout(() => document.querySelector(`.gtab[data-gtab="${gtabId}"]`)?.click(), 80);
+        return;
       }
+      if (!targetId) return;
+      setTimeout(() => {
+        if (targetId === 'expMerchSection') {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else if (targetId === 'expContactSection') {
+          el(targetId)?.scrollIntoView({ behavior:'smooth', block:'start' });
+        } else {
+          const target = el(targetId);
+          if (!target) return;
+          const y = target.getBoundingClientRect().top + window.scrollY - HEADER_H;
+          window.scrollTo({ top: y, behavior: 'smooth' });
+        }
+      }, 80);
     }));
   // Same scroll-to-section behavior for in-page links, e.g. the "Shop
   // Now" button inside the Support Us section linking back up to Merch
   document.querySelectorAll('[data-scroll-target]:not(.nav-dropdown-item)').forEach(a =>
     a.addEventListener('click', e => {
       e.preventDefault();
-      el(a.dataset.scrollTarget)?.scrollIntoView({ behavior:'smooth', block:'start' });
+      const targetId = a.dataset.scrollTarget;
+      if (targetId === 'expMerchSection') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        const target = el(targetId);
+        if (target) window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - HEADER_H, behavior: 'smooth' });
+      }
     }));
   // Share DriveLog button — native share sheet on mobile, clipboard copy elsewhere
   el('expShareBtn')?.addEventListener('click', () => {
@@ -823,6 +857,27 @@ function initNavLinks() {
       S.filter = a.dataset.footerCat;
       S.filters.category = a.dataset.footerCat;
       goTo('categories');
+    })
+  );
+  // Footer "Registry" link — feed page, scrolled to just below the Hot
+  // Right Now section where the actual build list starts (the filter
+  // bar sits directly above the card grid)
+  document.querySelectorAll('[data-footer-scroll="registry"]').forEach(a =>
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      goTo('home');
+      setTimeout(() => {
+        const target = el('filterBar');
+        if (target) window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - 62, behavior:'smooth' });
+      }, 80);
+    })
+  );
+  // Footer "Dream Garage" link — garage page, switched to that tab
+  document.querySelectorAll('[data-footer-gtab]').forEach(a =>
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      goTo('garage');
+      setTimeout(() => document.querySelector(`.gtab[data-gtab="${a.dataset.footerGtab}"]`)?.click(), 80);
     })
   );
 }

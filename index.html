@@ -231,8 +231,12 @@
           <a class="nav-dropdown-item" data-page="members" data-members-filter="top">Top Contributors</a>
         </div>
       </div>
-      <a class="nav-link" data-page="garage">Garage</a>
-      <a class="nav-link" data-page="messages">Messages <span class="nav-dm-badge" id="navDmBadge" style="display:none"></span></a>
+      <div class="nav-item-dropdown">
+        <a class="nav-link" data-page="garage">Garage</a>
+        <div class="nav-dropdown-menu">
+          <a class="nav-dropdown-item" data-page="garage" data-gtab-target="dream">Dream Garage</a>
+        </div>
+      </div>
       <div class="nav-item-dropdown">
         <a class="nav-link" data-page="explore">More..</a>
         <div class="nav-dropdown-menu">
@@ -851,6 +855,7 @@
         <button class="gtab" data-gtab="shared"><i class="fas fa-share-alt"></i> Shared <span class="gtab-count" id="gcount-shared"></span></button>
         <button class="gtab" data-gtab="parts"><i class="fas fa-wrench"></i> Saved Parts <span class="gtab-count" id="gcount-parts"></span></button>
         <button class="gtab" data-gtab="socials"><i class="fab fa-instagram"></i> Saved Socials <span class="gtab-count" id="gcount-socials"></span></button>
+        <button class="gtab" data-gtab="dream"><i class="fas fa-star"></i> Dream Garage</button>
       </div>
 
       <!-- Filter + Sort — only meaningful on Liked/Saved/Shared (build post
@@ -880,6 +885,10 @@
       </div>
       <div class="gpanel" id="gpanel-socials">
         <div id="socialsPanel"></div>
+      </div>
+      <!-- DREAM GARAGE — placeholder, to be designed -->
+      <div class="gpanel" id="gpanel-dream">
+        <div class="garage-empty"><i class="fas fa-star"></i><h3>Dream Garage</h3><p>Coming soon.</p></div>
       </div>
     </div>
   </section>
@@ -1623,7 +1632,7 @@
         <a href="#" class="fsoc"><i class="fab fa-youtube"></i></a>
       </div>
     </div>
-    <div class="footer-links"><h4>Explore</h4><a href="#" data-footer-cat="JDM">JDM</a><a href="#" data-footer-cat="Euro">Euro</a><a href="#" data-footer-cat="Muscle">Muscle</a><a href="#" data-footer-cat="Classic">Classics</a><a href="#" data-footer-page="leaderboard">Leaderboard</a></div>
+    <div class="footer-links"><h4>Explore</h4><a href="#" data-footer-scroll="registry">Registry</a><a href="#" data-footer-page="social">Car Spotting</a><a href="https://instagram.com/drivelogofficial" target="_blank" rel="noopener">Our Instagram</a><a href="#" data-footer-gtab="dream">Dream Garage</a><a href="#" data-footer-page="compare">Compare Builds</a></div>
     <div class="footer-links"><h4>Community</h4><a href="#" data-footer-page="guidelines">Guidelines</a><a href="#" data-footer-page="about">About</a><a href="#" data-footer-page="events">Events</a><a href="#" data-footer-page="members">Members</a></div>
     <div class="footer-links"><h4>Account</h4><a href="settings.html">Settings</a><a href="#" data-footer-page="privacy">Privacy</a><a href="#" data-footer-page="help">Help</a></div>
   </div>
