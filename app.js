@@ -762,6 +762,17 @@ function showPushNotif(from, message, type) {
 function initNavLinks() {
   document.querySelectorAll('.nav-link[data-page],.mob-link[data-page]').forEach(a =>
     a.addEventListener('click', e => { e.preventDefault(); goTo(a.dataset.page); }));
+  // Members dropdown items — navigate to the members page for now.
+  // The members-filter value is stashed for whenever the members page
+  // itself gets designed (Featured / Brands / Dealerships / Top
+  // Contributors sub-views); the page is intentionally left as-is until
+  // then, so this just gets you there without filtering yet.
+  document.querySelectorAll('.nav-dropdown-item[data-page]').forEach(a =>
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      S._membersFilter = a.dataset.membersFilter || null;
+      goTo(a.dataset.page);
+    }));
   el('logoBtn')?.addEventListener('click', ()=>goTo('home'));
   el('heroPostBtn')?.addEventListener('click', openPostModal);
   el('heroExploreBtn')?.addEventListener('click', ()=>el('filterBar').scrollIntoView({behavior:'smooth'}));
@@ -1400,7 +1411,7 @@ function renderHotPanel() {
     slide.innerHTML = `
       <div class="hot-slide-img">
         ${img
-          ? `<img src="${img}" alt="${esc(p.title)}" loading="${i < 2 ? 'eager' : 'lazy'}"/>`
+          ? `<img src="${img}" alt="${esc(p.title)}" loading="eager"/>`
           : `<div class="hot-slide-img-ph" style="background:${phBg(p.id)}">${esc(p.make.toUpperCase())}</div>`}
       </div>
       <div class="hot-slide-rank">
@@ -3637,6 +3648,20 @@ function refreshLikedStates() {
 
 // ─── SIDEBAR ──────────────────────────────────────────────────
 function renderSidebar() {
+  // getUserPostStats — computes real build count and total likes for a
+  // user from the actual loaded posts, rather than trusting stale/unset
+  // database columns (profiles.total_likes is never kept in sync, and
+  // "posts" was previously hardcoded to 0 in dbUserToApp — this is the
+  // same live-count pattern already used on the Leaderboard and Profile
+  // pages, just factored out so the Top Members widget can use it too).
+  function getUserPostStats(username) {
+    const userPosts = S.posts.filter(p => p.user === username);
+    return {
+      count: userPosts.length,
+      likes: userPosts.reduce((sum, p) => sum + (p.likes||0), 0),
+    };
+  }
+
   const top5=[...S.posts].sort((a,b)=>b.likes-a.likes).slice(0,5);
   el('trendingList').innerHTML=top5.map((p,i)=>{
     const img=p.images?.[0];
@@ -3648,14 +3673,17 @@ function renderSidebar() {
   }).join('');
   el('trendingList').querySelectorAll('.trend-item').forEach(it=>it.addEventListener('click',()=>{const p=S.posts.find(x=>x.id===it.dataset.id);if(p)openCarPage(p);}));
 
-  const topM=[...S.users].sort((a,b)=>(b.totalLikes||0)-(a.totalLikes||0)).slice(0,5);
+  const topM=[...S.users]
+    .map(u => ({ ...u, _stats: getUserPostStats(u.username) }))
+    .sort((a,b)=>b._stats.likes - a._stats.likes)
+    .slice(0,5);
   const badges=['gold','silver','bronze'];
   el('topMembersList').innerHTML=topM.map((u,i)=>`
     <div class="top-member">
       <div class="tm-av clickable-user" data-user="${u.username}">${renderAv(u.username, 36, 'clickable-user')}</div>
       <div class="tm-info clickable-user" data-user="${u.username}" style="cursor:pointer">
         <div class="tm-name">${esc(u.username)}</div>
-        <div class="tm-sub">${u.posts||0} builds · ${(u.totalLikes||0).toLocaleString()} likes</div>
+        <div class="tm-sub">${u._stats.count} builds · ${u._stats.likes.toLocaleString()} likes</div>
       </div>
       ${i<3?`<span class="tm-badge ${badges[i]}">#${i+1}</span>`:''}
     </div>`).join('');

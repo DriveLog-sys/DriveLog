@@ -222,7 +222,15 @@
       <a class="nav-link active" data-page="home">Feed</a>
       <a class="nav-link" data-page="social">Car Spotting</a>
       <a class="nav-link" data-page="discussions">Discussions</a>
-      <a class="nav-link" data-page="members">Members</a>
+      <div class="nav-item-dropdown">
+        <a class="nav-link" data-page="members">Members</a>
+        <div class="nav-dropdown-menu">
+          <a class="nav-dropdown-item" data-page="members" data-members-filter="featured">Featured</a>
+          <a class="nav-dropdown-item" data-page="members" data-members-filter="brands">Brands</a>
+          <a class="nav-dropdown-item" data-page="members" data-members-filter="dealerships">Dealerships</a>
+          <a class="nav-dropdown-item" data-page="members" data-members-filter="top">Top Contributors</a>
+        </div>
+      </div>
       <a class="nav-link" data-page="garage">Garage</a>
       <a class="nav-link" data-page="messages">Messages <span class="nav-dm-badge" id="navDmBadge" style="display:none"></span></a>
       <a class="nav-link" data-page="explore">More..</a>
