@@ -5065,7 +5065,7 @@ function accountAge(user) {
 // This is different from the OLD car modal (initCarModal / openCarModal)
 // which is a legacy overlay that may still be used in some places.
 //
-// The build page has tabs for: Comments | Build Timeline | Build Costs
+// The build page has tabs for: Comments | Build Timeline
 // Tab switching is handled by switchCpTab(tab).
 //
 // Gallery: the main image is in #cpGallMain, thumbnails in #cpGallStrip.
@@ -5129,37 +5129,30 @@ async function openCarPage(post) {
   // sub-systems (gallery, specs, mods, comments). A single uncaught
   // exception anywhere in that chain used to silently abort everything
   // below this line too — the real Supabase fetch for fresh post data
-  // and real comments, the Build Costs tab, and the meta tags — since
+  // and real comments and the meta tags — since
   // openCarPage is async and nothing here was catching errors. Now a
   // rendering bug stays contained to rendering; the data fetch always runs.
   try { renderCarPage(freshPost); } catch(e) { console.error('renderCarPage failed:', e); }
   setMetaTags(freshPost.title, freshPost.desc, freshPost.images?.[0]);
-  setTimeout(() => addCostTab(freshPost), 50);
 
   // ── View counter ──────────────────────────────────────────────
-  // Fires exactly once per genuine "open a build" action, because
-  // openCarPage() itself is only called once per click/navigation —
-  // unlike renderCarPage() below, which runs twice within this same
-  // call (once with cached data, once with fresh Supabase data) and
-  // would double-count if the increment lived there instead.
-  // The _lastViewedPostId guard additionally stops a double-increment
-  // if something re-triggers openCarPage for the post that's already
-  // open (e.g. a stray popstate event), without blocking normal
-  // navigation away and back to the same post later.
-  if (S._lastViewedPostId !== post.id) {
-    S._lastViewedPostId = post.id;
-    DB.incrementPostViews(post.id).then(newCount => {
-      if (typeof newCount !== 'number') return;
-      // Update the open post page and the feed card in place — no
-      // full re-render needed, just patch the number in the DOM
-      if (S.openCarPost?.id === post.id) S.openCarPost.views = newCount;
-      const cached = S.posts.find(p => p.id === post.id);
-      if (cached) cached.views = newCount;
-      document.querySelectorAll(`.card-views[data-id="${post.id}"]`).forEach(elx => {
-        elx.textContent = formatCount(newCount);
-      });
-    }).catch(() => {});
-  }
+  // Safe to call on every single open of this post — refresh, back
+  // button, revisiting days later — because record_post_view() only
+  // counts the FIRST time this exact viewerId is seen for this exact
+  // post; every call after that for the same person is a no-op that
+  // just returns the unchanged total. The database decides what counts
+  // as a new view, not the client, so there's no client-side state to
+  // get out of sync and no way to inflate a count by clicking repeatedly.
+  const viewerId = voterId();
+  DB.recordPostView(post.id, viewerId).then(newCount => {
+    if (typeof newCount !== 'number') return;
+    if (S.openCarPost?.id === post.id) S.openCarPost.views = newCount;
+    const cached = S.posts.find(p => p.id === post.id);
+    if (cached) cached.views = newCount;
+    document.querySelectorAll(`.card-views[data-id="${post.id}"]`).forEach(elx => {
+      elx.textContent = formatCount(newCount);
+    });
+  }).catch(() => {});
 
   const targetPostId = post.id;
 
@@ -5433,6 +5426,7 @@ function renderCarPage(post) {
   if (cpCmp) cpCmp.onclick = () => { S.compareA = post; goTo('compare'); renderComparePage(); toast('Build loaded for comparison ✓',''); };
   // Comments
   cpRenderComments(post);
+  bindCommentHandlers(post);
   // Timeline
   cpRenderTimeline(post);
   switchCpTab('comments');
@@ -5657,7 +5651,7 @@ function cpRenderComments(post) {
   // .parentId off a null entry. That crash was previously UNCAUGHT and
   // synchronous, which — since openCarPage() is async and this call isn't
   // wrapped in try/catch — silently aborted everything after it: the real
-  // comments fetch, the fresh post-data refresh, and the Build Costs tab
+  // comments fetch and the fresh post-data refresh
   // never ran. This one bug was responsible for a lot more than just a
   // blank comments section.
   const comments = rawComments.filter(c => c && typeof c === 'object');
@@ -5668,13 +5662,17 @@ function cpRenderComments(post) {
   // Top-level comments only (no parentId), sorted by upvotes then date
   const topLevel = comments.filter(c => !c.parentId).sort((a,b) => (b.upvotes||0)-(a.upvotes||0));
   el('cpCommentsList').innerHTML = topLevel.map(c => renderComment(c, comments, 0)).join('');
-  // Attach vote + reply handlers
-  el('cpCommentsList').querySelectorAll('.cp-comment-upvote').forEach(btn => {
-    btn.addEventListener('click', () => cpUpvoteComment(post, btn.dataset.cid));
-  });
-  el('cpCommentsList').querySelectorAll('.cp-comment-reply-btn').forEach(btn => {
-    btn.addEventListener('click', () => cpShowReplyBox(post, btn.dataset.cid));
-  });
+  // NOTE: click handlers are intentionally NOT wired here. Every caller of
+  // cpRenderComments() also calls bindCommentHandlers() immediately after
+  // (see openCarPage, cpUpvoteComment, cpShowReplyBox, renderCarPage).
+  // This used to ALSO wire click handlers right here, meaning every button
+  // got two separate listeners — one from here, one from the paired
+  // bindCommentHandlers() call. A single click fired cpUpvoteComment()
+  // twice in a row: once to add the upvote, once (from the second stale
+  // listener) to immediately remove it again, so upvoting silently did
+  // nothing. Reply had the same double-bind, though it was less visible
+  // since showing/hiding a box twice in a row looks like nothing happened
+  // rather than visibly reverting. One binding pass, one place, fixes both.
 }
 
 function renderComment(comment, allComments, depth) {
@@ -7881,112 +7879,11 @@ function closeOnboarding(action) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ─── BUILD COST TRACKER ────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════
-function getCosts(postId) {
-  return JSON.parse(localStorage.getItem('dl_costs_' + postId) || '[]');
-}
-function saveCosts(postId, costs) {
-  localStorage.setItem('dl_costs_' + postId, JSON.stringify(costs));
-}
+// Build Cost Tracker feature was removed entirely — never used.
 
-function renderCostTracker(post, container) {
-  if (!container) return;
-  const costs  = getCosts(post.id);
-  const total  = costs.reduce((a, c) => a + (parseFloat(c.amount) || 0), 0);
-  const isOwner = S.user && post.user === S.user.username;
-
-  container.innerHTML = `
-    <div class="cost-tracker">
-      <div class="cost-header">
-        <span class="cost-title"><i class="fas fa-dollar-sign cost-title-icon"></i> Build Cost Tracker</span>
-        <span class="cost-total">Total: <b>$${total.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})}</b></span>
-      </div>
-      ${costs.length ? `
-        <div class="cost-list">
-          ${costs.map((c,i) => `
-            <div class="cost-row">
-              <span class="cost-cat-badge" style="background:${c.color||'var(--raised)'}"></span>
-              <span class="cost-item-name">${esc(c.name)}</span>
-              <span class="cost-item-cat">${esc(c.category||'Other')}</span>
-              <span class="cost-item-amount">$${parseFloat(c.amount||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
-              ${isOwner ? `<button class="cost-rm-btn" data-i="${i}"><i class="fas fa-times"></i></button>` : ''}
-            </div>`).join('')}
-        </div>` : `<p class="cost-empty">${isOwner?'Add your build costs below.':'No costs listed yet.'}</p>`}
-      ${isOwner ? `
-        <div class="cost-add-row">
-          <input class="finput cost-input" id="costName" placeholder="Item (e.g. Turbocharger)" style="flex:2"/>
-          <select class="finput cost-input" id="costCategory" style="flex:1">
-            <option value="Engine">Engine</option>
-            <option value="Drivetrain">Drivetrain</option>
-            <option value="Suspension">Suspension</option>
-            <option value="Wheels">Wheels</option>
-            <option value="Exterior">Exterior</option>
-            <option value="Interior">Interior</option>
-            <option value="Labour">Labour</option>
-            <option value="Other">Other</option>
-          </select>
-          <input class="finput cost-input" id="costAmount" type="number" placeholder="$ Amount" step="0.01" min="0" style="flex:1"/>
-          <button class="btn-primary small" id="addCostBtn"><i class="fas fa-plus"></i> Add</button>
-        </div>` : ''}
-    </div>`;
-
-  if (isOwner) {
-    el('addCostBtn')?.addEventListener('click', () => {
-      const name     = (el('costName')?.value||'').trim();
-      const category = el('costCategory')?.value || 'Other';
-      const amount   = parseFloat(el('costAmount')?.value || '0');
-      if (!name) { toast('Enter an item name', 'err'); return; }
-      const catColors = {Engine:'#e8392a',Drivetrain:'#f0a030',Suspension:'#22c55e',Wheels:'#3b82f6',Exterior:'#a855f7',Interior:'#14b8a6',Labour:'#8b5cf6',Other:'#6b7280'};
-      const newCosts = [...costs, { name, category, amount, color: catColors[category]||'#6b7280' }];
-      saveCosts(post.id, newCosts);
-      renderCostTracker(post, container);
-    });
-    container.querySelectorAll('.cost-rm-btn').forEach(b => b.addEventListener('click', () => {
-      const newCosts = costs.filter((_,i) => i !== +b.dataset.i);
-      saveCosts(post.id, newCosts);
-      renderCostTracker(post, container);
-    }));
-  }
-}
-
-// ─── Wire cost tracker into timeline tab ──────────────────────
-function addCostTab(post) {
-  const tabsEl  = document.querySelector('.car-page-tabs');
-  const panelsEl = document.querySelector('.car-page-tabs-wrap');
-  if (!tabsEl || !panelsEl) return;
-
-  // Remove any previously added costs tab so we start fresh each time
-  const oldBtn   = tabsEl.querySelector('[data-cptab="costs"]');
-  const oldPanel = el('cptab-costs');
-  if (oldBtn)   oldBtn.remove();
-  if (oldPanel) oldPanel.remove();
-
-  // Add tab button
-  const tabBtn = document.createElement('button');
-  tabBtn.className      = 'cptab';
-  tabBtn.dataset.cptab  = 'costs';
-  tabBtn.innerHTML      = '<i class="fas fa-dollar-sign"></i> Build Costs';
-  tabsEl.appendChild(tabBtn);
-
-  // Add panel
-  const panel    = document.createElement('div');
-  panel.id        = 'cptab-costs';
-  panel.className = 'cptab-panel';
-  panel.style.display = 'none';
-  panelsEl.appendChild(panel);
-
-  // Click handler using the already-correct switchCpTab
-  tabBtn.addEventListener('click', () => {
-    switchCpTab('costs');
-    renderCostTracker(post, panel);
-  });
-}
-
-// Override switchCpTab once to handle the dynamic costs panel
 function switchCpTab(tab) {
   document.querySelectorAll('.cptab').forEach(t => t.classList.toggle('active', t.dataset.cptab === tab));
-  ['cptab-comments','cptab-timeline','cptab-costs'].forEach(id => {
+  ['cptab-comments','cptab-timeline'].forEach(id => {
     const p = el(id);
     if (p) p.style.display = (p.id === 'cptab-' + tab) ? '' : 'none';
   });

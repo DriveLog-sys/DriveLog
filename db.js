@@ -311,19 +311,20 @@ const DB = {
     return data;
   },
 
-  // incrementPostViews — calls the increment_post_views() Postgres function
-  // (added by add_views_migration.sql) rather than doing a client-side
-  // read-then-write. A client-side "read views, add 1, write it back"
-  // approach has a real race condition: two people opening the same post
-  // within the same moment could both read the same starting number and
-  // both write the same +1 result, silently losing a view. The atomic
-  // SQL function increments directly in the database, so this is safe
-  // under concurrent traffic no matter how many people view at once.
-  async incrementPostViews(postId) {
-    if (!_sbOk() || !postId) return null;
-    const { data, error } = await _sb.rpc('increment_post_views', { post_id_input: postId });
-    if (error) { console.warn('incrementPostViews error:', error.message); return null; }
-    return data; // the new total view count
+  // recordPostView — calls the record_post_view() Postgres function
+  // (added by add_views_migration.sql). Tracks WHO has viewed each post
+  // via a viewed_by array, so it's always safe to call this on every
+  // page load / refresh / back-navigation — the database only counts
+  // the FIRST time a given viewerId is seen for a given post and is a
+  // silent no-op every time after that, for that same person. This is
+  // what makes "once per user" actually hold: the client doesn't need
+  // to track state or guess whether this is a fresh view, the database
+  // decides based on viewed_by every time.
+  async recordPostView(postId, viewerId) {
+    if (!_sbOk() || !postId || !viewerId) return null;
+    const { data, error } = await _sb.rpc('record_post_view', { post_id_input: postId, viewer_id_input: viewerId });
+    if (error) { console.warn('recordPostView error:', error.message); return null; }
+    return data; // current total view count (unchanged if already viewed by this person)
   },
 
   async createPost(userId, username, postData) {

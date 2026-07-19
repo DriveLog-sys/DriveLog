@@ -1479,22 +1479,7 @@ body.dark .card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 16px 48px rgba(0,0,
 /* ═══════════════════════════════════════════════════════════════
    BUILD COST TRACKER
    ═══════════════════════════════════════════════════════════════ */
-.cost-tracker{display:flex;flex-direction:column;gap:14px}
-.cost-header{display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid var(--border)}
-.cost-title{font-family:var(--cond);font-size:.85rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--text)}
-.cost-total{font-family:var(--cond);font-size:.9rem;font-weight:700;color:var(--accent)}
-.cost-list{display:flex;flex-direction:column;gap:6px}
-.cost-row{display:flex;align-items:center;gap:9px;padding:7px 10px;background:var(--raised);border:1px solid var(--border);border-radius:var(--r-sm)}
-.cost-cat-badge{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-.cost-item-name{flex:1;font-size:.85rem;color:var(--text);font-weight:500}
-.cost-item-cat{font-family:var(--cond);font-size:.68rem;font-weight:700;letter-spacing:.8px;color:var(--muted);text-transform:uppercase}
-.cost-item-amount{font-family:var(--cond);font-weight:700;font-size:.88rem;color:var(--text);min-width:70px;text-align:right}
-.cost-rm-btn{width:20px;height:20px;border-radius:50%;background:transparent;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:.6rem;flex-shrink:0;transition:all var(--tr)}
-.cost-rm-btn:hover{background:rgba(232,57,42,.1);border-color:rgba(232,57,42,.4);color:#e84242}
-.cost-empty{font-size:.82rem;color:var(--muted);padding:4px 0}
-.cost-add-row{display:flex;gap:7px;flex-wrap:wrap;align-items:flex-end;padding-top:6px;border-top:1px solid var(--subtle)}
-.cost-input{margin-bottom:0!important;min-width:100px}
-@media(max-width:600px){.cost-add-row{flex-direction:column}.cost-input{min-width:unset}}
+/* Build Cost Tracker CSS removed — feature deleted */
 
 /* ═══════════════════════════════════════════════════════════════
    MOBILE POLISH
@@ -1577,14 +1562,6 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 
 /* Hot panel flame icon */
 .hot-flame{font-size:1.4rem;line-height:1;color:var(--accent)}
-
-/* Cost title icon */
-.cost-title-icon{
-  width:22px;height:22px;border-radius:4px;
-  background:var(--accent);color:#fff;
-  display:inline-flex;align-items:center;justify-content:center;
-  font-size:.65rem;margin-right:7px;vertical-align:middle;
-}
 
 /* Onboarding feat icon */
 .onb-feat-icon{
@@ -2460,7 +2437,6 @@ body.dark .award-desc,
 body.dark .onb-feat p,
 body.dark .social-suggest-meta,
 body.dark .cp-mod-label,
-body.dark .cost-item-cat,
 body.dark .challenge-desc,
 body.dark .profile-bio { color:#a0a0a0 }
 
