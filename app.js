@@ -1459,7 +1459,8 @@ function renderHotPanel() {
   _hotSliderIdx = 0;
   startHotProgress(HOT_SLIDE_DURATION);
   _hotSliderAuto = setInterval(() => {
-    hotGoTo((_hotSliderIdx + 1) % top.length);
+    const count = el('hotSlider')?.querySelectorAll('.hot-slide').length || 1;
+    hotGoTo((_hotSliderIdx + 1) % count);
   }, HOT_SLIDE_DURATION);
 }
 
@@ -1474,8 +1475,17 @@ function hotGoTo(idx) {
   if (_hotSliderAuto) { clearInterval(_hotSliderAuto); }
   startHotProgress(HOT_SLIDE_DURATION);
   _hotSliderAuto = setInterval(() => {
-    const top = [...S.posts].sort((a,b)=>b.likes-a.likes).slice(0,10);
-    hotGoTo((_hotSliderIdx + 1) % top.length);
+    // IMPORTANT: count the actual rendered slide elements in the DOM,
+    // not a fresh slice of S.posts. Recomputing "top 5" separately here
+    // used to drift out of sync with what renderHotPanel() actually
+    // built (it was still using an old top-10 cap in one place after
+    // the other was changed to top-5), so the wrap-around index landed
+    // on a slide number that was never rendered — nothing had .active
+    // for a moment, showing a blank white slider, until the following
+    // cycle corrected back to slide 0. Reading slides.length directly
+    // means this can never drift from what's actually on screen again.
+    const count = slides.length;
+    hotGoTo((_hotSliderIdx + 1) % count);
   }, HOT_SLIDE_DURATION);
 }
 
