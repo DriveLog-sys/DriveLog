@@ -760,6 +760,19 @@ function showPushNotif(from, message, type) {
 
 // ─── NAVIGATION ───────────────────────────────────────────────
 function initNavLinks() {
+  // waitForLayout(fn) — runs fn() after the browser has actually
+  // completed a layout/paint cycle, instead of guessing with a fixed
+  // setTimeout delay. A single requestAnimationFrame only guarantees
+  // "before the next paint" — the DOM changes from goTo() (activating
+  // a different .page, which can trigger images/cards to render) might
+  // not have been through a full layout pass yet at that point. Waiting
+  // two animation frames in a row reliably lands after that layout has
+  // happened, so getBoundingClientRect() below returns real, final
+  // numbers instead of a stale/transient position from mid-render.
+  function waitForLayout(fn) {
+    requestAnimationFrame(() => requestAnimationFrame(fn));
+  }
+
   document.querySelectorAll('.nav-link[data-page],.mob-link[data-page]').forEach(a =>
     a.addEventListener('click', e => { e.preventDefault(); goTo(a.dataset.page); }));
   // Dropdown items (Members: Featured/Brands/Dealerships/Top Contributors,
@@ -790,11 +803,11 @@ function initNavLinks() {
       if (gtabId) {
         // Garage dropdown (e.g. Dream Garage) — switch to that tab once
         // the garage page has rendered, rather than scrolling anywhere
-        setTimeout(() => document.querySelector(`.gtab[data-gtab="${gtabId}"]`)?.click(), 80);
+        waitForLayout(() => document.querySelector(`.gtab[data-gtab="${gtabId}"]`)?.click());
         return;
       }
       if (!targetId) return;
-      setTimeout(() => {
+      waitForLayout(() => {
         if (targetId === 'expMerchSection') {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         } else if (targetId === 'expContactSection') {
@@ -805,7 +818,7 @@ function initNavLinks() {
           const y = target.getBoundingClientRect().top + window.scrollY - HEADER_H;
           window.scrollTo({ top: y, behavior: 'smooth' });
         }
-      }, 80);
+      });
     }));
   // Same scroll-to-section behavior for in-page links, e.g. the "Shop
   // Now" button inside the Support Us section linking back up to Merch
@@ -866,10 +879,10 @@ function initNavLinks() {
     a.addEventListener('click', e => {
       e.preventDefault();
       goTo('home');
-      setTimeout(() => {
+      waitForLayout(() => {
         const target = el('filterBar');
-        if (target) window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - 62, behavior:'smooth' });
-      }, 80);
+        if (target) window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - HEADER_H, behavior:'smooth' });
+      });
     })
   );
   // Footer "Dream Garage" link — garage page, switched to that tab
@@ -877,7 +890,7 @@ function initNavLinks() {
     a.addEventListener('click', e => {
       e.preventDefault();
       goTo('garage');
-      setTimeout(() => document.querySelector(`.gtab[data-gtab="${a.dataset.footerGtab}"]`)?.click(), 80);
+      waitForLayout(() => document.querySelector(`.gtab[data-gtab="${a.dataset.footerGtab}"]`)?.click());
     })
   );
 }
