@@ -7004,7 +7004,44 @@ body:not(.dark) .save-btn {
   .exp-help-inner { padding: 36px 20px 60px; }
   .exp-merch-hero-inner { padding: 0 20px; }
   .exp-contact-inner { flex-direction: column; text-align: center; }
+  .exp-support-grid { grid-template-columns: 1fr; }
+  .exp-support-inner { padding: 36px 20px 60px; }
 }
+
+/* Support Us */
+.exp-support-wrap { background: var(--bg); border-top: 1px solid var(--border); }
+.exp-support-inner { max-width: 1200px; margin: 0 auto; padding: 56px 48px 60px; }
+.exp-support-header { text-align: center; margin-bottom: 40px; }
+.exp-support-title { font-family: var(--disp); font-size: 2rem; color: var(--text); letter-spacing: .5px; }
+.exp-support-sub { font-size: .9rem; color: var(--muted); margin-top: 6px; }
+.exp-support-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.exp-support-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 28px 24px; text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.exp-support-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(0,0,0,.12);
+  border-color: rgba(59,130,246,.3);
+}
+.exp-support-icon {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; margin-bottom: 16px;
+}
+.exp-support-card h3 { font-family: var(--disp); font-size: 1.15rem; color: var(--text); letter-spacing: .3px; margin-bottom: 8px; }
+.exp-support-card p { font-size: .84rem; color: var(--sec); line-height: 1.55; margin-bottom: 16px; flex: 1; }
+.exp-support-link {
+  font-family: var(--cond); font-size: .82rem; font-weight: 700;
+  letter-spacing: .8px; text-transform: uppercase; color: var(--accent);
+  text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+  transition: gap .15s ease;
+}
+.exp-support-link:hover { gap: 10px; }
+body.dark .exp-support-card p { color: #a0a0a0; }
 
 /* ═══════════════════════════════════════════════════════════════
    PROFILE — PINNED BUILD + SHARE BUTTON + SIGNED-OUT STATE
@@ -8236,7 +8273,7 @@ html, body { overflow-x: hidden; }
   font-size:.82rem;
   font-weight:600;
   letter-spacing:.5px;
-  color:var(--sec);
+  color:var(--text);
   text-decoration:none;
   cursor:pointer;
   transition:background .1s ease, color .1s ease;

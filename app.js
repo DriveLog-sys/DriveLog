@@ -762,17 +762,39 @@ function showPushNotif(from, message, type) {
 function initNavLinks() {
   document.querySelectorAll('.nav-link[data-page],.mob-link[data-page]').forEach(a =>
     a.addEventListener('click', e => { e.preventDefault(); goTo(a.dataset.page); }));
-  // Members dropdown items — navigate to the members page for now.
-  // The members-filter value is stashed for whenever the members page
-  // itself gets designed (Featured / Brands / Dealerships / Top
-  // Contributors sub-views); the page is intentionally left as-is until
-  // then, so this just gets you there without filtering yet.
+  // Dropdown items (Members: Featured/Brands/Dealerships/Top Contributors,
+  // More: Our Merch/Help & FAQ/Support Us/Contact Us) — navigate to the
+  // target page, and if a data-scroll-target is set, smooth-scroll to
+  // that section once the page is actually visible. A short delay is
+  // needed because goTo() sets display via a CSS class change — trying
+  // to scrollIntoView() in the same tick, before the page has actually
+  // become visible/laid out, does nothing.
   document.querySelectorAll('.nav-dropdown-item[data-page]').forEach(a =>
     a.addEventListener('click', e => {
       e.preventDefault();
       S._membersFilter = a.dataset.membersFilter || null;
       goTo(a.dataset.page);
+      const targetId = a.dataset.scrollTarget;
+      if (targetId) {
+        setTimeout(() => el(targetId)?.scrollIntoView({ behavior:'smooth', block:'start' }), 80);
+      }
     }));
+  // Same scroll-to-section behavior for in-page links, e.g. the "Shop
+  // Now" button inside the Support Us section linking back up to Merch
+  document.querySelectorAll('[data-scroll-target]:not(.nav-dropdown-item)').forEach(a =>
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      el(a.dataset.scrollTarget)?.scrollIntoView({ behavior:'smooth', block:'start' });
+    }));
+  // Share DriveLog button — native share sheet on mobile, clipboard copy elsewhere
+  el('expShareBtn')?.addEventListener('click', () => {
+    const url = window.location.origin + window.location.pathname;
+    if (navigator.share) {
+      navigator.share({ title:'DriveLog', text:'Check out DriveLog — a community for car builds and spotting.', url }).catch(()=>{});
+    } else {
+      navigator.clipboard.writeText(url).then(() => toast('Link copied ✓','ok'));
+    }
+  });
   el('logoBtn')?.addEventListener('click', ()=>goTo('home'));
   el('heroPostBtn')?.addEventListener('click', openPostModal);
   el('heroExploreBtn')?.addEventListener('click', ()=>el('filterBar').scrollIntoView({behavior:'smooth'}));

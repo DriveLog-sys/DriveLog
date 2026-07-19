@@ -233,7 +233,15 @@
       </div>
       <a class="nav-link" data-page="garage">Garage</a>
       <a class="nav-link" data-page="messages">Messages <span class="nav-dm-badge" id="navDmBadge" style="display:none"></span></a>
-      <a class="nav-link" data-page="explore">More..</a>
+      <div class="nav-item-dropdown">
+        <a class="nav-link" data-page="explore">More..</a>
+        <div class="nav-dropdown-menu">
+          <a class="nav-dropdown-item" data-page="explore" data-scroll-target="expMerchSection">Our Merch</a>
+          <a class="nav-dropdown-item" data-page="explore" data-scroll-target="expHelpSection">Help & FAQ</a>
+          <a class="nav-dropdown-item" data-page="explore" data-scroll-target="expSupportSection">Support Us</a>
+          <a class="nav-dropdown-item" data-page="explore" data-scroll-target="expContactSection">Contact Us</a>
+        </div>
+      </div>
     </nav>
     <div class="header-right">
       <!-- Persistent search bar — always visible on mobile between logo and avatar -->
@@ -1276,7 +1284,7 @@
   <!-- EXPLORE PAGE -->
   <section class="page" id="page-explore">
     <!-- MERCH SECTION -->
-    <div class="exp-merch-hero">
+    <div class="exp-merch-hero" id="expMerchSection">
       <div class="exp-merch-hero-inner">
         <div class="exp-merch-hero-text">
           <div class="exp-merch-eyebrow"><i class="fas fa-tshirt"></i> Official DriveLog Gear</div>
@@ -1310,7 +1318,7 @@
     </div>
 
     <!-- HELP / FAQ SECTION -->
-    <div class="exp-help-wrap">
+    <div class="exp-help-wrap" id="expHelpSection">
       <div class="exp-help-inner">
         <div class="exp-help-header">
           <h2 class="exp-help-title">Help & FAQ</h2>
@@ -1356,7 +1364,7 @@
         </div>
 
         <!-- Contact section -->
-        <div class="exp-contact">
+        <div class="exp-contact" id="expContactSection">
           <div class="exp-contact-inner">
             <div class="exp-contact-text">
               <h3>Still have questions?</h3>
@@ -1365,6 +1373,36 @@
             <a href="mailto:hello@drivelog.com" class="btn-primary">
               <i class="fas fa-envelope"></i> Contact Us
             </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUPPORT US SECTION -->
+    <div class="exp-support-wrap" id="expSupportSection">
+      <div class="exp-support-inner">
+        <div class="exp-support-header">
+          <h2 class="exp-support-title">Support DriveLog</h2>
+          <p class="exp-support-sub">DriveLog is free for everyone — here's how you can help it grow</p>
+        </div>
+        <div class="exp-support-grid">
+          <div class="exp-support-card">
+            <div class="exp-support-icon"><i class="fas fa-tshirt"></i></div>
+            <h3>Shop Our Merch</h3>
+            <p>Every purchase goes directly toward keeping the platform running and building new features.</p>
+            <a class="exp-support-link" href="#expMerchSection" data-scroll-target="expMerchSection">Shop Now <i class="fas fa-arrow-right"></i></a>
+          </div>
+          <div class="exp-support-card">
+            <div class="exp-support-icon"><i class="fab fa-instagram"></i></div>
+            <h3>Follow Along</h3>
+            <p>Follow <b>@drivelogofficial</b> for build features, community shoutouts, and behind-the-scenes.</p>
+            <a class="exp-support-link" href="https://instagram.com/drivelogofficial" target="_blank" rel="noopener">Follow Us <i class="fas fa-arrow-right"></i></a>
+          </div>
+          <div class="exp-support-card">
+            <div class="exp-support-icon"><i class="fas fa-share-alt"></i></div>
+            <h3>Spread the Word</h3>
+            <p>Know another car person? The best way to support DriveLog is sharing it with your community.</p>
+            <a class="exp-support-link" id="expShareBtn" href="javascript:void(0)">Share DriveLog <i class="fas fa-arrow-right"></i></a>
           </div>
         </div>
       </div>
