@@ -5677,32 +5677,56 @@ function cpRenderGallery(post) {
     stripEl.querySelectorAll('.strip-thumb-wrap').forEach((t,i) => t.classList.toggle('active', i === curIdx));
   }
 
-  // Build the thumbnail row — large tiles, exactly 4 across. If there
-  // are more than 4 photos/videos total, the 4th tile is dimmed and
-  // shows a "+N" overlay for how many more exist beyond it (same
-  // pattern as Instagram/Facebook post grids). All 4 tiles stay
-  // clickable — the +N tile still sets that 4th item as the main
-  // image, and the nav arrows / lightbox on the main image still cycle
-  // through every photo, not just the first 4 shown here.
-  const VISIBLE_COUNT = 4;
-  const visibleMedia  = media.slice(0, VISIBLE_COUNT);
-  const remainingCount = media.length - VISIBLE_COUNT;
-  stripEl.innerHTML = visibleMedia.map((item, i) => {
-    const isLastVisible = i === VISIBLE_COUNT - 1;
-    const showMore = isLastVisible && remainingCount > 0;
-    if (item.type === 'video') {
-      return `<div class="strip-thumb-wrap video-thumb-wrap${i===0?' active':''}" data-i="${i}">
-        <i class="fas fa-play"></i>
-        ${showMore ? `<div class="strip-thumb-more">+${remainingCount}</div>` : ''}
+  // Build the thumbnail grid — always 4 tiles wide. Up to 6 photos show
+  // in full (row 1: 4, row 2: up to 2) with no overlay at all. Beyond 6,
+  // only the first 6 render, and the 6th tile (2nd tile of row 2) is
+  // dimmed with a "+N" overlay for how many more exist.
+  //
+  // Clicking that "+N" tile is a two-step interaction, not a shortcut to
+  // that photo:
+  //   1st click → expandGrid() re-renders ALL remaining media as further
+  //     4-wide rows underneath, and removes the +N overlay from tile 6
+  //     (it becomes a normal thumbnail once everything is visible).
+  //   2nd click (now that it's a normal tile, post-expansion) → behaves
+  //     like any other thumbnail and sets that photo as the main image.
+  // A plain click on the +N tile therefore only sets the main image
+  // AFTER expansion has already happened — buildStrip(true) below is
+  // what makes that switch, driven by a data-expanded flag on the grid.
+  const THRESHOLD = 6;
+  function buildStrip(expanded) {
+    const showAll = expanded || media.length <= THRESHOLD;
+    const visibleMedia   = showAll ? media : media.slice(0, THRESHOLD);
+    const remainingCount = media.length - THRESHOLD;
+    stripEl.dataset.expanded = showAll ? '1' : '0';
+    stripEl.innerHTML = visibleMedia.map((item, i) => {
+      const isTriggerTile = !showAll && i === THRESHOLD - 1;
+      const inner = item.type === 'video'
+        ? `<i class="fas fa-play"></i>`
+        : `<img class="strip-thumb" src="${item.src}" alt="" loading="lazy"/>`;
+      return `<div class="strip-thumb-wrap${item.type==='video'?' video-thumb-wrap':''}" data-i="${i}"${isTriggerTile?' data-more-trigger="1"':''}>
+        ${inner}
+        ${isTriggerTile ? `<div class="strip-thumb-more">+${remainingCount}</div>` : ''}
       </div>`;
-    }
-    return `<div class="strip-thumb-wrap${i===0?' active':''}" data-i="${i}">
-      <img class="strip-thumb" src="${item.src}" alt="" loading="lazy"/>
-      ${showMore ? `<div class="strip-thumb-more">+${remainingCount}</div>` : ''}
-    </div>`;
-  }).join('');
+    }).join('');
 
-  stripEl.querySelectorAll('.strip-thumb-wrap').forEach(t => t.addEventListener('click', () => setMain(+t.dataset.i)));
+    stripEl.querySelectorAll('.strip-thumb-wrap').forEach(t => {
+      t.addEventListener('click', () => {
+        if (t.dataset.moreTrigger === '1') {
+          // First click on the +N tile — reveal everything, don't change
+          // the main image yet
+          buildStrip(true);
+          return;
+        }
+        setMain(+t.dataset.i);
+      });
+    });
+    // Re-apply the highlight border to whichever tile matches the
+    // currently-shown main image — without this, expanding the grid
+    // (which fully rebuilds the tile markup) would silently lose that
+    // highlight until the next time an image is selected.
+    upStrip();
+  }
+  buildStrip(false);
   setMain(0);
 }
 
