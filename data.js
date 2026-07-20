@@ -53,9 +53,12 @@ const SEED_EVENTS = [];
 
 const SEED_TIMELINES = {};
 
-const AWARDS_DEF = [
-  { id:'founders',  icon:'fas fa-crown', label:'Founders',  desc:'Awarded to the original founders of DriveLog.',       color:'#fff', bg:'#b45309', border:'#92400e'  },
-  { id:'viral',     icon:'fas fa-bolt',  label:'Viral',     desc:'Awarded for a build or post that went truly viral.',   color:'#fff', bg:'#1d4ed8', border:'#1e3a8a'  },
-  { id:'honorary',  icon:'fas fa-medal', label:'Honorary',  desc:'Awarded at the discretion of the DriveLog founders.',  color:'#fff', bg:'#7e22ce', border:'#581c87'  },
-];
+// Awards feature — Founders/Viral/Honorary badges removed site-wide.
+// Left as an empty array (rather than deleting getAwardDef/renderAwards
+// entirely) so nothing breaks: getAwardDef() now returns undefined for
+// any id, which every call site already treats as "don't render this
+// badge" — so old award data still sitting on any account in Supabase
+// simply stops displaying everywhere (profiles, admin panel) without
+// needing a database migration to strip it out.
+const AWARDS_DEF = [];
 function getAwardDef(id) { return AWARDS_DEF.find(a => a.id === id); }

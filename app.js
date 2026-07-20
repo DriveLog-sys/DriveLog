@@ -5401,15 +5401,10 @@ function renderCarPage(post) {
       deleteBtn.style.display = 'none';
     }
   }
-  const editBtn = el('cpEditBtn');
-  if (editBtn) {
-    if (S.user && S.user.username === post.user) {
-      editBtn.style.display = 'inline-flex';
-      editBtn.onclick = () => openEditPost(post);
-    } else {
-      editBtn.style.display = 'none';
-    }
-  }
+  // Edit Build button was intentionally removed — posts are final once
+  // submitted. The only way to change a build now is to delete it and
+  // post a fresh one. openEditPost() itself is left defined (unused)
+  // rather than deleted, in case this decision changes later.
   // Description — right column, always populate
   const descEl = el('cpDesc');
   if (descEl) {
@@ -5553,9 +5548,9 @@ function renderCarPage(post) {
   // Reactions — only in the actions row
   // Videos in specs right panel
   renderCpVideos(post);
-  // Compare button
-  const cpCmp = el('cpCompare');
-  if (cpCmp) cpCmp.onclick = () => { S.compareA = post; goTo('compare'); renderComparePage(); toast('Build loaded for comparison ✓',''); };
+  // Compare button was intentionally removed from the build post page —
+  // the Compare Builds feature itself is unchanged and still reachable
+  // via the nav / account dropdown, just not from here.
   // Comments
   cpRenderComments(post);
   bindCommentHandlers(post);
@@ -7863,12 +7858,8 @@ function _renderAdminUsersList() {
       <div class="admin-user-info">
         <div class="admin-user-name">${esc(u.username)}</div>
         <div class="admin-user-meta">${posts} posts · ${age.short} old · Joined ${u.joined}</div>
-        ${(u.awards||[]).length ? `<div class="admin-user-badges">${(u.awards||[]).map(id=>{const a=getAwardDef(id);return a?`<span title="${a.label}">${a.icon}</span>`:''}).join('')}</div>` : ''}
       </div>
       <div class="admin-user-actions">
-        <div class="admin-award-btns">
-          ${AWARDS_DEF.map(a => `<button class="admin-btn verify award-grant-btn" data-un="${u.username}" data-aid="${a.id}" title="Grant ${a.label}">${a.icon}</button>`).join('')}
-        </div>
         <button class="admin-btn ${u.isFeatured?'remove':'verify'} admin-toggle-featured" data-un="${u.username}" title="${u.isFeatured?'Remove from Featured':'Add to Featured'}">
           <i class="fas fa-star"></i> ${u.isFeatured?'Unfeature':'Feature'}
         </button>
