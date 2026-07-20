@@ -5337,9 +5337,13 @@ function renderCarPage(post) {
     botmBtn.onclick = () => castBotmVote(botmBtn.dataset.id);
   }
   // Category badge
-  const cfg = catCfg(post.category);
-  const cpCats = Array.isArray(post.categories) && post.categories.length ? post.categories : [post.category].filter(Boolean);
-  el('cpCat').innerHTML = cpCats.map(c=>`<span class="cat-badge ${catCfg(c).badge}" style="position:static">${c}</span>`).join(' ');
+  // Category badges (EURO/JDM/etc.) are intentionally NOT rendered here —
+  // they crowded the space above the title and didn't fit well. They
+  // still work everywhere else (feed cards, search results, etc.) via
+  // the exact same catCfg()/cat-badge markup — this is the only place
+  // that skips them. #cpCat keeps a fixed min-height (see CSS) so the
+  // title doesn't shift up into the space the badges used to occupy.
+  el('cpCat').innerHTML = '';
   // Title
   el('cpTitle').textContent = post.title;
   // Poster info
@@ -5673,15 +5677,28 @@ function cpRenderGallery(post) {
     stripEl.querySelectorAll('.strip-thumb-wrap').forEach((t,i) => t.classList.toggle('active', i === curIdx));
   }
 
-  // Build strip — images get thumbnails, videos get a play icon tile
-  stripEl.innerHTML = media.map((item, i) => {
+  // Build the thumbnail row — large tiles, exactly 4 across. If there
+  // are more than 4 photos/videos total, the 4th tile is dimmed and
+  // shows a "+N" overlay for how many more exist beyond it (same
+  // pattern as Instagram/Facebook post grids). All 4 tiles stay
+  // clickable — the +N tile still sets that 4th item as the main
+  // image, and the nav arrows / lightbox on the main image still cycle
+  // through every photo, not just the first 4 shown here.
+  const VISIBLE_COUNT = 4;
+  const visibleMedia  = media.slice(0, VISIBLE_COUNT);
+  const remainingCount = media.length - VISIBLE_COUNT;
+  stripEl.innerHTML = visibleMedia.map((item, i) => {
+    const isLastVisible = i === VISIBLE_COUNT - 1;
+    const showMore = isLastVisible && remainingCount > 0;
     if (item.type === 'video') {
       return `<div class="strip-thumb-wrap video-thumb-wrap${i===0?' active':''}" data-i="${i}">
         <i class="fas fa-play"></i>
+        ${showMore ? `<div class="strip-thumb-more">+${remainingCount}</div>` : ''}
       </div>`;
     }
     return `<div class="strip-thumb-wrap${i===0?' active':''}" data-i="${i}">
       <img class="strip-thumb" src="${item.src}" alt="" loading="lazy"/>
+      ${showMore ? `<div class="strip-thumb-more">+${remainingCount}</div>` : ''}
     </div>`;
   }).join('');
 
