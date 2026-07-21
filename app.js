@@ -796,7 +796,6 @@ function initNavLinks() {
   document.querySelectorAll('.nav-dropdown-item[data-page]').forEach(a =>
     a.addEventListener('click', e => {
       e.preventDefault();
-      S._membersFilter = a.dataset.membersFilter || null;
       goTo(a.dataset.page);
       const targetId = a.dataset.scrollTarget;
       const gtabId   = a.dataset.gtabTarget;
@@ -933,7 +932,7 @@ function goTo(page) {
   if (page==='leaderboard') renderLeaderboard();
   if (page==='garage')      renderGarage();
   if (page==='events')      renderEventsGrid();
-  if (page==='members')     { renderMembers(); renderMembersStatsBar(); renderMembersBotm(); }
+  if (page==='members')     { renderMembers(); renderMembersStatsBar(); renderMembersBotm(); renderFeaturedMembersSection(); renderTopContributorsSection(); renderBrandsSection(); renderDealershipsSection(); }
   if (page==='social')      { renderSocialFeed(true); renderTrendingTags(); }
   if (page==='discussions') renderDiscussions(true);
   if (page==='spotpost') {
@@ -3736,22 +3735,24 @@ function refreshLikedStates() {
   });
 }
 
+// getUserPostStats — computes real build count and total likes for a
+// user from the actual loaded posts, rather than trusting stale/unset
+// database columns (profiles.total_likes is never kept in sync, and
+// "posts" was hardcoded to 0 in dbUserToApp for a while too). Global
+// so the sidebar Top Members widget, the Members page (Top Contributors,
+// the general directory grid), and anywhere else that needs a user's
+// real stats can all share one source of truth instead of duplicating
+// this logic — or worse, each trusting the stale DB fields differently.
+function getUserPostStats(username) {
+  const userPosts = S.posts.filter(p => p.user === username);
+  return {
+    count: userPosts.length,
+    likes: userPosts.reduce((sum, p) => sum + (p.likes||0), 0),
+  };
+}
+
 // ─── SIDEBAR ──────────────────────────────────────────────────
 function renderSidebar() {
-  // getUserPostStats — computes real build count and total likes for a
-  // user from the actual loaded posts, rather than trusting stale/unset
-  // database columns (profiles.total_likes is never kept in sync, and
-  // "posts" was previously hardcoded to 0 in dbUserToApp — this is the
-  // same live-count pattern already used on the Leaderboard and Profile
-  // pages, just factored out so the Top Members widget can use it too).
-  function getUserPostStats(username) {
-    const userPosts = S.posts.filter(p => p.user === username);
-    return {
-      count: userPosts.length,
-      likes: userPosts.reduce((sum, p) => sum + (p.likes||0), 0),
-    };
-  }
-
   const top5=[...S.posts].sort((a,b)=>b.likes-a.likes).slice(0,5);
   el('trendingList').innerHTML=top5.map((p,i)=>{
     const img=p.images?.[0];
@@ -4340,6 +4341,102 @@ function renderSidebarEvents() {
 }
 
 // ─── MEMBERS ──────────────────────────────────────────────────
+// ─── MEMBERS PAGE — Featured / Top Contributors / Brands / Dealerships ──
+
+// renderMemberCardGrid — builds the same rich member-card markup used by
+// the main "All Members" directory, for any arbitrary list of users.
+// Shared by Featured, Brands, and Dealerships so all three look and
+// behave identically (same follow button, same "View Builds" link)
+// without three separate copies of this markup drifting out of sync.
+function renderMemberCardGrid(users, gridId, emptyIcon, emptyText) {
+  const grid = el(gridId);
+  if (!grid) return;
+  if (!users.length) {
+    grid.innerHTML = `<div class="members-empty"><i class="${emptyIcon}"></i><p>${emptyText}</p></div>`;
+    return;
+  }
+  grid.innerHTML = users.map(u => {
+    const stats = getUserPostStats(u.username);
+    const posts = S.posts.filter(p => p.user === u.username);
+    const topPost = [...posts].sort((a,b) => b.likes - a.likes)[0];
+    const img = topPost?.images?.[0];
+    const following = isFollowing(u.username);
+    const isSelf = S.user?.username === u.username;
+    return `<div class="member-card">
+      <div class="member-cover" style="background:${phBg(u.username)}">
+        ${img ? `<img src="${img}" alt="" loading="lazy"/>` : ''}<div class="member-cover-ov"></div>
+      </div>
+      <div class="member-body">
+        <div class="member-av${hasActiveSpotStory(u.username)?' has-story-ring':''}" style="background:transparent">${ u.avatarUrl ? `<img src="${u.avatarUrl}" alt="" class="av-photo"/>` : u.username[0].toUpperCase() }</div>
+        <div class="member-info">
+          <div class="member-name">${esc(u.username)}</div>
+          <div class="member-bio">${u.bio?(u.bio.length>60?u.bio.slice(0,60)+'…':u.bio):'DriveLog member'}</div>
+          <div class="member-stats"><span><b>${stats.count}</b> builds</span><span><b>${stats.likes.toLocaleString()}</b> likes</span></div>
+          ${(u.instagram||u.tiktok||u.youtube)?`<div class="member-socials">
+            ${u.instagram?`<a class="msoc ig" href="https://instagram.com/${u.instagram}" target="_blank" rel="noopener"><i class="fab fa-instagram"></i></a>`:''}
+            ${u.tiktok?`<a class="msoc tt" href="https://tiktok.com/@${u.tiktok}" target="_blank" rel="noopener"><i class="fab fa-tiktok"></i></a>`:''}
+            ${u.youtube?`<a class="msoc yt" href="https://youtube.com/@${u.youtube}" target="_blank" rel="noopener"><i class="fab fa-youtube"></i></a>`:''}
+          </div>`:''}
+        </div>
+        ${!isSelf&&S.user?`<button class="member-follow-btn${following?' following':''}" data-un="${u.username}">${following?'<i class="fas fa-check"></i> Following':'+ Follow'}</button>`:''}
+      </div>
+      <div class="member-foot"><button class="member-view-btn" data-un="${u.username}">View Builds</button></div>
+    </div>`;
+  }).join('');
+  grid.querySelectorAll('.member-follow-btn').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();toggleFollow(b.dataset.un);}));
+  grid.querySelectorAll('.member-view-btn').forEach(b=>b.addEventListener('click',()=>viewMemberProfile(b.dataset.un)));
+}
+
+function renderFeaturedMembersSection() {
+  const featured = S.users.filter(u => u.isFeatured);
+  renderMemberCardGrid(featured, 'memFeaturedGrid', 'fas fa-star', 'No featured members yet.');
+}
+
+function renderBrandsSection() {
+  const brands = S.users.filter(u => u.isBrand);
+  renderMemberCardGrid(brands, 'memBrandsGrid', 'fas fa-industry', 'No brand accounts yet.');
+}
+
+function renderDealershipsSection() {
+  const dealerships = S.users.filter(u => u.isDealership);
+  renderMemberCardGrid(dealerships, 'memDealershipsGrid', 'fas fa-store', 'No dealership accounts yet.');
+}
+
+// renderTopContributorsSection — ranked list (top 10 by total likes),
+// reusing the same .lb-row / gold-silver-bronze styling as the
+// Leaderboard page so the visual language matches elsewhere on the site.
+function renderTopContributorsSection() {
+  const list = el('memTopList');
+  if (!list) return;
+  const ranked = S.users
+    .map(u => ({ u, stats: getUserPostStats(u.username) }))
+    .filter(r => r.stats.count > 0)
+    .sort((a,b) => b.stats.likes - a.stats.likes)
+    .slice(0, 10);
+  if (!ranked.length) {
+    list.innerHTML = `<div class="members-empty"><i class="fas fa-trophy"></i><p>No builds posted yet.</p></div>`;
+    return;
+  }
+  const medalClass = i => i===0?'gold':i===1?'silver':i===2?'bronze':'';
+  list.innerHTML = ranked.map(({u, stats}, i) => `
+    <div class="lb-row ${medalClass(i)}" data-un="${u.username}">
+      <div class="lb-pos ${i<3?'p'+(i+1):'pn'}">${i+1}</div>
+      ${ u.avatarUrl
+        ? `<div class="lb-thumb" style="border-radius:50%"><img src="${u.avatarUrl}" alt=""/></div>`
+        : `<div class="lb-av-th" style="background:${avColor(u.username)};display:flex;align-items:center;justify-content:center">${u.username[0].toUpperCase()}</div>`
+      }
+      <div class="lb-info">
+        <div class="lb-title">${esc(u.username)}</div>
+        <div class="lb-meta">${stats.count} build${stats.count===1?'':'s'}</div>
+      </div>
+      <div class="lb-score">
+        <div class="lb-num">${stats.likes.toLocaleString()}</div>
+        <div class="lb-lbl">Likes</div>
+      </div>
+    </div>`).join('');
+  list.querySelectorAll('.lb-row').forEach(row => row.addEventListener('click', () => viewMemberProfile(row.dataset.un)));
+}
+
 function initMembers() {
   el('membersSearch')?.addEventListener('input', renderMembers);
   document.querySelectorAll('.sort-btn[data-msort]').forEach(b=>b.addEventListener('click',()=>{
@@ -4351,8 +4448,13 @@ function renderMembers() {
   const searchEl = el('membersSearch');
   const q = searchEl ? searchEl.value.toLowerCase() : '';
   let members=[...S.users].filter(u=>!S.blockedUsers.includes(u.username) && (!q||u.username.toLowerCase().includes(q)||(u.bio||'').toLowerCase().includes(q)));
-  if(S.memberSort==='likes')  members.sort((a,b)=>(b.totalLikes||0)-(a.totalLikes||0));
-  else if(S.memberSort==='builds') members.sort((a,b)=>(b.posts||0)-(a.posts||0));
+  // Stats are computed live from S.posts (see getUserPostStats) rather
+  // than trusted from u.totalLikes/u.posts — those DB-side fields were
+  // never reliably kept in sync (posts_count in particular used to be
+  // hardcoded to 0), so sorting/display by them always looked wrong.
+  const statsCache = new Map(members.map(u => [u.username, getUserPostStats(u.username)]));
+  if(S.memberSort==='likes')  members.sort((a,b)=>statsCache.get(b.username).likes-statsCache.get(a.username).likes);
+  else if(S.memberSort==='builds') members.sort((a,b)=>statsCache.get(b.username).count-statsCache.get(a.username).count);
   else members.sort((a,b)=>b.joined>a.joined?1:-1);
   const grid=el('membersGrid');
   if (!grid) return;
@@ -4364,6 +4466,7 @@ function renderMembers() {
     return;
   }
   grid.innerHTML=members.map((u,rank)=>{
+    const stats=statsCache.get(u.username);
     const posts=S.posts.filter(p=>p.user===u.username);
     const topPost=[...posts].sort((a,b)=>b.likes-a.likes)[0];
     const img=topPost?.images?.[0], following=isFollowing(u.username);
@@ -4380,7 +4483,7 @@ function renderMembers() {
         <div class="member-info">
           <div class="member-name">${esc(u.username)}</div>
           <div class="member-bio">${u.bio?(u.bio.length>60?u.bio.slice(0,60)+'…':u.bio):'DriveLog member'}</div>
-          <div class="member-stats"><span><b>${u.posts||0}</b> builds</span><span><b>${(u.totalLikes||0).toLocaleString()}</b> likes</span></div>
+          <div class="member-stats"><span><b>${stats.count}</b> builds</span><span><b>${stats.likes.toLocaleString()}</b> likes</span></div>
           ${(u.instagram||u.tiktok||u.youtube)?`<div class="member-socials">
             ${u.instagram?`<a class="msoc ig" href="https://instagram.com/${u.instagram}" target="_blank" rel="noopener"><i class="fab fa-instagram"></i></a>`:''}
             ${u.tiktok?`<a class="msoc tt" href="https://tiktok.com/@${u.tiktok}" target="_blank" rel="noopener"><i class="fab fa-tiktok"></i></a>`:''}
@@ -6656,6 +6759,41 @@ async function toggleFeaturedUser(username) {
   toast(`${u.isFeatured?'✓ Added to':'Removed from'} Featured Members`, 'ok');
 }
 
+// toggleBrandUser / toggleDealershipUser — same pattern as
+// toggleFeaturedUser above, marking a profile as a Brand or Dealership
+// account so it shows up in that section on the Members page. A user
+// could in principle be both (or all three) — no exclusivity enforced,
+// same as Featured.
+async function toggleBrandUser(username) {
+  let u = S.users.find(x=>x.username===username);
+  if (!u) {
+    try { const p = await DB.getProfileByUsername(username); if (p) { u = dbUserToApp(p); S.users.push(u); } } catch(_) {}
+    if (!u) { toast('User not found', 'err'); return; }
+  }
+  u.isBrand = !u.isBrand;
+  if (u.id) {
+    const { error } = await DB.updateProfile(u.id, { is_brand: u.isBrand }).catch(e=>({error:e}));
+    if (error) { toast('Save failed: ' + (error.message||'unknown error'), 'err'); return; }
+  }
+  renderAdminUsers();
+  toast(`${u.isBrand?'✓ Marked as':'Unmarked as'} Brand`, 'ok');
+}
+
+async function toggleDealershipUser(username) {
+  let u = S.users.find(x=>x.username===username);
+  if (!u) {
+    try { const p = await DB.getProfileByUsername(username); if (p) { u = dbUserToApp(p); S.users.push(u); } } catch(_) {}
+    if (!u) { toast('User not found', 'err'); return; }
+  }
+  u.isDealership = !u.isDealership;
+  if (u.id) {
+    const { error } = await DB.updateProfile(u.id, { is_dealership: u.isDealership }).catch(e=>({error:e}));
+    if (error) { toast('Save failed: ' + (error.message||'unknown error'), 'err'); return; }
+  }
+  renderAdminUsers();
+  toast(`${u.isDealership?'✓ Marked as':'Unmarked as'} Dealership`, 'ok');
+}
+
 function revokeAward(username, awardId) {
   const u = S.users.find(x => x.username === username);
   if (!u) return;
@@ -7863,12 +8001,20 @@ function _renderAdminUsersList() {
         <button class="admin-btn ${u.isFeatured?'remove':'verify'} admin-toggle-featured" data-un="${u.username}" title="${u.isFeatured?'Remove from Featured':'Add to Featured'}">
           <i class="fas fa-star"></i> ${u.isFeatured?'Unfeature':'Feature'}
         </button>
+        <button class="admin-btn ${u.isBrand?'remove':'verify'} admin-toggle-brand" data-un="${u.username}" title="${u.isBrand?'Unmark as Brand':'Mark as Brand'}">
+          <i class="fas fa-industry"></i> ${u.isBrand?'Unmark Brand':'Brand'}
+        </button>
+        <button class="admin-btn ${u.isDealership?'remove':'verify'} admin-toggle-dealership" data-un="${u.username}" title="${u.isDealership?'Unmark as Dealership':'Mark as Dealership'}">
+          <i class="fas fa-store"></i> ${u.isDealership?'Unmark Dealer':'Dealer'}
+        </button>
         ${u.avatarUrl ? `<button class="admin-btn remove admin-rm-avatar" data-un="${u.username}" title="Remove profile picture"><i class="fas fa-user-slash"></i></button>` : ''}
       </div>
     </div>`;
   }).join('');
   list.querySelectorAll('.award-grant-btn').forEach(b=>b.addEventListener('click',()=>grantAward(b.dataset.un, b.dataset.aid)));
   list.querySelectorAll('.admin-toggle-featured').forEach(b=>b.addEventListener('click',()=>toggleFeaturedUser(b.dataset.un)));
+  list.querySelectorAll('.admin-toggle-brand').forEach(b=>b.addEventListener('click',()=>toggleBrandUser(b.dataset.un)));
+  list.querySelectorAll('.admin-toggle-dealership').forEach(b=>b.addEventListener('click',()=>toggleDealershipUser(b.dataset.un)));
   list.querySelectorAll('.admin-rm-avatar').forEach(b=>b.addEventListener('click',()=>{
     if(!confirm(`Remove ${b.dataset.un}'s profile picture?`)) return;
     const u=S.users.find(x=>x.username===b.dataset.un); if(!u) return;

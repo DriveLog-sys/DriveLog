@@ -1188,6 +1188,8 @@ function dbUserToApp(row) {
     awards:      row.awards || [],
     isAdmin:     row.is_admin || false,
     isFeatured:  row.is_featured || false,
+    isBrand:     row.is_brand || false,
+    isDealership:row.is_dealership || false,
     avatarUrl:   row.avatar_url || null,
     bannerUrl:   row.banner_url || null,
     posts:       0,

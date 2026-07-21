@@ -225,10 +225,10 @@
       <div class="nav-item-dropdown">
         <a class="nav-link" data-page="members">Members</a>
         <div class="nav-dropdown-menu">
-          <a class="nav-dropdown-item" data-page="members" data-members-filter="featured">Featured</a>
-          <a class="nav-dropdown-item" data-page="members" data-members-filter="brands">Brands</a>
-          <a class="nav-dropdown-item" data-page="members" data-members-filter="dealerships">Dealerships</a>
-          <a class="nav-dropdown-item" data-page="members" data-members-filter="top">Top Contributors</a>
+          <a class="nav-dropdown-item" data-page="members" data-scroll-target="memFeaturedSection">Featured</a>
+          <a class="nav-dropdown-item" data-page="members" data-scroll-target="memBrandsSection">Brands</a>
+          <a class="nav-dropdown-item" data-page="members" data-scroll-target="memDealershipsSection">Dealerships</a>
+          <a class="nav-dropdown-item" data-page="members" data-scroll-target="memTopSection">Top Contributors</a>
         </div>
       </div>
       <div class="nav-item-dropdown">
@@ -801,6 +801,34 @@
     <!-- Community stats -->
     <div class="mem-stats-bar" id="memStatsBar"></div>
 
+    <!-- FEATURED USERS -->
+    <div class="lb-standalone-section" id="memFeaturedSection">
+      <div class="lb-standalone-head">
+        <div class="lb-standalone-icon featured"><i class="fas fa-star"></i></div>
+        <div>
+          <div class="lb-standalone-title">Featured Members</div>
+          <div class="lb-standalone-sub">Hand-picked by the DriveLog team</div>
+        </div>
+      </div>
+      <div class="members-grid" id="memFeaturedGrid"></div>
+    </div>
+
+    <div class="mem-section-divider"></div>
+
+    <!-- TOP CONTRIBUTORS -->
+    <div class="lb-standalone-section" id="memTopSection">
+      <div class="lb-standalone-head">
+        <div class="lb-standalone-icon top"><i class="fas fa-trophy"></i></div>
+        <div>
+          <div class="lb-standalone-title">Top Contributors</div>
+          <div class="lb-standalone-sub">Ranked by total likes across every build posted</div>
+        </div>
+      </div>
+      <div class="lb-panel"><div class="lb-list" id="memTopList"></div></div>
+    </div>
+
+    <div class="mem-section-divider"></div>
+
     <!-- Build of the Month -->
     <div class="lb-standalone-section" id="memBotmSection">
       <div class="lb-standalone-head">
@@ -823,18 +851,56 @@
 
     <div class="mem-section-divider"></div>
 
-    <div class="members-top">
-      <div class="members-search-wrap">
-        <i class="fas fa-search"></i>
-        <input type="text" id="membersSearch" placeholder="Search members…" class="members-search-input"/>
+    <!-- BRANDS -->
+    <div class="lb-standalone-section" id="memBrandsSection">
+      <div class="lb-standalone-head">
+        <div class="lb-standalone-icon brands"><i class="fas fa-industry"></i></div>
+        <div>
+          <div class="lb-standalone-title">Brands</div>
+          <div class="lb-standalone-sub">Parts makers and manufacturers on DriveLog</div>
+        </div>
       </div>
-      <div class="sort-row" style="margin-bottom:0">
-        <button class="sort-btn active" data-msort="likes">Top Liked</button>
-        <button class="sort-btn" data-msort="builds">Most Builds</button>
-        <button class="sort-btn" data-msort="newest">Newest</button>
-      </div>
+      <div class="members-grid" id="memBrandsGrid"></div>
     </div>
-    <div class="members-grid" id="membersGrid"></div>
+
+    <div class="mem-section-divider"></div>
+
+    <!-- DEALERSHIPS -->
+    <div class="lb-standalone-section" id="memDealershipsSection">
+      <div class="lb-standalone-head">
+        <div class="lb-standalone-icon dealerships"><i class="fas fa-store"></i></div>
+        <div>
+          <div class="lb-standalone-title">Dealerships</div>
+          <div class="lb-standalone-sub">Dealers and shops on DriveLog</div>
+        </div>
+      </div>
+      <div class="members-grid" id="memDealershipsGrid"></div>
+    </div>
+
+    <div class="mem-section-divider"></div>
+
+    <!-- ALL MEMBERS / BUILDS DIRECTORY -->
+    <div class="lb-standalone-section" id="memBuildsSection">
+      <div class="lb-standalone-head">
+        <div class="lb-standalone-icon"><i class="fas fa-users"></i></div>
+        <div>
+          <div class="lb-standalone-title">All Members</div>
+          <div class="lb-standalone-sub">Browse everyone, sorted by builds or likes</div>
+        </div>
+      </div>
+      <div class="members-top">
+        <div class="members-search-wrap">
+          <i class="fas fa-search"></i>
+          <input type="text" id="membersSearch" placeholder="Search members…" class="members-search-input"/>
+        </div>
+        <div class="sort-row" style="margin-bottom:0">
+          <button class="sort-btn active" data-msort="likes">Top Liked</button>
+          <button class="sort-btn" data-msort="builds">Most Builds</button>
+          <button class="sort-btn" data-msort="newest">Newest</button>
+        </div>
+      </div>
+      <div class="members-grid" id="membersGrid"></div>
+    </div>
   </section>
 
   <!-- GARAGE -->
