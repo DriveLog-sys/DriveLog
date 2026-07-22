@@ -3578,20 +3578,32 @@ body:not(.dark) .lb-list { border-color: #c8cdd6; }
   max-width:1100px;margin:48px auto 0;padding:0 48px 48px;
 }
 .lb-standalone-head{
-  display:flex;align-items:center;gap:14px;
-  margin-bottom:24px;padding-bottom:20px;
-  border-top:2px solid var(--border);padding-top:40px;
+  display:flex;align-items:center;gap:12px;
+  margin-bottom:24px;padding:38px 0 20px 16px;
+  border-top:2px solid var(--border);
+  border-left:3px solid #d97706;
 }
+/* Icon sits directly next to the title — no circular badge background.
+   Matches the same colored-icon + accent-border pattern already used
+   for the build page's spec cards and mod cards, so the whole site
+   shares one visual language instead of introducing a new one here. */
 .lb-standalone-icon{
-  width:48px;height:48px;border-radius:var(--r-md);flex-shrink:0;
-  background:rgba(217,119,6,.12);color:#d97706;
-  display:flex;align-items:center;justify-content:center;font-size:1.3rem;
+  color:#d97706;font-size:1.2rem;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  filter:drop-shadow(0 0 5px currentColor);
 }
-.lb-standalone-icon.atg{background:rgba(126,34,206,.12);color:#7e22ce}
-.lb-standalone-icon.featured{background:rgba(240,160,48,.14);color:#f0a030}
-.lb-standalone-icon.top{background:rgba(59,130,246,.12);color:#3b82f6}
-.lb-standalone-icon.brands{background:rgba(20,184,166,.14);color:#14b8a6}
-.lb-standalone-icon.dealerships{background:rgba(34,197,94,.14);color:#22c55e}
+.lb-standalone-head.atg{border-left-color:#7e22ce}
+.lb-standalone-icon.atg{color:#7e22ce}
+.lb-standalone-head.featured{border-left-color:#f0a030}
+.lb-standalone-icon.featured{color:#f0a030}
+.lb-standalone-head.top{border-left-color:#3b82f6}
+.lb-standalone-icon.top{color:#3b82f6}
+.lb-standalone-head.brands{border-left-color:#14b8a6}
+.lb-standalone-icon.brands{color:#14b8a6}
+.lb-standalone-head.dealerships{border-left-color:#22c55e}
+.lb-standalone-icon.dealerships{color:#22c55e}
+.lb-standalone-head.all{border-left-color:var(--mid)}
+.lb-standalone-icon.all{color:var(--muted);filter:none}
 .lb-standalone-title{
   font-family:var(--disp);font-size:1.6rem;color:var(--text);letter-spacing:.5px;
 }
@@ -6793,25 +6805,21 @@ body:not(.dark) .save-btn {
 .botm-vote-btn {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 9px 20px; border-radius: var(--r-sm);
-  border: 1.5px solid rgba(251,191,36,.5);
-  background: linear-gradient(135deg, rgba(251,191,36,.12) 0%, rgba(245,158,11,.08) 100%);
+  border: 1.5px solid var(--border);
+  background: transparent;
   font-family: var(--cond); font-size: .78rem; font-weight: 700;
   letter-spacing: .8px; text-transform: uppercase;
-  color: #f59e0b; cursor: pointer;
-  transition: all var(--tr); margin-top: 10px;
-  box-shadow: 0 2px 8px rgba(251,191,36,.15);
+  color: #d97706; cursor: pointer;
+  transition: all .12s ease; margin-top: 10px;
 }
-.botm-vote-btn i { color: #f59e0b; font-size: .82rem; }
+.botm-vote-btn i { color: #d97706; font-size: .82rem; }
 .botm-vote-btn:hover {
-  background: linear-gradient(135deg, rgba(251,191,36,.25) 0%, rgba(245,158,11,.18) 100%);
-  border-color: #f59e0b;
-  box-shadow: 0 4px 16px rgba(251,191,36,.25);
-  transform: translateY(-1px);
+  background: rgba(217,119,6,.08);
+  border-color: #d97706;
 }
 .botm-vote-btn.voted {
-  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  background: #d97706;
   border-color: #d97706; color: #fff;
-  box-shadow: 0 4px 16px rgba(251,191,36,.35);
 }
 .botm-vote-btn.voted i { color: #fff; }
 

@@ -4029,7 +4029,7 @@ function renderBotmVoteBtn(postId) {
     btn.classList.toggle('voted', voted === postId);
     btn.innerHTML = voted === postId
       ? '<i class="fas fa-check"></i> Voted'
-      : '<i class="fas fa-crown"></i> Nominate for BOTM';
+      : 'Nominate for BOTM';
   });
 }
 
@@ -4093,7 +4093,6 @@ async function renderMembersBotm() {
     </div>`;
   } else {
     const { post, isAdminPick, voteCount } = winnerResult;
-    const cfg = catCfg(post.category);
     winnerWrap.innerHTML = `
       <div class="botm-cinematic" data-id="${post.id}">
         <div class="botm-cinematic-img">
@@ -4106,12 +4105,11 @@ async function renderMembersBotm() {
           <div class="botm-cinematic-badge"><i class="fas fa-calendar-star"></i> Build of the Month${isAdminPick ? '' : ' — Community Pick'}</div>
           <h2 class="botm-cinematic-title">${esc(post.title)}</h2>
           <div class="botm-cinematic-meta">
-            <span class="cat-badge ${cfg.badge}" style="position:static">${post.category}</span>
             <span>by <b>${esc(post.user)}</b></span>
             ${post.year ? `<span>${post.year}</span>` : ''}
             ${post.hp   ? `<span>${esc(post.hp)}</span>` : ''}
-            <span>♥ ${post.likes.toLocaleString()} likes</span>
-            ${!isAdminPick && voteCount ? `<span><i class="fas fa-crown" style="color:#d97706"></i> ${voteCount} vote${voteCount===1?'':'s'}</span>` : ''}
+            <span><i class="fas fa-heart"></i> ${post.likes.toLocaleString()} likes</span>
+            ${!isAdminPick && voteCount ? `<span>${voteCount} vote${voteCount===1?'':'s'}</span>` : ''}
           </div>
           ${post.desc ? `<p class="botm-cinematic-desc">${esc(post.desc.slice(0,220))}${post.desc.length>220?'…':''}</p>` : ''}
           <button class="btn-primary botm-cinematic-btn"><i class="fas fa-eye"></i> View Full Build</button>
@@ -4129,17 +4127,26 @@ async function renderMembersBotm() {
       : `Voting closed on the 25th — this is ${now.toLocaleString('default',{month:'long'})}'s winner`;
   }
 
-  // Nomination candidates — top 6 most-liked builds posted this calendar
-  // month (falls back to top 6 overall if nothing's been posted yet this
-  // month), each showing its live vote count.
+  // Nomination candidates — sorted by ACTUAL vote count so this list
+  // reflects real voting standings, not just which builds happen to be
+  // popular on the main feed. Likes are only used as a tiebreaker (most
+  // relevant early in the month before any votes exist yet — without
+  // this fallback the list would have no meaningful order until voting
+  // starts). Pool is this month's posts, falling back to all posts if
+  // nothing's been posted yet this month.
   const now = new Date();
   const thisMonthPosts = S.posts.filter(p => {
     const d = new Date(p.createdAt || p.date || 0);
     return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth();
   });
   const pool = (thisMonthPosts.length ? thisMonthPosts : S.posts);
-  const candidates = [...pool].sort((a,b)=>b.likes-a.likes).slice(0,6);
   const tallyMap = Object.fromEntries(tally.map(t => [t.postId, t.count]));
+  const candidates = [...pool].sort((a,b) => {
+    const aVotes = tallyMap[a.id] || 0;
+    const bVotes = tallyMap[b.id] || 0;
+    if (bVotes !== aVotes) return bVotes - aVotes; // most-voted first
+    return b.likes - a.likes; // tiebreaker when votes are equal (e.g. all 0 early on)
+  }).slice(0,6);
   const myVote = getUserBotmVote();
 
   if (!candidates.length) {
@@ -4155,8 +4162,8 @@ async function renderMembersBotm() {
         <div class="mem-botm-cand-title">${esc(p.title)}</div>
         <div class="mem-botm-cand-user">by ${esc(p.user)}</div>
         <div class="mem-botm-cand-footer">
-          <span class="mem-botm-vote-count"><i class="fas fa-crown"></i> ${count}</span>
-          <button class="botm-vote-btn${voted?' voted':''}" data-id="${p.id}">${voted?'<i class="fas fa-check"></i> Voted':'<i class="fas fa-crown"></i> Nominate'}</button>
+          <span class="mem-botm-vote-count">${count} vote${count===1?'':'s'}</span>
+          <button class="botm-vote-btn${voted?' voted':''}" data-id="${p.id}">${voted?'<i class="fas fa-check"></i> Voted':'Nominate'}</button>
         </div>
       </div>
     </div>`;
