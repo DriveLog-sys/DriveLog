@@ -1013,12 +1013,33 @@ const DB = {
   // Append a comment to a spot post. Comments live in the `comments`
   // jsonb column on the social_posts row (same pattern as liked_by),
   // so no extra table or migration is needed.
-  // comment shape: { user, text, ts }
+  // comment shape: { id, user, text, ts, likedBy }
   async addSocialComment(postId, comment) {
     if (!_sbOk()) return;
     const { data: post } = await _sb.from('social_posts').select('comments').eq('id', postId).single();
     if (!post) return;
     const comments = [...(post.comments || []), comment];
+    return _sb.from('social_posts').update({ comments }).eq('id', postId);
+  },
+
+  // toggleSocialCommentLike — comments are stored inline in the
+  // social_posts.comments jsonb array (no separate comments table for
+  // spot posts), so "liking" a comment means: fetch the array, find the
+  // matching comment by id (or by user+text+ts for older comments that
+  // predate having an id — see socialCommentId() in app.js), flip the
+  // username in its likedBy array, write the whole array back.
+  async toggleSocialCommentLike(postId, commentMatch, username) {
+    if (!_sbOk()) return;
+    const { data: post } = await _sb.from('social_posts').select('comments').eq('id', postId).single();
+    if (!post) return;
+    const comments = post.comments || [];
+    const idx = comments.findIndex(c =>
+      c.id ? c.id === commentMatch.id : (c.user === commentMatch.user && c.text === commentMatch.text && c.ts === commentMatch.ts)
+    );
+    if (idx === -1) return;
+    const likedBy = comments[idx].likedBy || [];
+    const already = likedBy.includes(username);
+    comments[idx] = { ...comments[idx], likedBy: already ? likedBy.filter(u=>u!==username) : [...likedBy, username] };
     return _sb.from('social_posts').update({ comments }).eq('id', postId);
   },
 
@@ -1110,6 +1131,40 @@ const DB = {
       .or(`username.ilike.%${query}%,bio.ilike.%${query}%`)
       .limit(limit);
     return data || [];
+  },
+
+  // adminDeleteUserAccount — removes a user's profile, build posts,
+  // car spotting posts, and comments (everything an admin can act on
+  // with the app's publishable key).
+  //
+  // IMPORTANT LIMITATION: this does NOT delete the person's actual
+  // login/auth.users row in Supabase. Deleting an auth user requires
+  // the service_role key via Supabase's admin API — that key must
+  // never be shipped in client-side code (anyone could read it out of
+  // the page source and gain full database access), so a browser app
+  // like this one can never safely do a "true" full account deletion
+  // on its own. If you want that too, it needs a small server-side
+  // function (a Supabase Edge Function using the service role key) —
+  // ask and this can be scaffolded, but it can't run from here.
+  //
+  // What this DOES fully accomplish: the account disappears from the
+  // site completely — no profile, no posts, no comments anywhere. The
+  // person could theoretically still log into a blank account with
+  // their original email/password, but there is nothing left to see.
+  async adminDeleteUserAccount(userId) {
+    if (!_sbOk() || !userId) return { error: { message: 'Not connected or missing id.' } };
+    const results = await Promise.allSettled([
+      _sb.from('comments').delete().eq('user_id', userId),
+      _sb.from('posts').delete().eq('user_id', userId),
+      _sb.from('social_posts').delete().eq('user_id', userId),
+      _sb.from('profiles').delete().eq('id', userId),
+    ]);
+    const failed = results.filter(r => r.status === 'rejected' || r.value?.error);
+    if (failed.length) {
+      console.warn('adminDeleteUserAccount partial failure:', failed);
+      return { error: { message: `${failed.length} of 4 cleanup steps failed — check console.` } };
+    }
+    return { error: null };
   },
 
 };

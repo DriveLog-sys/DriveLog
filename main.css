@@ -1107,6 +1107,10 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 .card-av.clickable-user:hover,.tm-av.clickable-user:hover,
 .lb-av-th.clickable-user:hover,.comment-av.clickable-user:hover,
 .hot-item-av:hover,.car-page-av.clickable-user:hover{opacity:.85;text-decoration:none;box-shadow:0 0 0 2px var(--accent)}
+/* Story bubbles: no underline on hover (the ring itself already scales
+   up as the hover cue — see .story-bubble:hover .story-bubble-ring —
+   so the box-shadow ring treatment above isn't needed here too). */
+.story-bubble.clickable-user:hover{text-decoration:none;opacity:1}
 
 /* ─── GENERAL SITE POLISH ────────────────────────────────────── */
 /* Smoother card image fade-in */
@@ -2008,6 +2012,8 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 .disc-detail-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-right:42px}
 .disc-detail-time{color:var(--muted);font-size:.82rem;margin-left:auto}
 .disc-detail-del{background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:.8rem;transition:all var(--tr)}
+.disc-detail-report{background:none;border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:.8rem;transition:all var(--tr)}
+.disc-detail-report:hover{color:var(--accent);border-color:var(--accent)}
 .disc-detail-del:hover{color:#e8392a;border-color:#e8392a}
 .disc-detail-title{font-family:var(--body);font-size:1.5rem;font-weight:800;letter-spacing:normal;color:var(--text);margin:0 0 14px;line-height:1.35}
 .disc-detail-author{display:flex;align-items:center;gap:10px;margin-bottom:16px}
@@ -2048,7 +2054,8 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 .disc-comment-time{font-size:.74rem;color:var(--muted)}
 .disc-comment-text{font-size:.86rem;line-height:1.55;color:var(--sec);margin-bottom:6px;white-space:pre-wrap}
 .disc-comment-actions{display:flex;gap:14px}
-.disc-reply-btn,.disc-comment-del-btn{background:none;border:none;color:var(--muted);font-size:.76rem;font-weight:700;cursor:pointer;padding:0;transition:color var(--tr)}
+.disc-reply-btn,.disc-comment-del-btn,.disc-comment-report-btn{background:none;border:none;color:var(--muted);font-size:.76rem;font-weight:700;cursor:pointer;padding:0;transition:color var(--tr)}
+.disc-comment-report-btn:hover{color:var(--accent)}
 .disc-reply-btn:hover{color:var(--accent)}
 .disc-comment-del-btn:hover{color:#e8392a}
 
@@ -2154,14 +2161,22 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
   flex-shrink:0;width:74px;cursor:pointer;
 }
 .story-bubble-ring{
-  width:70px;height:70px;border-radius:50%;padding:3px;flex-shrink:0;
+  width:70px;height:70px;border-radius:50%;padding:4px;flex-shrink:0;
   background:conic-gradient(from 180deg,#f0a030,#3b82f6,#e8392a,#f0a030);
   display:flex;align-items:center;justify-content:center;position:relative;
-  transition:transform var(--tr);
+  transition:transform .15s ease;
+  box-shadow:0 0 10px rgba(59,130,246,.28), 0 0 4px rgba(240,160,48,.2);
 }
-.story-bubble:hover .story-bubble-ring{transform:scale(1.05)}
+/* Glassy sheen — a soft light highlight across the upper-left, like a
+   reflection on glass, sitting above the gradient but below the photo */
+.story-bubble-ring::before{
+  content:'';position:absolute;inset:0;border-radius:50%;
+  background:linear-gradient(135deg, rgba(255,255,255,.35) 0%, rgba(255,255,255,0) 45%);
+  pointer-events:none;
+}
+.story-bubble:hover .story-bubble-ring{transform:scale(1.05);box-shadow:0 0 14px rgba(59,130,246,.4), 0 0 6px rgba(240,160,48,.3)}
 .story-bubble-ring .av-circle,.story-bubble-ring .has-photo{
-  width:100%!important;height:100%!important;border:2px solid var(--surface);
+  width:100%!important;height:100%!important;border:3px solid var(--surface);
 }
 .story-bubble-own .story-bubble-ring{background:var(--border)}
 .story-bubble-own.has-story .story-bubble-ring{background:conic-gradient(from 180deg,#f0a030,#3b82f6,#e8392a,#f0a030)}
@@ -2218,7 +2233,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
    header + caption + comments + input right ═══ */
 .soc-detail-layout{
   display:flex;background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r-lg);overflow:hidden;max-height:85vh;
+  border-radius:var(--r-sm);overflow:hidden;max-height:85vh;
 }
 .soc-detail-media{
   flex:1 1 58%;min-width:0;background:#000;
@@ -2228,7 +2243,11 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 .soc-detail-media .soc-carousel,
 .soc-detail-media .soc-carousel-track,
 .soc-detail-media .soc-slide{width:100%;height:100%}
-.soc-detail-media .soc-slide-media{width:100%;height:100%;max-height:85vh;object-fit:contain}
+/* cover (not contain) so the photo fills the frame edge-to-edge with
+   no letterboxing — this only looks clean because uploads are now
+   cropped to a fixed aspect ratio before posting (see the upload
+   flow), so there's no unpredictable cropping of anything important. */
+.soc-detail-media .soc-slide-media{width:100%;height:100%;max-height:85vh;object-fit:cover}
 .soc-detail-info{
   flex:1 1 42%;min-width:320px;max-width:400px;
   display:flex;flex-direction:column;border-left:1px solid var(--border);
@@ -2286,7 +2305,25 @@ video.social-post-media{max-height:480px;background:#000}
 .social-comment-body{flex:1;font-size:.82rem;color:var(--text)}
 .social-comment-body b{cursor:pointer}
 .social-comment-body b:hover{color:var(--accent)}
-.social-comment-time{font-size:.65rem;color:var(--muted);flex-shrink:0;margin-top:2px}
+.social-comment-actions{display:flex;align-items:center;gap:12px;margin-top:3px}
+.social-comment-time{font-size:.68rem;color:var(--muted)}
+.social-comment-like{
+  display:inline-flex;align-items:center;gap:4px;
+  background:none;border:none;padding:0;cursor:pointer;
+  font-size:.7rem;font-weight:700;color:var(--muted);
+  transition:color .12s ease;
+}
+.social-comment-like i{font-size:.72rem}
+.social-comment-like.active{color:#ef4444}
+.social-comment-like.active i{color:#ef4444}
+.social-comment-like:hover{color:#ef4444}
+.social-comment-report{
+  background:none;border:none;padding:0;cursor:pointer;
+  font-size:.68rem;font-weight:600;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.4px;
+  transition:color .12s ease;
+}
+.social-comment-report:hover{color:var(--accent)}
 .social-comment-input{display:flex;gap:7px;align-items:center}
 .social-no-comments{font-size:.78rem;color:var(--muted);padding:4px 0}
 
@@ -7631,7 +7668,7 @@ body.dark .exp-support-card p { color: #a0a0a0; }
 @keyframes socLikePop{0%{transform:scale(.6)}60%{transform:scale(1.35)}100%{transform:scale(1)}}
 .soc-post-media-wrap{position:relative}
 .soc-heart-burst{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:5}
-.soc-heart-burst i{font-size:5.5rem;color:#fff;filter:drop-shadow(0 4px 18px rgba(0,0,0,.45));animation:socHeartBurst .9s cubic-bezier(.2,1.4,.4,1) forwards}
+.soc-heart-burst i{font-size:5.5rem;color:#ef4444;filter:drop-shadow(0 4px 18px rgba(0,0,0,.45));animation:socHeartBurst .9s cubic-bezier(.2,1.4,.4,1) forwards}
 @keyframes socHeartBurst{0%{transform:scale(0);opacity:0}20%{transform:scale(1.15);opacity:1}45%{transform:scale(1);opacity:1}100%{transform:scale(1);opacity:0}}
 
 /* ============================================================

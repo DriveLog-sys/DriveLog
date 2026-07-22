@@ -4688,6 +4688,12 @@ async function viewMemberProfile(username) {
     profDmBtn.style.display = (!isOwn && S.user) ? 'inline-flex' : 'none';
     profDmBtn.onclick = () => openDmWith(username);
   }
+  // Report button — only for someone else's profile, and only when signed in
+  const reportProfBtn = el('profileReportBtn');
+  if (reportProfBtn) {
+    reportProfBtn.style.display = (!isOwn && S.user) ? 'inline-flex' : 'none';
+    reportProfBtn.onclick = () => openReport('user', u.id || username, username);
+  }
   // Share button — copies profile URL to clipboard
   if (shareBtn) {
     shareBtn.style.display = 'inline-flex';
@@ -7169,6 +7175,7 @@ function discussionDetailHTML(d) {
       <span class="disc-cat-badge">${esc(d.category)}</span>
       <span class="disc-detail-time">${timeAgo(d.ts)}</span>
       ${canDelete ? `<button class="disc-detail-del" data-id="${d.id}"><i class="fas fa-trash-alt"></i> Delete</button>` : ''}
+      ${!isOwn && S.user ? `<button class="disc-detail-report" data-id="${d.id}"><i class="fas fa-flag"></i> Report</button>` : ''}
     </div>
     <h2 class="disc-detail-title">${esc(d.title)}</h2>
     <div class="disc-detail-author">
@@ -7223,6 +7230,7 @@ function commentHTML(c, allComments) {
       <div class="disc-comment-actions">
         ${S.user && c.user !== '[deleted]' ? `<button class="disc-reply-btn" data-cid="${c.id}">Reply</button>` : ''}
         ${canDelete ? `<button class="disc-comment-del-btn" data-cid="${c.id}">Delete</button>` : ''}
+        ${S.user && c.user !== '[deleted]' && c.user !== S.user.username ? `<button class="disc-comment-report-btn" data-cid="${c.id}">Report</button>` : ''}
       </div>
       ${S.user ? `<div class="disc-reply-composer" id="discReplyComposer-${c.id}">
         ${renderAv(S.user.username, 24, '')}
@@ -7252,6 +7260,7 @@ function bindDiscussionDetailEvents(content, d) {
     });
   });
   content.querySelector('.disc-detail-del')?.addEventListener('click', () => deleteDiscussionFromDetail(d.id));
+  content.querySelector('.disc-detail-report')?.addEventListener('click', () => openReport('post', d.id, d.title));
   content.querySelectorAll('.disc-detail-author .clickable-user').forEach(el2 => {
     el2.addEventListener('click', () => viewPublicProfile(el2.dataset.user));
   });
@@ -7294,6 +7303,12 @@ function bindDiscussionCommentEvents(content, d) {
   });
   listEl.querySelectorAll('.disc-comment-del-btn').forEach(btn => {
     btn.addEventListener('click', () => deleteDiscussionComment(d.id, btn.dataset.cid, content));
+  });
+  listEl.querySelectorAll('.disc-comment-report-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const text = btn.closest('.disc-comment')?.querySelector('.disc-comment-text')?.textContent?.trim() || '';
+      openReport('comment', btn.dataset.cid, text);
+    });
   });
   listEl.querySelectorAll('.clickable-user').forEach(el2 => {
     el2.addEventListener('click', () => viewPublicProfile(el2.dataset.user));
@@ -7870,6 +7885,7 @@ function renderAdmin() {
       if (panel) panel.classList.add('active');
       if (t.dataset.atab==='reports') renderAdminReports();
       if (t.dataset.atab==='posts') renderAdminPosts();
+      if (t.dataset.atab==='spotting') renderAdminSpotting();
       if (t.dataset.atab==='users') renderAdminUsers();
       if (t.dataset.atab==='activity') renderAdminActivity();
     };
@@ -7931,7 +7947,7 @@ function renderAdminPosts() {
       <div class="admin-post-thumb" style="background:${phBg(p.id)}">${p.images?.[0]?`<img src="${p.images[0]}" alt=""/>`:''}</div>
       <div class="admin-post-info">
         <div class="admin-post-title">${esc(p.title)} ${isBotm?'<span class="abadge" style="background:#d97706;color:#fff">BOTM</span>':''} ${isAtg?'<span class="abadge" style="background:#7e22ce;color:#fff">ATG</span>':''}</div>
-        <div class="admin-post-meta">by ${esc(p.user)} · ${p.date} · ♥ ${p.likes} · ${(p.comments||[]).length} comments</div>
+        <div class="admin-post-meta">by ${esc(p.user)} · ${p.date} · <i class="fas fa-heart"></i> ${p.likes} · ${(p.comments||[]).length} comments</div>
       </div>
       <div class="admin-post-actions">
         <button class="admin-btn view" data-pid="${p.id}">View</button>
@@ -7977,6 +7993,67 @@ function renderAdminPosts() {
   el('adminPostSearch')?.addEventListener('input', renderAdminPosts);
 }
 
+// renderAdminSpotting — Car Spotting management tab. Mirrors the layout
+// of renderAdminPosts above (thumbnail + meta + actions row) but for
+// social_posts instead of builds, and uses adminDeleteSocialPost (no
+// user_id filter) so an admin can remove anyone's spot, not just their
+// own — same distinction made in the detail-modal delete button.
+function renderAdminSpotting() {
+  const list = el('adminSpottingList'); if (!list) return;
+  const q = (el('adminSpottingSearch')?.value||'').toLowerCase();
+
+  function paint() {
+    const posts = getSocialPosts().filter(p =>
+      !q || (p.caption||'').toLowerCase().includes(q) || (p.user||'').toLowerCase().includes(q)
+    ).slice(0, 30);
+
+    if (!posts.length) {
+      list.innerHTML = '<p class="admin-empty">No car spotting posts found.</p>';
+      return;
+    }
+    list.innerHTML = posts.map(p => {
+      const thumb = p.media?.[0]?.url;
+      return `
+      <div class="admin-post-row">
+        <div class="admin-post-thumb" style="background:${phBg(p.id)}">${thumb?`<img src="${thumb}" alt=""/>`:''}</div>
+        <div class="admin-post-info">
+          <div class="admin-post-title">${esc((p.caption||'').slice(0,60) || '(no caption)')}${p.caption?.length>60?'…':''}</div>
+          <div class="admin-post-meta">by ${esc(p.user)} · ${timeAgo(p.ts)} · <i class="fas fa-heart"></i> ${(p.likedBy||[]).length} · ${(p.comments||[]).length} comments</div>
+        </div>
+        <div class="admin-post-actions">
+          <button class="admin-btn view" data-sid="${p.id}">View</button>
+          <button class="admin-btn remove" data-sid="${p.id}">Remove</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('.admin-btn.view').forEach(b => b.addEventListener('click', () => {
+      goTo('social');
+      setTimeout(() => openSocialDetail(b.dataset.sid), 80);
+    }));
+
+    list.querySelectorAll('.admin-btn.remove').forEach(b => b.addEventListener('click', async () => {
+      if (!confirm('Remove this car spotting post? This cannot be undone.')) return;
+      const id = b.dataset.sid;
+      try {
+        const res = await DB.adminDeleteSocialPost(id);
+        if (res?.error) throw res.error;
+      } catch(e) {
+        toast('Delete failed — try again','err');
+        return;
+      }
+      S._socialPosts = (S._socialPosts||[]).filter(p=>p.id!==id);
+      const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]').filter(p=>p.id!==id);
+      localStorage.setItem('dl_social_posts', JSON.stringify(all));
+      toast('Car spotting post removed','ok');
+      paint();
+    }));
+  }
+
+  paint();
+  el('adminSpottingSearch').oninput = paint; // reassign, not stack, since renderAdminSpotting can re-run
+}
+
 function renderAdminUsers() {
   const list = el('adminUsersList'); if (!list) return;
   // Show loading state
@@ -8015,6 +8092,7 @@ function _renderAdminUsersList() {
           <i class="fas fa-store"></i> ${u.isDealership?'Unmark Dealer':'Dealer'}
         </button>
         ${u.avatarUrl ? `<button class="admin-btn remove admin-rm-avatar" data-un="${u.username}" title="Remove profile picture"><i class="fas fa-user-slash"></i></button>` : ''}
+        ${!u.isAdmin ? `<button class="admin-btn remove admin-delete-account" data-un="${u.username}" data-uid="${u.id||''}" title="Delete this account completely"><i class="fas fa-user-times"></i> Delete Account</button>` : ''}
       </div>
     </div>`;
   }).join('');
@@ -8029,6 +8107,33 @@ function _renderAdminUsersList() {
     if(S.user&&S.user.username===b.dataset.un) { delete S.user.avatarUrl; updateAuthUI(); }
     save(); renderAdminUsers(); updateProfilePage();
     toast('Profile picture removed','ok');
+  }));
+  list.querySelectorAll('.admin-delete-account').forEach(b=>b.addEventListener('click', async () => {
+    const username = b.dataset.un;
+    const userId = b.dataset.uid;
+    if (!userId) { toast('Missing user id — cannot delete', 'err'); return; }
+    // Type-to-confirm, same pattern as GitHub repo deletion — a plain
+    // OK/Cancel confirm() is too easy to click through by accident for
+    // something this destructive and irreversible.
+    const typed = prompt(`This permanently deletes ${username}'s profile, every build they've posted, every car spotting post, and every comment they've left anywhere on the site. This cannot be undone.\n\nType the username "${username}" to confirm:`);
+    if (typed !== username) {
+      if (typed !== null) toast('Username did not match — nothing deleted', 'err');
+      return;
+    }
+    b.disabled = true; b.textContent = 'Deleting…';
+    const { error } = await DB.adminDeleteUserAccount(userId);
+    if (error) {
+      toast('Delete failed: ' + error.message, 'err');
+      b.disabled = false; b.innerHTML = '<i class="fas fa-user-times"></i> Delete Account';
+      return;
+    }
+    // Purge from every local store too
+    S.users = S.users.filter(u => u.username !== username);
+    S.posts = S.posts.filter(p => p.user !== username);
+    if (S._socialPosts) S._socialPosts = S._socialPosts.filter(p => p.user !== username);
+    save();
+    renderAdminUsers();
+    toast(`${username}'s account and content have been deleted`, 'ok');
   }));
 }
 
@@ -8428,6 +8533,7 @@ let _blurredDataURLs     = [];   // final blurred images to upload
 let _blurBoxes           = [];   // array of arrays, one per image
 let _blurImgIdx          = 0;    // current image being edited
 let _blurImages          = [];   // loaded Image objects
+let _blurCrops           = [];   // center-crop rect {sx,sy,sw,sh} per image, see getCenterCrop()
 let _blurDrawing         = false;
 let _blurStartX = 0, _blurStartY = 0;
 
@@ -8437,6 +8543,7 @@ function handleSocialFiles(files) {
   _blurImages = [];
   _blurBoxes  = _socialPendingFiles.map(() => []);
   _blurredDataURLs = [];
+  _blurCrops = [];
   _blurImgIdx = 0;
 
   // Hide upload zone, show blur editor
@@ -8465,6 +8572,40 @@ function handleSocialFiles(files) {
   });
 }
 
+// SPOT_ASPECT_RATIO — every Car Spotting upload is center-cropped to this
+// ratio (4:5, the same "portrait post" ratio Instagram uses) before the
+// blur editor even opens. Without this, whatever ratio the original
+// photo happened to be would get letterboxed with black bars in the
+// detail view and grid tiles, since those use object-fit:cover against
+// a fixed-ratio frame — a cropped-to-match photo fills that frame
+// completely instead. Existing posts from before this change keep
+// their original (uncropped) images; this only affects new uploads.
+const SPOT_ASPECT_RATIO = 4 / 5;
+
+// getCenterCrop — returns the source rectangle (sx, sy, sw, sh) to draw
+// from an image so the result matches SPOT_ASPECT_RATIO, cropping
+// symmetrically from whichever axis is "too long" (sides for a wide
+// photo, top+bottom for a tall one) rather than stretching or squashing.
+function getCenterCrop(img, ratio) {
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const currentRatio = iw / ih;
+  let sw, sh, sx, sy;
+  if (currentRatio > ratio) {
+    // Image is wider than target — crop the sides
+    sh = ih;
+    sw = ih * ratio;
+    sx = (iw - sw) / 2;
+    sy = 0;
+  } else {
+    // Image is taller than target — crop top/bottom
+    sw = iw;
+    sh = iw / ratio;
+    sx = 0;
+    sy = (ih - sh) / 2;
+  }
+  return { sx, sy, sw, sh };
+}
+
 function initBlurEditor(idx) {
   _blurImgIdx = idx;
   const img     = _blurImages[idx];
@@ -8474,21 +8615,27 @@ function initBlurEditor(idx) {
   const wrap    = el('csCanvasWrap');
   if (!canvas || !overlay || !wrap) return;
 
+  // Crop to the fixed post ratio FIRST — everything below (canvas size,
+  // blur box coordinates) operates on the cropped dimensions, so what
+  // you see in the editor is exactly what gets posted, no surprises.
+  const crop = getCenterCrop(img, SPOT_ASPECT_RATIO);
+  _blurCrops[idx] = crop;
+
   // Size canvas to fit modal width, maintain aspect ratio
   const maxW = Math.min(720, window.innerWidth - 48); // full-page composer allows a wider canvas
-  const scale = maxW / img.naturalWidth;
-  const displayW = Math.round(img.naturalWidth  * scale);
-  const displayH = Math.round(img.naturalHeight * scale);
-  canvas.width    = overlay.width    = img.naturalWidth;
-  canvas.height   = overlay.height   = img.naturalHeight;
+  const scale = maxW / crop.sw;
+  const displayW = Math.round(crop.sw * scale);
+  const displayH = Math.round(crop.sh * scale);
+  canvas.width    = overlay.width    = crop.sw;
+  canvas.height   = overlay.height   = crop.sh;
   canvas.style.width  = overlay.style.width  = displayW + 'px';
   canvas.style.height = overlay.style.height = displayH + 'px';
   wrap.style.width  = displayW + 'px';
   wrap.style.height = displayH + 'px';
 
-  // Draw base image
+  // Draw the CROPPED region of the source image, not the whole thing
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0);
+  ctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
 
   // Re-draw saved boxes for this image
   redrawBlurBoxes(idx);
@@ -8646,13 +8793,17 @@ async function applyAllBlurs() {
 
   _blurredDataURLs = [];
   for (let i = 0; i < _blurImages.length; i++) {
-    // Apply blur to each image
-    const img = _blurImages[i];
-    // Blur at full resolution first so the boxes land exactly where drawn
+    const img  = _blurImages[i];
+    const crop = _blurCrops[i] || getCenterCrop(img, SPOT_ASPECT_RATIO);
+    // Draw the CROPPED region first — blur box coordinates were drawn
+    // relative to this same cropped canvas in initBlurEditor(), so they
+    // only land in the right place if we crop identically here before
+    // blurring. Drawing the full original (like before) would misalign
+    // every blur box the moment cropping was introduced.
     const full = document.createElement('canvas');
-    full.width = img.naturalWidth; full.height = img.naturalHeight;
+    full.width = crop.sw; full.height = crop.sh;
     const fctx = full.getContext('2d');
-    fctx.drawImage(img, 0, 0);
+    fctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
     (_blurBoxes[i] || []).forEach(box => applyBlurBox(fctx, box));
     // Then downscale to max 1080px wide (Instagram standard) —
     // keeps uploads small and every post consistent
@@ -9275,6 +9426,7 @@ function renderSocialCard(p) {
   const canDelete = isOwn || S.user?.isAdmin;
   const menu = (canDelete
     ? `<button class="soc-post-del" data-id="${p.id}" title="Delete post"><i class="fas fa-trash-alt"></i></button>` : '')
+    + (!isOwn && S.user ? `<button class="soc-post-report" data-id="${p.id}" title="Report post"><i class="fas fa-flag"></i></button>` : '')
     + `<button class="soc-post-close" id="socDetailCloseBtn" title="Close"><i class="fas fa-times"></i></button>`;
 
   // Media: uniform 4:5 frame (1080x1350 — Instagram post format).
@@ -9335,16 +9487,38 @@ function renderSocialCard(p) {
   </article>`;
 }
 
+// socialCommentId — comments created before this feature don't have an
+// `id` field (just {user,text,ts}). Rather than leave them without like/
+// report ability, derive a stable id from their content — same input
+// always produces the same id, so re-rendering doesn't shuffle which
+// comment a like belongs to.
+function socialCommentId(c) {
+  if (c.id) return c.id;
+  return 'sc_' + btoa(unescape(encodeURIComponent(`${c.user}|${c.text}|${c.ts}`))).replace(/[^a-zA-Z0-9]/g,'').slice(0,16);
+}
+
 function socialCommentHTML(c) {
   const avUrl = getAvatarUrl(c.user);
   const ring = hasActiveSpotStory(c.user) ? ' has-story-ring' : '';
   const av = avUrl
     ? `<span class="social-comment-av has-photo clickable-user${ring}" data-user="${c.user}"><img src="${avUrl}" alt="" class="av-photo"/></span>`
     : `<span class="social-comment-av clickable-user${ring}" data-user="${c.user}" style="background:${avColor(c.user)}">${(c.user||'?')[0].toUpperCase()}</span>`;
-  return `<div class="social-comment-item">
+  const cid = socialCommentId(c);
+  const likedBy = c.likedBy || [];
+  const liked = S.user && likedBy.includes(S.user.username);
+  const isOwn = S.user && c.user === S.user.username;
+  return `<div class="social-comment-item" data-cid="${cid}">
     ${av}
-    <div class="social-comment-body"><b class="clickable-user" data-user="${c.user}">${esc(c.user)}</b> ${esc(c.text)}</div>
-    <span class="social-comment-time">${timeAgo(c.ts)}</span>
+    <div class="social-comment-body">
+      <b class="clickable-user" data-user="${c.user}">${esc(c.user)}</b> ${esc(c.text)}
+      <div class="social-comment-actions">
+        <span class="social-comment-time">${timeAgo(c.ts)}</span>
+        <button class="social-comment-like${liked?' active':''}" data-cid="${cid}">
+          <i class="${liked?'fas':'far'} fa-heart"></i>${likedBy.length ? ` ${likedBy.length}` : ''}
+        </button>
+        ${!isOwn && S.user ? `<button class="social-comment-report" data-cid="${cid}">Report</button>` : ''}
+      </div>
+    </div>
   </div>`;
 }
 
@@ -9408,7 +9582,11 @@ function bindSocialCardEvents(wrap) {
     const text = inputEl.value.trim();
     if (!text) return;
     if (!S.user) { toast('Sign in to comment','err'); return; }
-    const comment = { user: S.user.username, text, ts: Date.now() };
+    // id: comments predate having a unique identifier (older ones were
+    // just {user,text,ts}) — new ones get a real id so likes/reports can
+    // target a specific comment reliably. socialCommentId() below
+    // derives a stable fallback id for older comments that don't have one.
+    const comment = { id: 'sc'+Date.now()+Math.random().toString(36).slice(2,6), user: S.user.username, text, ts: Date.now(), likedBy: [] };
     inputEl.value = '';
     // Optimistic: append to the list + bump the count
     const list = el('scl-'+id);
@@ -9481,6 +9659,57 @@ function bindSocialCardEvents(wrap) {
       toast('Spot deleted','ok');
       renderTrendingTags();
     });
+  });
+
+  // ── Report post ──
+  wrap.querySelectorAll('.soc-post-report').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const post = findSocialPost(btn.dataset.id);
+      openReport('social', btn.dataset.id, post?.caption || '');
+    });
+  });
+
+  // ── Comment like + report — delegated on the whole wrap, since
+  // comments can be added after this initial bind (see sendComment)
+  // and individually-bound listeners would miss those new ones. ──
+  wrap.addEventListener('click', e => {
+    const likeBtn = e.target.closest('.social-comment-like');
+    if (likeBtn) {
+      if (!S.user) { toast('Sign in to like comments','err'); return; }
+      const postCard = likeBtn.closest('.social-post-card');
+      const postId = postCard?.dataset.id;
+      const item = likeBtn.closest('.social-comment-item');
+      const cid = item?.dataset.cid;
+      if (!postId || !cid) return;
+      const post = findSocialPost(postId);
+      const comment = (post?.comments||[]).find(c => socialCommentId(c) === cid);
+      if (!comment) return;
+      const likedBy = comment.likedBy || [];
+      const wasLiked = likedBy.includes(S.user.username);
+      // Optimistic UI
+      likeBtn.classList.toggle('active', !wasLiked);
+      likeBtn.querySelector('i').className = !wasLiked ? 'fas fa-heart' : 'far fa-heart';
+      const newCount = wasLiked ? likedBy.length-1 : likedBy.length+1;
+      likeBtn.innerHTML = `<i class="${!wasLiked?'fas':'far'} fa-heart"></i>${newCount>0?` ${newCount}`:''}`;
+      comment.likedBy = wasLiked ? likedBy.filter(u=>u!==S.user.username) : [...likedBy, S.user.username];
+      // Keep localStorage in sync for locally-stored posts too
+      const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
+      const lp = all.find(p=>p.id===postId);
+      if (lp) {
+        const lc = (lp.comments||[]).find(c => socialCommentId(c) === cid);
+        if (lc) lc.likedBy = comment.likedBy;
+        localStorage.setItem('dl_social_posts', JSON.stringify(all));
+      }
+      DB.toggleSocialCommentLike(postId, comment, S.user.username).catch(()=>{});
+      return;
+    }
+    const reportBtn = e.target.closest('.social-comment-report');
+    if (reportBtn) {
+      const item = reportBtn.closest('.social-comment-item');
+      const cid = item?.dataset.cid;
+      const text = item?.querySelector('.social-comment-body')?.textContent?.trim() || '';
+      openReport('comment', cid, text);
+    }
   });
 
   // ── Media: carousel nav + single click = lightbox, double = like ──
