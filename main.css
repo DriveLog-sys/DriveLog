@@ -284,6 +284,29 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
 .car-desc{font-size:.85rem;color:var(--sec);line-height:1.6;margin-bottom:16px}
 .car-actions{display:flex;gap:7px;margin-bottom:16px}
 .act-btn{flex:1;padding:9px 6px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.75rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--sec);background:var(--raised);border:1px solid var(--border);transition:all var(--tr);display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;min-width:0}
+/* Like + Save on build posts — bare icon, no button box. Matches the
+   plain heart-icon treatment used everywhere else on the site (feed
+   cards, Car Spotting) instead of a filled/bordered button chrome. */
+.act-btn.like-btn,
+.act-btn.save-btn{
+  flex:0 0 auto;
+  background:none;
+  border:none;
+  padding:4px 8px;
+  color:var(--muted);
+  font-size:.95rem;
+}
+.act-btn.like-btn:hover,
+.act-btn.save-btn:hover{
+  background:none;
+  color:var(--text);
+  transform:none;
+}
+.act-btn.like-btn span{font-family:var(--cond);font-size:.82rem;font-weight:700;letter-spacing:0;text-transform:none}
+.act-btn.like-btn.liked{color:#ef4444}
+.act-btn.like-btn.liked i{color:#ef4444}
+.act-btn.save-btn.saved{color:var(--accent)}
+.act-btn.save-btn.saved i{color:var(--accent)}
 .act-btn:hover{color:var(--text);border-color:var(--mid)}
 .like-btn.liked{color:#e84242;border-color:rgba(232,66,66,.45);background:rgba(232,66,66,.08)}
 .save-btn.saved{color:var(--gold);border-color:rgba(240,160,48,.4);background:rgba(240,160,48,.08)}
@@ -2165,7 +2188,6 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
   background:conic-gradient(from 180deg,#f0a030,#3b82f6,#e8392a,#f0a030);
   display:flex;align-items:center;justify-content:center;position:relative;
   transition:transform .15s ease;
-  box-shadow:0 0 10px rgba(59,130,246,.28), 0 0 4px rgba(240,160,48,.2);
 }
 /* Glassy sheen — a soft light highlight across the upper-left, like a
    reflection on glass, sitting above the gradient but below the photo */
@@ -2174,7 +2196,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
   background:linear-gradient(135deg, rgba(255,255,255,.35) 0%, rgba(255,255,255,0) 45%);
   pointer-events:none;
 }
-.story-bubble:hover .story-bubble-ring{transform:scale(1.05);box-shadow:0 0 14px rgba(59,130,246,.4), 0 0 6px rgba(240,160,48,.3)}
+.story-bubble:hover .story-bubble-ring{transform:scale(1.05)}
 .story-bubble-ring .av-circle,.story-bubble-ring .has-photo{
   width:100%!important;height:100%!important;border:3px solid var(--surface);
 }
@@ -5838,17 +5860,16 @@ body:not(.dark) .save-btn {
   border: 1px solid rgba(0,0,0,.15) !important;
   color: var(--text) !important;
 }
-/* Liked state — red */
+/* Liked state — red. No background/border box (see .act-btn.like-btn
+   rules near the top of the file) — this used to force one back on
+   with !important, undoing the bare-icon treatment the moment a build
+   got liked. */
 .like-btn.liked {
-  background: rgba(239,68,68,.08) !important;
-  border-color: rgba(239,68,68,.4) !important;
   color: #ef4444 !important;
 }
-/* Saved state — amber/yellow */
+/* Saved state — accent color, same bare-icon treatment */
 .save-btn.saved {
-  background: rgba(245,158,11,.08) !important;
-  border-color: rgba(245,158,11,.4) !important;
-  color: #f59e0b !important;
+  color: var(--accent) !important;
 }
 /* Pop animation on click */
 @keyframes btn-pop {

@@ -3637,7 +3637,7 @@ function cardHTML(post,animIdx) {
         <div class="card-av-row"><div class="card-av av-circle clickable-user" data-user="${post.user}" id="cav-${post.id}">${_defaultAvSVG()}</div> <span class="card-poster clickable-user" data-user="${post.user}">${esc(post.user)}</span></div>
         <div class="card-stats">
           <span class="card-comments"><i class="fas fa-comment"></i> ${(post.comments||[]).length}</span>
-          <span class="card-likes${liked?' liked':''}" data-id="${post.id}"><i class="fas fa-heart"></i> ${post.likes}</span>
+          <span class="card-likes${liked?' liked':''}" data-id="${post.id}"><i class="${liked?'fas':'far'} fa-heart"></i> <span>${post.likes}</span></span>
           <span class="card-views" data-id="${post.id}"><i class="fas fa-eye"></i> ${formatCount(post.views||0)}</span>
         </div>
       </div>
@@ -3705,8 +3705,11 @@ function attachCardEvents(container) {
     if(idx>=0){ post.likes=Math.max(0,post.likes-1); post.likedBy.splice(idx,1); }
     else { post.likes++; post.likedBy.push(vid); }
     // Update button immediately without full re-render
-    btn.classList.toggle('liked', post.likedBy.includes(vid));
-    const countEl = btn.querySelector('span, .card-like-count');
+    const nowLiked = post.likedBy.includes(vid);
+    btn.classList.toggle('liked', nowLiked);
+    const iconEl = btn.querySelector('i');
+    if (iconEl) iconEl.className = (nowLiked?'fas':'far') + ' fa-heart';
+    const countEl = btn.querySelector('span');
     if (countEl) countEl.textContent = post.likes;
     // Fire DB in background
     DB.toggleLike(post.id, vid).catch(()=>{});
@@ -3725,7 +3728,9 @@ function refreshLikedStates() {
     if (!post) return;
     const liked = post.likedBy.includes(vid);
     btn.classList.toggle('liked', liked);
-    const span = btn.querySelector('span,.card-like-count');
+    const iconEl = btn.querySelector('i');
+    if (iconEl) iconEl.className = (liked?'fas':'far') + ' fa-heart';
+    const span = btn.querySelector('span');
     if (span) span.textContent = post.likes;
   });
   document.querySelectorAll('.card-save[data-id]').forEach(btn => {
@@ -5848,9 +5853,10 @@ function syncCpActions(post) {
   const liked = (canonical.likedBy||[]).includes(vid);
   const saved = !!(S.user && (canonical.savedBy||[]).includes(S.user.username));
   el('cpLike').className = 'act-btn like-btn' + (liked ? ' liked' : '');
+  el('cpLike').querySelector('i').className = (liked?'fas':'far') + ' fa-heart';
   el('cpLikeCount').textContent = canonical.likes;
   el('cpSave').className = 'act-btn save-btn' + (saved ? ' saved' : '');
-  el('cpSave').innerHTML = saved ? '<i class="fas fa-bookmark"></i> Saved' : '<i class="fas fa-bookmark"></i> Save';
+  el('cpSave').innerHTML = saved ? '<i class="fas fa-bookmark"></i>' : '<i class="far fa-bookmark"></i>';
 }
 
 function cpHandleLike() {
@@ -9421,7 +9427,6 @@ function renderSocialCard(p) {
   const avHTML  = avUrl
     ? `<div class="soc-av has-photo clickable-user" data-user="${p.user}"><img src="${avUrl}" alt="" class="av-photo"/></div>`
     : `<div class="soc-av clickable-user" data-user="${p.user}" style="background:${avColor(p.user)}">${(p.user||'?')[0].toUpperCase()}</div>`;
-  const cats = (p.tag && p.tag !== 'All') ? `<span class="cat-badge ${catCfg(p.tag).badge}" style="position:static">${p.tag}</span>` : '';
   const isOwn = S.user && (p.user === S.user.username || (p.user_id && p.user_id === S.user.id));
   const canDelete = isOwn || S.user?.isAdmin;
   const menu = (canDelete
@@ -9462,19 +9467,17 @@ function renderSocialCard(p) {
           <span class="soc-post-user clickable-user" data-user="${p.user}">${esc(p.user)}</span>
           <span class="soc-post-time">${timeAgo(p.ts)}</span>
         </div>
-        ${cats}
         ${menu}
       </div>
       <div class="soc-detail-scroll">
         ${p.caption ? `<div class="soc-caption-row">
-          ${avHTML}
           <div class="soc-caption-text"><span class="soc-post-user clickable-user" data-user="${p.user}">${esc(p.user)}</span> ${socialCaptionHTML(p.caption)}</div>
         </div>` : ''}
         <div class="soc-comments-list" id="scl-${p.id}">${commentsListHTML}</div>
       </div>
       <div class="soc-post-actions">
         <button class="soc-like-btn${(p.likedBy||[]).includes(S.user?.username)?' active':''}" data-id="${p.id}">
-          <i class="fas fa-heart"></i> <span>${(p.likedBy||[]).length}</span>
+          <i class="${(p.likedBy||[]).includes(S.user?.username)?'fas':'far'} fa-heart"></i> <span>${(p.likedBy||[]).length}</span>
         </button>
         <button class="soc-comment-btn" data-id="${p.id}"><i class="fas fa-comment"></i> <span>${comments.length}</span></button>
       </div>
@@ -9541,6 +9544,8 @@ function bindSocialCardEvents(wrap) {
       if (!S.user) { toast('Sign in to like','err'); el('authModal').classList.add('open'); return; }
       const liked = btn.classList.contains('active');
       btn.classList.toggle('active', !liked);
+      const iconEl = btn.querySelector('i');
+      if (iconEl) iconEl.className = (!liked?'fas':'far') + ' fa-heart';
       const countEl = btn.querySelector('span');
       if (countEl) countEl.textContent = Math.max(0, parseInt(countEl.textContent||'0') + (liked ? -1 : 1));
       DB.toggleSocialLike(btn.dataset.id, S.user.username).catch(()=>{});
