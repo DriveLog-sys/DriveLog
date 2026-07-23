@@ -1252,6 +1252,34 @@ function initMobileNav() {
   el('mobNavClose')?.addEventListener('click', closeMobNav);
   el('mobOverlay')?.addEventListener('click', closeMobNav);
 
+  // Instagram-style collapsing bottom nav — shrinks to a more compact
+  // bar while scrolling down (more room to see content), expands back
+  // to full size on scroll up or near the top. Throttled with
+  // requestAnimationFrame so this runs at most once per animation
+  // frame no matter how many raw scroll events fire — scroll fires far
+  // more often than the screen can actually repaint, so without this
+  // the class would be toggled dozens of times for a single frame.
+  let _lastScrollY = window.scrollY;
+  let _scrollTicking = false;
+  function updateBottomNavOnScroll() {
+    const nav = el('mobBottomNav');
+    _scrollTicking = false;
+    if (!nav) return;
+    const currentY = window.scrollY;
+    const goingDown = currentY > _lastScrollY + 4; // small deadzone so tiny jitters don't toggle it
+    const goingUp   = currentY < _lastScrollY - 4;
+    const pastTop   = currentY > 60; // stay full-size right at the top even if "going down" briefly
+    if (goingDown && pastTop) nav.classList.add('nav-compact');
+    else if (goingUp || !pastTop) nav.classList.remove('nav-compact');
+    _lastScrollY = currentY;
+  }
+  window.addEventListener('scroll', () => {
+    if (!_scrollTicking) {
+      requestAnimationFrame(updateBottomNavOnScroll);
+      _scrollTicking = true;
+    }
+  }, { passive: true });
+
   // Theme toggle (in drawer)
   el('mobThemeToggle')?.addEventListener('click', () => {
     document.body.classList.toggle('dark');
@@ -9656,13 +9684,18 @@ function bindSocialCardEvents(wrap) {
           return;
         }
       }
-      // Remove from every local store + the DOM
+      // Remove from every local store, then close the modal — this IS
+      // the detail modal's own content (bindSocialCardEvents is only
+      // ever called on it), so just removing the card from the DOM left
+      // the blurred overlay behind with nothing in it, stuck until a
+      // manual refresh. Closing it properly here fixes that.
       S._socialPosts = (S._socialPosts||[]).filter(p=>p.id!==id);
       const all = JSON.parse(localStorage.getItem('dl_social_posts')||'[]').filter(p=>p.id!==id);
       localStorage.setItem('dl_social_posts', JSON.stringify(all));
-      card?.remove();
       toast('Spot deleted','ok');
       renderTrendingTags();
+      closeSocialDetail();
+      renderSocialFeed(true);
     });
   });
 

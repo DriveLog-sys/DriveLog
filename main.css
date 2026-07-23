@@ -7862,8 +7862,19 @@ html, body { overflow-x: hidden; }
   .page-wrap { padding-top: 64px !important; }
 
   /* ── HOT RIGHT NOW — hidden on mobile ───────────────────────
-     Feed starts with filter bar then posts. Cleaner for phones. */
-  .hot-panel, #hotPanel { display: none !important; }
+     Feed starts with filter bar then posts. Cleaner for phones.
+     Every property that could reserve space is reset, not just
+     display:none, in case some other rule is adding height/padding
+     to this element that display:none alone wouldn't fully undo. */
+  .hot-panel, #hotPanel {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    border: none !important;
+  }
 
   /* ── FEED ───────────────────────────────────────────────────  */
   .feed-wrap { padding: 10px 8px 80px !important; }
@@ -8125,6 +8136,37 @@ html, body { overflow-x: hidden; }
     background: rgba(255, 255, 255, 0.82) !important;
     border-color: rgba(0,0,0,.08) !important;
     box-shadow: 0 8px 32px rgba(0,0,0,.1), inset 0 1px 0 rgba(255,255,255,.9) !important;
+  }
+
+  /* Instagram-style compact state while scrolling down — shorter bar,
+     smaller icons, labels hidden. Height/scale animate together so it
+     feels like one smooth shrink rather than separate jumpy changes. */
+  .mob-bottom-nav {
+    transition: height .2s ease, transform .2s ease;
+  }
+  .mob-bottom-nav.nav-compact {
+    height: 42px !important;
+  }
+  .mob-bottom-tab {
+    transition: padding .2s ease, transform .2s ease;
+  }
+  .mob-bottom-nav.nav-compact .mob-bottom-tab {
+    padding: 4px 0 !important;
+  }
+  .mob-bottom-nav.nav-compact .mob-bottom-tab span:not(.mob-tab-badge) {
+    display: none;
+  }
+  .mob-bottom-nav.nav-compact .mob-bottom-tab i {
+    font-size: 1rem !important;
+    transition: font-size .2s ease;
+  }
+  .mob-bottom-nav.nav-compact #mobBottomPost i {
+    font-size: 1.2rem !important;
+  }
+  /* Underline indicator sits a bit higher on the shorter bar so it
+     doesn't end up sitting right at the very bottom edge */
+  .mob-bottom-nav.nav-compact .mob-bottom-tab.active::after {
+    bottom: 1px !important;
   }
 
   /* Each tab */
