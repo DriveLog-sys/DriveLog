@@ -452,37 +452,24 @@
 
   <!-- ALL BUILDS — REGISTRY (full browsable catalog of every build) -->
   <section class="page" id="page-registry">
-    <div class="page-head"><h1>All Builds</h1><p>Every build on DriveLog, in one place.</p></div>
-    <div class="filter-bar" id="registryFilterBar">
-      <div class="filter-scroll">
-        <button class="fpill active" data-regcat="All">All Builds</button>
-        <button class="fpill" data-regcat="JDM"><i class="fas fa-sun pill-icon"></i>JDM</button>
-        <button class="fpill" data-regcat="Euro"><i class="fas fa-compass pill-icon"></i>Euro</button>
-        <button class="fpill" data-regcat="Muscle"><i class="fas fa-bolt pill-icon"></i>Muscle</button>
-        <button class="fpill" data-regcat="Classic"><i class="fas fa-star pill-icon"></i>Classic</button>
-        <button class="fpill" data-regcat="Off-Road"><i class="fas fa-mountain pill-icon"></i>Off-Road</button>
-        <button class="fpill" data-regcat="Collector"><i class="fas fa-gem pill-icon"></i>Collector</button>
-        <button class="fpill" data-regcat="Sports Car"><i class="fas fa-car pill-icon"></i>Sports Car</button>
-        <button class="fpill" data-regcat="Truck"><i class="fas fa-truck-pickup pill-icon"></i>Truck</button>
-        <button class="fpill" data-regcat="SUV"><i class="fas fa-car-side pill-icon"></i>SUV</button>
-        <button class="fpill" data-regcat="Drift"><i class="fas fa-wind pill-icon"></i>Drift</button>
-        <button class="fpill" data-regcat="Track"><i class="fas fa-flag-checkered pill-icon"></i>Track</button>
-        <button class="fpill" data-regcat="Drag"><i class="fas fa-tachometer-alt pill-icon"></i>Drag</button>
-        <button class="fpill" data-regcat="Electric"><i class="fas fa-plug pill-icon"></i>Electric</button>
-        <button class="fpill" data-regcat="Supercar"><i class="fas fa-rocket pill-icon"></i>Supercar</button>
-        <button class="fpill" data-regcat="Hypercar"><i class="fas fa-rocket pill-icon"></i>Hypercar</button>
+    <div class="registry-search-wrap">
+      <div class="registry-search-bar">
+        <i class="fas fa-search"></i>
+        <input type="text" id="registrySearchInput" placeholder="Search all builds — make, model, year, category…" autocomplete="off"/>
       </div>
     </div>
     <div class="feed-wrap">
       <div class="feed-main" style="width:100%;max-width:none">
         <div class="sort-row">
+          <button class="filter-trigger-btn" id="openRegistryFilterBtn"><i class="fas fa-sliders-h"></i> Filters <span class="filter-trigger-count" id="registryFilterTriggerCount" style="display:none"></span></button>
+          <div class="sort-divider"></div>
           <span class="sort-label">Sort</span>
           <button class="sort-btn active" data-regsort="newest">Newest</button>
           <button class="sort-btn" data-regsort="popular">Most Liked</button>
           <button class="sort-btn" data-regsort="discussed">Most Comments</button>
           <span class="feed-results-info" id="registryResultsInfo" style="margin-left:auto"></span>
         </div>
-        <div class="card-grid" id="registryGrid"></div>
+        <div class="card-grid card-grid-uniform" id="registryGrid"></div>
         <div class="load-more-wrap"><button class="btn-ghost" id="registryLoadMoreBtn">Load More Builds</button></div>
       </div>
     </div>
@@ -496,7 +483,7 @@
       <h1 id="searchPageTitle">Search</h1>
       <p id="searchPageSub">Search builds and members across DriveLog.</p>
     </div>
-    <div class="search-bar" id="searchPageBar" style="max-width:560px;margin-bottom:28px">
+    <div class="search-bar" id="searchPageBar" style="max-width:560px;margin:0 auto 28px">
       <i class="fas fa-search"></i>
       <input type="text" id="searchPageInput" placeholder="Make, model, year, category, username…" autocomplete="off"/>
     </div>
@@ -514,7 +501,7 @@
         <div class="lb-standalone-icon"><i class="fas fa-car"></i></div>
         <div class="lb-standalone-title" style="font-size:1.2rem">Builds</div>
       </div>
-      <div class="card-grid" id="searchPageBuildsGrid"></div>
+      <div class="card-grid card-grid-uniform" id="searchPageBuildsGrid"></div>
     </div>
 
     <div id="searchPageEmpty" style="display:none" class="feed-empty-state">

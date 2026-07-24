@@ -3545,18 +3545,41 @@ function renderFeed() {
 // ─── ALL BUILDS — REGISTRY (full catalog, separate from the algorithmic
 // Feed) — straightforward browse-everything with its own category
 // filter and sort, reusing the exact same cardHTML()/attachCardEvents()
-// the Feed uses so cards look and behave identically everywhere. ──
-let _registryCat  = 'All';
+// the Feed uses so cards look and behave identically everywhere. The
+// category pill strip was removed — category filtering now happens
+// through the same advanced Filters sidebar the Feed uses (opened with
+// its own 'registry' context, see initFilterSidebar), so there's one
+// consistent filtering system instead of a separate quick-pill one.
 let _registrySort = 'newest';
 let _registryCount = FEED_PAGE_SIZE;
 function renderRegistry() {
-  let posts = [...S.posts];
-  if (_registryCat !== 'All') {
-    posts = posts.filter(p => {
-      const cats = Array.isArray(p.categories) && p.categories.length ? p.categories : [p.category].filter(Boolean);
-      return cats.includes(_registryCat);
+  // Wire the search bar once — renderRegistry() itself runs on every
+  // sort/filter change, so binding this inline (without a guard) would
+  // stack a new listener on every single re-render.
+  const searchInput = el('registrySearchInput');
+  if (searchInput && !searchInput._wired) {
+    searchInput._wired = true;
+    let debounce;
+    searchInput.addEventListener('input', () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => { _registryCount = FEED_PAGE_SIZE; renderRegistry(); }, 200);
     });
   }
+
+  let posts = [...S.posts].filter(p => applyFiltersToPost(p));
+
+  const q = (el('registrySearchInput')?.value || '').trim().toLowerCase();
+  if (q) {
+    posts = posts.filter(p => {
+      const modsFlat = p.modsDetail ? Object.values(p.modsDetail).flat().join(' ') : '';
+      const cats = (Array.isArray(p.categories)?p.categories:[p.category]).join(' ').toLowerCase();
+      return p.title?.toLowerCase().includes(q) || p.make?.toLowerCase().includes(q) ||
+        p.model?.toLowerCase().includes(q) || (p.year||'').includes(q) || cats.includes(q) ||
+        p.user?.toLowerCase().includes(q) || (p.mods||'').toLowerCase().includes(q) ||
+        modsFlat.toLowerCase().includes(q) || (p.desc||'').toLowerCase().includes(q);
+    });
+  }
+
   if (_registrySort === 'popular') posts.sort((a,b)=>b.likes-a.likes);
   else if (_registrySort === 'discussed') posts.sort((a,b)=>(b.comments||[]).length-(a.comments||[]).length);
   else posts.sort((a,b) => {
@@ -3583,7 +3606,7 @@ function renderRegistry() {
             <div class="skeleton skeleton-card-foot"></div>
           </div>
         </div>`).join('')
-      : `<div class="feed-empty-state"><i class="fas fa-car feed-empty-icon"></i><h3>No builds found</h3><p>Try a different category.</p></div>`;
+      : `<div class="feed-empty-state"><i class="fas fa-car feed-empty-icon"></i><h3>No builds found</h3><p>${q?`Nothing matched "${esc(q)}"`:'Try adjusting your filters.'}</p></div>`;
   } else {
     grid.innerHTML = vis.map((p,i)=>cardHTML(p,i)).join('');
   }
@@ -3595,19 +3618,20 @@ function renderRegistry() {
     loadBtn.onclick = () => { _registryCount += FEED_PAGE_SIZE; renderRegistry(); };
   }
 
-  document.querySelectorAll('#registryFilterBar .fpill[data-regcat]').forEach(pill => pill.onclick = () => {
-    document.querySelectorAll('#registryFilterBar .fpill[data-regcat]').forEach(p=>p.classList.remove('active'));
-    pill.classList.add('active');
-    _registryCat = pill.dataset.regcat;
-    _registryCount = FEED_PAGE_SIZE;
-    renderRegistry();
-  });
   document.querySelectorAll('#page-registry .sort-btn[data-regsort]').forEach(btn => btn.onclick = () => {
     document.querySelectorAll('#page-registry .sort-btn[data-regsort]').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     _registrySort = btn.dataset.regsort;
     renderRegistry();
   });
+
+  // Filter trigger badge — mirrors the Feed page's own count badge
+  const tc = el('registryFilterTriggerCount');
+  if (tc) {
+    const activeCount = countActiveFilters();
+    if (activeCount > 0) { tc.textContent = activeCount; tc.style.display = 'inline'; }
+    else tc.style.display = 'none';
+  }
 }
 
 
@@ -3689,6 +3713,7 @@ function initFilterSidebar() {
 
   btn.addEventListener('click', () => { side._context = 'feed'; openFilter(); });
   el('openGarageFilterBtn')?.addEventListener('click', () => { side._context = 'garage'; openFilter(); });
+  el('openRegistryFilterBtn')?.addEventListener('click', () => { side._context = 'registry'; openFilter(); });
   el('filterClose')?.addEventListener('click', closeFilter);
   over.addEventListener('click', closeFilter);
 
@@ -3771,6 +3796,12 @@ function initFilterSidebar() {
       closeFilter();
       return;
     }
+    if (side._context === 'registry') {
+      _registryCount = FEED_PAGE_SIZE;
+      renderRegistry();
+      closeFilter();
+      return;
+    }
     // sidebar categories take over, reset top pill to All
     S.filter = 'All';
     document.querySelectorAll('.fpill[data-cat]').forEach(p=>p.classList.toggle('active', p.dataset.cat==='All'));
@@ -3787,6 +3818,11 @@ function initFilterSidebar() {
     syncFilterUI();
     if (side._context === 'garage') {
       renderGarage();
+      return;
+    }
+    if (side._context === 'registry') {
+      _registryCount = FEED_PAGE_SIZE;
+      renderRegistry();
       return;
     }
     S.filter = 'All';

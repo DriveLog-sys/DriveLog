@@ -8556,3 +8556,50 @@ html, body { overflow-x: hidden; }
 @media(max-width:420px){
   .strip-thumb-wrap{padding-bottom:78% !important}
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   ALL BUILDS (Registry) — big centered search bar at the top,
+   replacing the page title/subtitle/category-strip that used to be
+   there. Uniform card grid so cards never stretch to mismatched
+   widths (see .card-grid-uniform below, shared with Search Results).
+   ═══════════════════════════════════════════════════════════════ */
+.registry-search-wrap{
+  display:flex;justify-content:center;
+  padding:40px 24px 28px;
+}
+.registry-search-bar{
+  width:100%;max-width:680px;
+  display:flex;align-items:center;gap:14px;
+  background:var(--card);border:1px solid var(--mid);
+  border-radius:999px;padding:16px 26px;
+  transition:border-color .15s ease,box-shadow .15s ease;
+}
+.registry-search-bar:focus-within{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft);
+}
+.registry-search-bar i{color:var(--muted);font-size:1rem}
+.registry-search-bar input{
+  flex:1;border:none;background:none;outline:none;
+  color:var(--text);font-size:1.05rem;font-family:var(--body);
+}
+.registry-search-bar input::placeholder{color:var(--muted)}
+
+/* Uniform medium square cards — used on All Builds and Search Results
+   so cards never stretch wider on rows with fewer items than rows with
+   more (the base .card-grid's auto-fill + 1fr combo does exactly that
+   whenever a row doesn't fill completely, since 1fr divides whatever
+   space is left among however many columns landed in that row). Fixed
+   column width means leftover space becomes outer margin instead of
+   inflating individual cards. */
+.card-grid-uniform{
+  grid-template-columns:repeat(auto-fill,270px) !important;
+  justify-content:center;
+}
+
+@media(max-width:768px){
+  .registry-search-wrap{padding:24px 16px 20px}
+  .registry-search-bar{padding:13px 20px;border-radius:16px}
+  .registry-search-bar input{font-size:.95rem}
+  .card-grid-uniform{grid-template-columns:repeat(auto-fill,minmax(150px,1fr)) !important}
+}
