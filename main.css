@@ -8606,6 +8606,20 @@ html, body { overflow-x: hidden; }
   aspect-ratio:16/10 !important;
 }
 
+/* .feed-wrap is normally a 2-column grid (1fr main + 295px sidebar) for
+   the Feed page. The All Builds page reuses .feed-wrap/.feed-main but
+   has no sidebar — without this override, .feed-main was still being
+   squeezed into that same 1fr track, with 295px + the 28px gap
+   invisibly reserved on the right for a sidebar that was never there.
+   That's what was causing both problems at once: not enough width left
+   for a 4th column of cards, and the whole content area sitting
+   visibly left-of-center since that empty reserved space threw off
+   the true page center. */
+#page-registry .feed-wrap{
+  grid-template-columns:1fr;
+  max-width:1300px;
+}
+
 @media(max-width:768px){
   .registry-search-wrap{padding:24px 16px 20px}
   .registry-search-bar{padding:13px 20px;border-radius:16px}
