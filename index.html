@@ -1745,6 +1745,23 @@
   </div>
 </div>
 
+<!-- BLUR CONFIRMATION MODAL — a deliberate speed-bump before a spot
+     post actually proceeds toward publishing, since privacy here
+     (unblurred plates/faces) can't be undone once it's live. -->
+<div class="modal-overlay" id="blurConfirmModal">
+  <div class="modal-box" style="max-width:420px;text-align:center">
+    <div class="blur-confirm-icon"><i class="fas fa-shield-alt"></i></div>
+    <h2 style="margin-bottom:10px">Double-check before continuing</h2>
+    <p style="color:var(--muted);font-size:.88rem;line-height:1.5;margin-bottom:20px">
+      Are you sure you've applied a blur to all license plates, faces, and any other personal information in this spotting?
+    </p>
+    <div style="display:flex;gap:10px">
+      <button class="btn-ghost full" id="blurConfirmNo">No</button>
+      <button class="btn-primary full" id="blurConfirmYes">Accept</button>
+    </div>
+  </div>
+</div>
+
 
 <!-- ONBOARDING MODAL -->
 <div class="modal-overlay" id="onboardingModal">

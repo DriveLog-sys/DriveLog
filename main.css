@@ -212,6 +212,22 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
 /* ─── MODALS ────────────────────────────────────────────────── */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
 .modal-overlay.open{display:flex;animation:fadeIn .2s ease}
+.blur-confirm-icon{
+  width:52px;height:52px;border-radius:50%;margin:0 auto 16px;
+  background:rgba(239,68,68,.12);color:#ef4444;
+  display:flex;align-items:center;justify-content:center;font-size:1.4rem;
+}
+/* "Apply Blur & Continue" — red, not the site's usual blue, since this
+   is the privacy-critical action right before personal info could go
+   public. Distinct color reinforces it's a different kind of "continue"
+   than a normal next-step button. */
+.cs-apply-btn{
+  background:linear-gradient(135deg,#ef4444,#dc2626) !important;
+  box-shadow:0 4px 16px rgba(239,68,68,.35) !important;
+}
+.cs-apply-btn:hover{
+  box-shadow:0 6px 20px rgba(239,68,68,.45) !important;
+}
 .modal-box{background:var(--surface);border:1px solid var(--mid);border-radius:var(--r-xl);padding:32px;width:100%;max-width:500px;position:relative;box-shadow:var(--shm);animation:slideUp .28s cubic-bezier(.4,0,.2,1);max-height:90vh;overflow-y:auto}
 .modal-box.wide{max-width:720px}
 .modal-box.xlarge{max-width:980px;padding:0}
@@ -1129,11 +1145,16 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 /* Avatar circles don't get underline */
 .card-av.clickable-user:hover,.tm-av.clickable-user:hover,
 .lb-av-th.clickable-user:hover,.comment-av.clickable-user:hover,
-.hot-item-av:hover,.car-page-av.clickable-user:hover{opacity:.85;text-decoration:none;box-shadow:0 0 0 2px var(--accent)}
+.hot-item-av:hover,.car-page-av.clickable-user:hover,
+.soc-av.clickable-user:hover,.social-comment-av.clickable-user:hover{opacity:.85;text-decoration:none;box-shadow:0 0 0 2px var(--accent)}
 /* Story bubbles: no underline on hover (the ring itself already scales
    up as the hover cue — see .story-bubble:hover .story-bubble-ring —
    so the box-shadow ring treatment above isn't needed here too). */
 .story-bubble.clickable-user:hover{text-decoration:none;opacity:1}
+/* Car Spotting username text (header row + inline with caption) —
+   color change only, no underline, no box-shadow (it's text, not a
+   circular avatar, so the ring treatment above doesn't apply here). */
+.soc-post-user.clickable-user:hover{text-decoration:none}
 
 /* ─── GENERAL SITE POLISH ────────────────────────────────────── */
 /* Smoother card image fade-in */
@@ -6881,6 +6902,39 @@ body:not(.dark) .save-btn {
 }
 .botm-vote-btn.voted i { color: #fff; }
 
+/* Signed-out visitors — greyed out, no amber color at all until they
+   sign in. Clicking still works (opens the sign-in modal via
+   castBotmVote's own check), it just doesn't look like an active,
+   votable button before that. */
+.botm-vote-btn.signed-out {
+  color: var(--muted) !important;
+  border-color: var(--border) !important;
+  background: transparent !important;
+}
+.botm-vote-btn.signed-out i { color: var(--muted) !important; }
+.botm-vote-btn.signed-out:hover {
+  background: var(--raised) !important;
+  border-color: var(--mid) !important;
+}
+
+/* Vote-cast animation — replaces the old green toast popup as the "it
+   worked" signal. A quick confident pop/settle on the button itself,
+   plus a brief radiating ring, so the feedback lives right where you
+   just clicked instead of a separate notice at the bottom of the screen. */
+@keyframes botmVotePop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.14); }
+  60%  { transform: scale(.96); }
+  100% { transform: scale(1); }
+}
+@keyframes botmVoteRing {
+  0%   { box-shadow: 0 0 0 0 rgba(217,119,6,.55); }
+  100% { box-shadow: 0 0 0 14px rgba(217,119,6,0); }
+}
+.botm-vote-btn.vote-cast {
+  animation: botmVotePop .45s cubic-bezier(.34,1.56,.64,1), botmVoteRing .6s ease-out;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    HERO REMOVED — Feed is now first, reduce top padding
    ═══════════════════════════════════════════════════════════════ */
@@ -7719,6 +7773,18 @@ body.dark .exp-support-card p { color: #a0a0a0; }
 .cs-blur-nav{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:12px}
 .cs-blur-nav span{font-size:.86rem;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
 .cs-apply-btn{margin-top:14px}
+/* Red instead of the standard site-blue — this is the confirmation
+   step for a privacy-critical action (blurring plates/faces before
+   posting), so it gets its own distinct color rather than blending in
+   with every other primary action button on the site. */
+.cs-apply-btn{
+  background:linear-gradient(135deg,#e8392a,#c92e21) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 4px 14px rgba(232,57,42,.35) !important;
+}
+.cs-apply-btn:hover{
+  background:linear-gradient(135deg,#c92e21,#e8392a) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 8px 24px rgba(232,57,42,.4) !important;
+}
 .cs-preview-strip{display:flex;gap:10px;flex-wrap:wrap}
 .cs-preview-item{position:relative;width:110px;border-radius:10px;overflow:hidden;border:1px solid var(--border);background:#000}
 .cs-preview-item img{width:100%;height:82px;object-fit:cover;display:block}
@@ -8302,12 +8368,26 @@ html, body { overflow-x: hidden; }
      the media query they were always meant for. */
   @media (max-width: 768px) {
 
-  /* ── Spot composer page (mobile) ── */
-  .spotpost-wrap { padding: 16px 14px 60px !important; }
-  .spotpost-title { font-size: 1.8rem !important; }
-  .spotpost-body { padding: 14px !important; }
+  /* ── Spot composer page (mobile) ──
+     Tightened vertical spacing so the upload zone appears higher up
+     the screen instead of requiring a scroll past a tall head/steps/
+     privacy-warning stack first. Explicit width/box-sizing rules out
+     any horizontal centering drift on narrow viewports too. */
+  .spotpost-wrap {
+    padding: 12px 14px 60px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+  }
+  .spotpost-title { font-size: 1.5rem !important; }
+  .spotpost-head { margin-bottom: 12px !important; }
+  .spotpost-sub { font-size: .82rem !important; }
+  .spotpost-body { padding: 14px !important; width: 100% !important; box-sizing: border-box !important; }
+  .spotpost-steps { margin-bottom: 14px !important; }
   .spot-step { font-size: .7rem !important; gap: 5px !important; }
   .spot-step-num { width: 22px !important; height: 22px !important; font-size: .7rem !important; }
+  .cs-privacy-warn { padding: 12px !important; margin-bottom: 12px !important; }
 
   /* ── Spot card media grid (mobile) ── */
   .soc-media-2 .social-post-media,

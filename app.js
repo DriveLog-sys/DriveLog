@@ -4037,28 +4037,52 @@ async function castBotmVote(postId) {
   const now = new Date();
   if (now.getDate() > 25) { toast(`Voting closed on the 25th — check back for this month's winner`,''); return; }
   const existing = getUserBotmVote();
-  if (existing === postId) { toast('Already your nomination this month ✓','ok'); return; }
+  if (existing === postId) {
+    // Already this exact nomination — still play the animation as
+    // acknowledgment, just don't re-save anything.
+    playBotmVoteAnimation(postId);
+    return;
+  }
   const voteKey = getBotmSupabaseVoteKey();
   // Save locally first for instant feedback
   localStorage.setItem(getBotmVoteKey(), postId);
   renderBotmVoteBtn(postId);
+  playBotmVoteAnimation(postId);
   // Persist to Supabase — upsert means this also correctly REPLACES an
   // existing vote from earlier in the month, so people can change their mind
   const { error } = await DB.castBotmVote(postId, S.user.id, voteKey);
   if (error) {
+    // A quiet, non-celebratory notice only for the failure case — the
+    // vote animation itself is the "it worked" signal now, no toast
+    // needed for the success path.
     console.warn('BOTM vote save failed:', error);
     toast('Vote counted locally — will sync when connection is restored','');
-  } else {
-    toast(existing ? 'Nomination changed 🏆' : 'Your vote has been cast! 🏆','ok');
   }
   // Refresh the live tally on the Members page, if it's rendered
   if (el('memBotmCandidates')) renderMembersBotm();
+}
+
+// playBotmVoteAnimation — the button's own visual feedback for a
+// successful vote, replacing the green toast popup. A quick pop/pulse
+// plus a brief checkmark flourish, driven by a temporary CSS class
+// that removes itself once the animation finishes.
+function playBotmVoteAnimation(postId) {
+  document.querySelectorAll(`.botm-vote-btn[data-id="${postId}"]`).forEach(btn => {
+    btn.classList.remove('vote-cast'); // restart if clicked again mid-animation
+    void btn.offsetWidth; // force reflow so the class removal/add is seen as a change
+    btn.classList.add('vote-cast');
+    setTimeout(() => btn.classList.remove('vote-cast'), 700);
+  });
 }
 
 function renderBotmVoteBtn(postId) {
   const btns = document.querySelectorAll(`.botm-vote-btn[data-id="${postId}"]`);
   const voted = getUserBotmVote();
   btns.forEach(btn => {
+    // Signed-out visitors see a greyed-out button — clicking it (wired
+    // in castBotmVote itself) opens the sign-in modal rather than
+    // attempting to vote at all.
+    btn.classList.toggle('signed-out', !S.user);
     btn.classList.toggle('voted', voted === postId);
     btn.innerHTML = voted === postId
       ? '<i class="fas fa-check"></i> Voted'
@@ -8818,7 +8842,22 @@ document.addEventListener('DOMContentLoaded', () => {
   el('csNextImg')?.addEventListener('click', () => {
     if (_blurImgIdx < _blurImages.length - 1) initBlurEditor(_blurImgIdx + 1);
   });
-  el('csApplyBlur')?.addEventListener('click', applyAllBlurs);
+  // "Apply Blur & Continue" now opens a confirmation step first — a
+  // deliberate speed-bump since unblurred personal info going live
+  // can't be undone. "No" returns to the blur editor untouched;
+  // "Accept" runs the actual blur + advances to the details step
+  // (applyAllBlurs itself), exactly as clicking the button used to
+  // do immediately before this confirmation existed.
+  el('csApplyBlur')?.addEventListener('click', () => {
+    el('blurConfirmModal')?.classList.add('open');
+  });
+  el('blurConfirmNo')?.addEventListener('click', () => {
+    el('blurConfirmModal')?.classList.remove('open');
+  });
+  el('blurConfirmYes')?.addEventListener('click', () => {
+    el('blurConfirmModal')?.classList.remove('open');
+    applyAllBlurs();
+  });
 });
 
 async function applyAllBlurs() {
