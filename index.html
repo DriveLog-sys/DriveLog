@@ -452,6 +452,17 @@
 
   <!-- ALL BUILDS — REGISTRY (full browsable catalog of every build) -->
   <section class="page" id="page-registry">
+    <div class="registry-stats-bar">
+      <div class="registry-stat">
+        <span class="registry-stat-num" id="registryStatBuilds">0</span>
+        <span class="registry-stat-label">Builds</span>
+      </div>
+      <div class="registry-stat-divider"></div>
+      <div class="registry-stat">
+        <span class="registry-stat-num" id="registryStatSpottings">0</span>
+        <span class="registry-stat-label">Car Spottings</span>
+      </div>
+    </div>
     <div class="registry-search-wrap">
       <div class="registry-search-bar">
         <i class="fas fa-search"></i>
@@ -460,14 +471,13 @@
     </div>
     <div class="feed-wrap">
       <div class="feed-main" style="width:100%;max-width:none">
-        <div class="sort-row">
+        <div class="sort-row sort-row-centered">
           <button class="filter-trigger-btn" id="openRegistryFilterBtn"><i class="fas fa-sliders-h"></i> Filters <span class="filter-trigger-count" id="registryFilterTriggerCount" style="display:none"></span></button>
           <div class="sort-divider"></div>
           <span class="sort-label">Sort</span>
           <button class="sort-btn active" data-regsort="newest">Newest</button>
           <button class="sort-btn" data-regsort="popular">Most Liked</button>
           <button class="sort-btn" data-regsort="discussed">Most Comments</button>
-          <span class="feed-results-info" id="registryResultsInfo" style="margin-left:auto"></span>
         </div>
         <div class="card-grid card-grid-uniform" id="registryGrid"></div>
         <div class="load-more-wrap"><button class="btn-ghost" id="registryLoadMoreBtn">Load More Builds</button></div>

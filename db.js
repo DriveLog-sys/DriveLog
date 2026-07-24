@@ -852,6 +852,17 @@ const DB = {
     return data || [];
   },
 
+  // getSocialPostsCount — just the total row count, not the rows
+  // themselves. Uses head:true (a HEAD request — no response body) so
+  // fetching a number for a stats display doesn't cost downloading
+  // potentially hundreds of full post records just to count them.
+  async getSocialPostsCount() {
+    if (!_sbOk()) return 0;
+    const { count, error } = await _sb.from('social_posts').select('id', { count:'exact', head:true });
+    if (error) { console.warn('getSocialPostsCount error:', error.message); return 0; }
+    return count || 0;
+  },
+
   // Fetches one full post by id — used when opening a post from somewhere
   // that only had lightweight data (like a Spotting Map pin), so it works
   // even if that post isn't already sitting in the loaded feed.

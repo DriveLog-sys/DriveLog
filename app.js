@@ -934,7 +934,7 @@ function goTo(page) {
   if (page==='garage')      renderGarage();
   if (page==='events')      renderEventsGrid();
   if (page==='members')     { renderMembers(); renderMembersStatsBar(); renderMembersBotm(); renderFeaturedMembersSection(); renderTopContributorsSection(); renderBrandsSection(); renderDealershipsSection(); }
-  if (page==='registry')    renderRegistry();
+  if (page==='registry')    { renderRegistry(); animateRegistryStats(); }
   if (page==='social')      { renderSocialFeed(true); renderTrendingTags(); }
   if (page==='discussions') renderDiscussions(true);
   if (page==='spotpost') {
@@ -3552,6 +3552,27 @@ function renderFeed() {
 // consistent filtering system instead of a separate quick-pill one.
 let _registrySort = 'newest';
 let _registryCount = FEED_PAGE_SIZE;
+// animateRegistryStats — the Builds/Car Spottings counter above the
+// search bar. Guarded so the count-up only plays once per page visit
+// (navigating away and back re-triggers it, like a fresh reveal) rather
+// than replaying every time renderRegistry() itself re-runs from a
+// filter/sort/search change, which would be distracting.
+let _registryStatsAnimated = false;
+async function animateRegistryStats() {
+  if (_registryStatsAnimated) return;
+  _registryStatsAnimated = true;
+  countUp('registryStatBuilds', S.posts.length, 900);
+  // Car Spotting count — use whatever's already loaded if the person
+  // has visited that page this session, otherwise fetch just the count
+  // (not the full posts) so this doesn't cost downloading everything.
+  let spottingCount = S._socialPosts?.length || 0;
+  if (!spottingCount && _sbOk()) {
+    spottingCount = await DB.getSocialPostsCount().catch(() => 0);
+  }
+  countUp('registryStatSpottings', spottingCount, 900);
+}
+
+
 function renderRegistry() {
   // Wire the search bar once — renderRegistry() itself runs on every
   // sort/filter change, so binding this inline (without a guard) would
@@ -3589,9 +3610,13 @@ function renderRegistry() {
   });
 
   const total = posts.length;
+  // The small "N builds" text next to the sort row was removed — the
+  // big stats counter above the search bar (Builds + Car Spottings,
+  // with the count-up animation) replaces it as the site-wide build
+  // count. This local "total" is still used for the load-more logic
+  // and empty-state text below, just no longer displayed as its own
+  // number on screen.
   const vis   = posts.slice(0, _registryCount);
-  const infoEl = el('registryResultsInfo');
-  if (infoEl) infoEl.textContent = `${total} build${total!==1?'s':''}`;
 
   const grid = el('registryGrid');
   if (!grid) return;

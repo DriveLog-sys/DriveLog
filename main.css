@@ -8596,10 +8596,51 @@ html, body { overflow-x: hidden; }
   grid-template-columns:repeat(auto-fill,270px) !important;
   justify-content:center;
 }
+/* Neutralize the Feed's "every 7th card is a wide showcase" pattern —
+   that's intentional editorial variety on the main Feed, but exactly
+   the "mixed size" look this uniform grid exists to avoid. */
+.card-grid-uniform .card:nth-child(7n+1){
+  grid-column:span 1 !important;
+}
+.card-grid-uniform .card:nth-child(7n+1) .card-img{
+  aspect-ratio:16/10 !important;
+}
 
 @media(max-width:768px){
   .registry-search-wrap{padding:24px 16px 20px}
   .registry-search-bar{padding:13px 20px;border-radius:16px}
   .registry-search-bar input{font-size:.95rem}
   .card-grid-uniform{grid-template-columns:repeat(auto-fill,minmax(150px,1fr)) !important}
+}
+
+/* All Builds — stats counter above the search bar. White text in dark
+   mode, dark text in light mode (var(--text) already does exactly
+   this site-wide), centered, with the count-up numbers driven by the
+   existing countUp() helper. */
+.registry-stats-bar{
+  display:flex;align-items:center;justify-content:center;
+  gap:32px;padding:44px 24px 0;
+}
+.registry-stat{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+}
+.registry-stat-num{
+  font-family:var(--disp);font-size:2.2rem;color:var(--text);
+  line-height:1;letter-spacing:.5px;
+}
+.registry-stat-label{
+  font-family:var(--cond);font-size:.78rem;font-weight:700;
+  letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);
+}
+.registry-stat-divider{width:1px;height:38px;background:var(--border)}
+
+/* Filters/Sort row centered directly under the search bar */
+.sort-row-centered{
+  justify-content:center;
+}
+
+@media(max-width:768px){
+  .registry-stats-bar{gap:20px;padding:28px 16px 0}
+  .registry-stat-num{font-size:1.6rem}
+  .registry-stat-divider{height:30px}
 }
