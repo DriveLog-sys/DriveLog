@@ -775,6 +775,7 @@ function initNavLinks() {
 
   document.querySelectorAll('.nav-link[data-page],.mob-link[data-page]').forEach(a =>
     a.addEventListener('click', e => { e.preventDefault(); goTo(a.dataset.page); }));
+  el('feedViewAllLink')?.addEventListener('click', e => { e.preventDefault(); goTo('registry'); });
   // Dropdown items (Members: Featured/Brands/Dealerships/Top Contributors,
   // More: Our Merch/Help & FAQ/Support Us/Contact Us) — navigate to the
   // target page, then scroll to the right spot on it.
@@ -933,6 +934,7 @@ function goTo(page) {
   if (page==='garage')      renderGarage();
   if (page==='events')      renderEventsGrid();
   if (page==='members')     { renderMembers(); renderMembersStatsBar(); renderMembersBotm(); renderFeaturedMembersSection(); renderTopContributorsSection(); renderBrandsSection(); renderDealershipsSection(); }
+  if (page==='registry')    renderRegistry();
   if (page==='social')      { renderSocialFeed(true); renderTrendingTags(); }
   if (page==='discussions') renderDiscussions(true);
   if (page==='spotpost') {
@@ -1674,8 +1676,17 @@ function initSearch() {
   });
   el('searchClose')?.addEventListener('click', closeSearch);
   el('searchOverlay')?.addEventListener('click', e => { if(e.target===el('searchOverlay')) closeSearch(); });
-  el('searchInput')?.addEventListener('input', () => { clearTimeout(_searchTimer); _searchTimer=setTimeout(doSearch,120); });
-  document.querySelectorAll('.stag').forEach(t => t.addEventListener('click',()=>{el('searchInput').value=t.dataset.q; doSearch();}));
+  // The overlay is now just a quick entry point (mainly for mobile —
+  // tap the search icon, type, hit Enter) rather than where results
+  // actually show. Enter/tag-click closes it and navigates to the real
+  // search results page instead of rendering results inside the overlay.
+  function goToSearchPage(q) {
+    closeSearch();
+    hideInlineResults();
+    goTo('search');
+    renderSearchPage(q);
+  }
+  document.querySelectorAll('.stag').forEach(t => t.addEventListener('click', () => goToSearchPage(t.dataset.q)));
 
   input?.addEventListener('input', () => {
     const q = input.value.trim();
@@ -1686,10 +1697,15 @@ function initSearch() {
   });
   input?.addEventListener('keydown', e => {
     if (e.key === 'Escape') hideInlineResults();
-    if (e.key === 'Enter' && input.value.trim()) {
-      el('searchInput').value = input.value;
-      hideInlineResults(); openSearch(); doSearch();
-    }
+    if (e.key === 'Enter' && input.value.trim()) goToSearchPage(input.value.trim());
+  });
+  el('searchInput')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && el('searchInput').value.trim()) goToSearchPage(el('searchInput').value.trim());
+  });
+  // The search results page's own search bar — lets people refine a
+  // search without navigating back to the header first
+  el('searchPageInput')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') renderSearchPage(el('searchPageInput').value.trim());
   });
   clearBtn?.addEventListener('click', () => { hideInlineResults(); input?.focus(); });
   document.addEventListener('click', e => {
@@ -1728,6 +1744,7 @@ async function runInlineSearch(q) {
         </div>
         <div class="hsr-info"><div class="hsr-name">${esc(p.title)}</div><div class="hsr-sub">${esc(p.user)} · ♥ ${p.likes}</div></div>
       </div>`; }).join('')}` : '',
+    `<div class="hsr-view-all" id="hsrViewAll">View all results for "${esc(q)}"</div>`,
   ].join('');
   results.querySelectorAll('.hsr-user').forEach(item =>
     item.addEventListener('click', () => { window._closeInlineSearch?.(); viewPublicProfile(item.dataset.user); })
@@ -1738,6 +1755,11 @@ async function runInlineSearch(q) {
       const p = S.posts.find(x=>x.id===item.dataset.id); if(p) openCarPage(p);
     })
   );
+  el('hsrViewAll')?.addEventListener('click', () => {
+    window._closeInlineSearch?.();
+    goTo('search');
+    renderSearchPage(q);
+  });
   if (_sbOk() && q.length > 1) {
     Promise.all([DB.searchPostsFTS(q,8).catch(()=>[]), DB.searchUsers(q,4).catch(()=>[])]).then(([sbP,sbU]) => {
       let changed = false;
@@ -1758,6 +1780,100 @@ function openSearch(){
   }
 }
 function closeSearch(){ el('searchOverlay').classList.remove('open'); if(el('searchInput'))el('searchInput').value=''; if(el('searchResults'))el('searchResults').innerHTML=''; }
+
+// renderSearchPage — the actual search results PAGE (replaces the old
+// blue overlay window). Builds render with the exact same cardHTML()
+// used on the Feed/Registry; members reuse renderMemberCardGrid() from
+// the Members page work, so results look and click through identically
+// to everywhere else on the site instead of a small custom icon list.
+async function renderSearchPage(q) {
+  q = (q || '').trim();
+  const titleEl = el('searchPageTitle');
+  const subEl   = el('searchPageSub');
+  const inputEl = el('searchPageInput');
+  if (inputEl) inputEl.value = q;
+  if (!q) {
+    if (titleEl) titleEl.textContent = 'Search';
+    if (subEl) subEl.textContent = 'Search builds and members across DriveLog.';
+    el('searchPageBuildsSection').style.display = 'none';
+    el('searchPageUsersSection').style.display  = 'none';
+    el('searchPageEmpty').style.display = 'none';
+    return;
+  }
+  if (titleEl) titleEl.textContent = `Results for "${q}"`;
+
+  const lq = q.toLowerCase();
+  let posts = S.posts.filter(p => {
+    const modsFlat = p.modsDetail ? Object.values(p.modsDetail).flat().join(' ') : '';
+    const cats     = (Array.isArray(p.categories)?p.categories:[p.category]).join(' ').toLowerCase();
+    return p.title?.toLowerCase().includes(lq)  ||
+      p.make?.toLowerCase().includes(lq)         ||
+      p.model?.toLowerCase().includes(lq)        ||
+      (p.year||'').includes(lq)                  ||
+      cats.includes(lq)                          ||
+      p.user?.toLowerCase().includes(lq)         ||
+      (p.mods||'').toLowerCase().includes(lq)    ||
+      modsFlat.toLowerCase().includes(lq)        ||
+      (p.desc||'').toLowerCase().includes(lq);
+  });
+  let users = S.users.filter(u =>
+    u.username?.toLowerCase().includes(lq) || (u.bio||'').toLowerCase().includes(lq)
+  );
+
+  paintSearchPage(posts, users, q);
+
+  // Broaden with Supabase results in the background, then repaint if
+  // anything new came in and the query hasn't changed since
+  if (_sbOk()) {
+    try {
+      const [sbPosts, sbUsers] = await Promise.all([
+        DB.searchPosts(q).catch(()=>[]),
+        DB.searchUsers(q).catch(()=>[]),
+      ]);
+      let changed = false;
+      (sbPosts||[]).map(dbPostToApp).filter(Boolean).forEach(p => {
+        if (!posts.find(x=>x.id===p.id)) { posts.push(p); changed = true; }
+      });
+      (sbUsers||[]).map(dbUserToApp).filter(Boolean).forEach(u => {
+        if (!users.find(x=>x.username===u.username)) { users.push(u); changed = true; }
+      });
+      if (changed && el('searchPageInput')?.value.trim() === q) paintSearchPage(posts, users, q);
+    } catch(_) {}
+  }
+}
+
+function paintSearchPage(posts, users, q) {
+  const subEl = el('searchPageSub');
+  if (subEl) subEl.textContent = `${posts.length} build${posts.length!==1?'s':''}, ${users.length} member${users.length!==1?'s':''} found`;
+
+  const buildsSection = el('searchPageBuildsSection');
+  const usersSection  = el('searchPageUsersSection');
+  const emptyEl       = el('searchPageEmpty');
+
+  if (!posts.length && !users.length) {
+    buildsSection.style.display = 'none';
+    usersSection.style.display  = 'none';
+    emptyEl.style.display = '';
+    el('searchPageEmptyText').textContent = `Nothing matched "${q}" — try a different make, model, or username.`;
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  if (users.length) {
+    usersSection.style.display = '';
+    renderMemberCardGrid(users, 'searchPageUsersGrid', 'fas fa-user', 'No members found.');
+  } else {
+    usersSection.style.display = 'none';
+  }
+
+  if (posts.length) {
+    buildsSection.style.display = '';
+    el('searchPageBuildsGrid').innerHTML = posts.slice(0, 30).map((p,i)=>cardHTML(p,i)).join('');
+    attachCardEvents(el('searchPageBuildsGrid'));
+  } else {
+    buildsSection.style.display = 'none';
+  }
+}
 
 async function doSearch() {
   const q   = el('searchInput').value.trim();
@@ -3426,6 +3542,75 @@ function renderFeed() {
   if (tc) { if(activeCount>0){tc.textContent=activeCount;tc.style.display='inline';}else tc.style.display='none'; }
 }
 
+// ─── ALL BUILDS — REGISTRY (full catalog, separate from the algorithmic
+// Feed) — straightforward browse-everything with its own category
+// filter and sort, reusing the exact same cardHTML()/attachCardEvents()
+// the Feed uses so cards look and behave identically everywhere. ──
+let _registryCat  = 'All';
+let _registrySort = 'newest';
+let _registryCount = FEED_PAGE_SIZE;
+function renderRegistry() {
+  let posts = [...S.posts];
+  if (_registryCat !== 'All') {
+    posts = posts.filter(p => {
+      const cats = Array.isArray(p.categories) && p.categories.length ? p.categories : [p.category].filter(Boolean);
+      return cats.includes(_registryCat);
+    });
+  }
+  if (_registrySort === 'popular') posts.sort((a,b)=>b.likes-a.likes);
+  else if (_registrySort === 'discussed') posts.sort((a,b)=>(b.comments||[]).length-(a.comments||[]).length);
+  else posts.sort((a,b) => {
+    const da = a.createdAt || a.date || '';
+    const db2 = b.createdAt || b.date || '';
+    return new Date(db2) - new Date(da);
+  });
+
+  const total = posts.length;
+  const vis   = posts.slice(0, _registryCount);
+  const infoEl = el('registryResultsInfo');
+  if (infoEl) infoEl.textContent = `${total} build${total!==1?'s':''}`;
+
+  const grid = el('registryGrid');
+  if (!grid) return;
+  if (!vis.length) {
+    grid.innerHTML = S._loading
+      ? Array(6).fill(0).map(()=>`
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-card-img"></div>
+          <div class="skeleton-card-body">
+            <div class="skeleton skeleton-card-title"></div>
+            <div class="skeleton skeleton-card-meta"></div>
+            <div class="skeleton skeleton-card-foot"></div>
+          </div>
+        </div>`).join('')
+      : `<div class="feed-empty-state"><i class="fas fa-car feed-empty-icon"></i><h3>No builds found</h3><p>Try a different category.</p></div>`;
+  } else {
+    grid.innerHTML = vis.map((p,i)=>cardHTML(p,i)).join('');
+  }
+  attachCardEvents(grid);
+
+  const loadBtn = el('registryLoadMoreBtn');
+  if (loadBtn) {
+    loadBtn.style.display = posts.length > _registryCount ? '' : 'none';
+    loadBtn.onclick = () => { _registryCount += FEED_PAGE_SIZE; renderRegistry(); };
+  }
+
+  document.querySelectorAll('#registryFilterBar .fpill[data-regcat]').forEach(pill => pill.onclick = () => {
+    document.querySelectorAll('#registryFilterBar .fpill[data-regcat]').forEach(p=>p.classList.remove('active'));
+    pill.classList.add('active');
+    _registryCat = pill.dataset.regcat;
+    _registryCount = FEED_PAGE_SIZE;
+    renderRegistry();
+  });
+  document.querySelectorAll('#page-registry .sort-btn[data-regsort]').forEach(btn => btn.onclick = () => {
+    document.querySelectorAll('#page-registry .sort-btn[data-regsort]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    _registrySort = btn.dataset.regsort;
+    renderRegistry();
+  });
+}
+
+
 // ─── FILTER SIDEBAR ───────────────────────────────────────────
 function initFilterSidebar() {
   const btn  = el('openFilterBtn');
@@ -3829,7 +4014,7 @@ function renderSidebar() {
   const tmap={};
   S.posts.forEach(p=>[p.category,p.make].filter(Boolean).forEach(t=>{tmap[t]=(tmap[t]||0)+1;}));
   el('tagCloud').innerHTML=Object.entries(tmap).sort((a,b)=>b[1]-a[1]).slice(0,18).map(([t])=>`<span class="tag">${esc(t)}</span>`).join('');
-  el('tagCloud').querySelectorAll('.tag').forEach(t=>t.addEventListener('click',()=>{el('searchInput').value=t.textContent; openSearch(); doSearch();}));
+  el('tagCloud').querySelectorAll('.tag').forEach(t=>t.addEventListener('click',()=>{ goTo('search'); renderSearchPage(t.textContent); }));
 }
 
 
@@ -5801,35 +5986,25 @@ function cpRenderGallery(post) {
       mainEl.innerHTML = `
         <img src="${item.src}" alt="${esc(post.title)}" style="cursor:zoom-in" id="cpMainImg" loading="eager"/>
         ${navBtns}`;
-      // Single click = lightbox (delayed), double click/tap = like the build
+      // Double-tap/double-click opens the large lightbox view. This used
+      // to be reversed — double-tap liked the build, and a single click
+      // opened the lightbox only after an artificial 260ms delay (to
+      // give a second click time to arrive and turn it into a "like"
+      // instead). Since double-tap now has one clear job, single click
+      // can just open the lightbox immediately — no more delay, no more
+      // guessing whether a second tap is coming.
       (function(){
         const mainImg = el('cpMainImg'); if (!mainImg) return;
-        let t=null, lastTap=0;
-        function likeBuild(){
-          const wrapEl = mainImg.closest('.car-page-gallery-main') || mainImg.parentElement;
-          if (wrapEl) {
-            wrapEl.style.position = wrapEl.style.position || 'relative';
-            const h=document.createElement('div');
-            h.className='soc-heart-burst';
-            h.innerHTML='<i class="fas fa-heart"></i>';
-            wrapEl.appendChild(h);
-            setTimeout(()=>h.remove(),900);
-          }
-          if(!S.user){ toast('Sign in to like','err'); el('authModal').classList.add('open'); return; }
-          const post = S.openCarPost;
-          if (post && !(post.likedBy||[]).includes(S.user.username)) cpHandleLike();
-        }
-        mainImg.addEventListener('dblclick', e=>{
-          e.preventDefault();
-          if(t){clearTimeout(t);t=null;}
-          likeBuild();
+        let lastTap = 0;
+        mainImg.addEventListener('click', e => {
+          const now = Date.now();
+          if (now - lastTap < 300) { lastTap = 0; return; } // the dblclick handler below covers this tap
+          lastTap = now;
+          openLightbox(imgs, idx);
         });
-        mainImg.addEventListener('click', ()=>{
-          const now=Date.now();
-          if(now-lastTap<300){ lastTap=0; if(t){clearTimeout(t);t=null;} likeBuild(); return; }
-          lastTap=now;
-          if(t)clearTimeout(t);
-          t=setTimeout(()=>{t=null;openLightbox(imgs, idx);},260);
+        mainImg.addEventListener('dblclick', e => {
+          e.preventDefault();
+          openLightbox(imgs, idx);
         });
       })();
     }

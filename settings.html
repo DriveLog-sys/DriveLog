@@ -87,7 +87,7 @@
     /* Buttons */
     .btn-save{background:linear-gradient(135deg,#22c55e 0%,#16a34a 100%);color:#fff;padding:10px 26px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.88rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;transition:all .12s ease;display:inline-flex;align-items:center;gap:8px;box-shadow:0 2px 8px rgba(34,197,94,.25);border:none}
     .btn-save:hover{background:linear-gradient(135deg,#16a34a 0%,#15803d 100%);transform:translateY(-1px);box-shadow:0 6px 20px rgba(34,197,94,.35)}
-    .btn-ghost-s{background:transparent;color:var(--sec);padding:10px 22px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.88rem;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;border:1px solid var(--mid);transition:all var(--tr)}
+    .btn-ghost-s{background:transparent;color:var(--sec);padding:10px 22px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.88rem;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;border:1px solid var(--mid);transition:all var(--tr);display:inline-flex;align-items:center;gap:8px}
     .btn-ghost-s:hover{border-color:#555;color:var(--text)}
     .btn-danger{background:rgba(232,57,42,.1);color:#ef4444;padding:10px 22px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.88rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;border:1px solid rgba(232,57,42,.35);transition:all var(--tr)}
     .btn-danger:hover{background:rgba(232,57,42,.2)}
@@ -143,6 +143,11 @@
        which is why the photo and Change Photo button sat cramped together */
     .avatar-upload-row{display:flex;align-items:flex-start;gap:20px}
     .avatar-upload-actions{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+    /* Username textbox + Change button were stacking with zero gap
+       (input is block-level/full-width, pushing the button directly
+       below with nothing in between) — same flex-column + gap pattern
+       as avatar-upload-actions above, for consistent spacing. */
+    .username-change-wrap{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
     .avatar-upload-note{font-size:.76rem;color:var(--muted);margin:0}
     .avatar-upload-warn{font-size:.76rem;color:var(--accent);margin:0;display:flex;align-items:center;gap:5px}
 
@@ -984,7 +989,7 @@
 
 
   /* ── USERNAME CHANGE ── */
-  const USERNAME_COOLDOWN_DAYS = 30;
+  const USERNAME_COOLDOWN_DAYS = 14;
 
   function canChangeUsername(u) {
     if (!u.lastUsernameChange) return { ok: true };
@@ -1353,8 +1358,17 @@
       // Supabase is the real uniqueness check — a local-only check (like
       // the old getUsers() scan below) can miss usernames taken by anyone
       // this device hasn't cached yet.
+      const nowIso = new Date().toISOString();
+      const updatePayload = { username: newUsername };
+      // Only stamp a fresh cooldown on a REAL change, not the resync
+      // path (isResync re-saves the same username to fix a stale
+      // local cache — that shouldn't cost the person their next
+      // legitimate change). Storing this server-side (not just in
+      // localStorage) is what makes the cooldown a real limit instead
+      // of something clearing site data could bypass.
+      if (!isResync) updatePayload.last_username_change = nowIso;
       const { error: profileErr } = await sb.from('profiles')
-        .update({ username: newUsername })
+        .update(updatePayload)
         .eq('id', u.id);
       if (profileErr) {
         if (profileErr.code === '23505') toast('Username already taken', 'err');
@@ -1370,7 +1384,7 @@
       // Update all references
       const oldUsername = u.username;
       u.username = newUsername;
-      if (!isResync) u.lastUsernameChange = new Date().toISOString();
+      if (!isResync) u.lastUsernameChange = nowIso;
       saveUser(u);
       document.getElementById('fDisplayName').value = newUsername;
       document.getElementById('acctUsername').textContent = newUsername;
@@ -1389,7 +1403,7 @@
       cooldownMsg.style.display = 'block';
       cooldownMsg.innerHTML = isResync
         ? `<i class="fas fa-check-circle"></i> Your account is now back in sync.`
-        : `<i class="fas fa-clock"></i> Username changed successfully. You can change it again in <b>30 days</b>.`;
+        : `<i class="fas fa-clock"></i> Username changed successfully. You can change it again in <b>${USERNAME_COOLDOWN_DAYS} days</b>.`;
       toast(isResync ? 'Account re-synced ✓' : ('Username changed to ' + newUsername + ' ✓'), 'ok');
     } catch(e) {
       toast('Something went wrong — try again', 'err');

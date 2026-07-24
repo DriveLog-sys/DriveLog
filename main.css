@@ -471,6 +471,19 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
 /* ─── FEED ───────────────────────────────────────────────────── */
 .feed-wrap{max-width:1440px;margin:0 auto;padding:30px 24px;display:grid;grid-template-columns:1fr 295px;gap:28px}
 .sort-row{display:flex;align-items:center;gap:8px;margin-bottom:20px}
+/* "View All" — pushed to the far right of the row via margin-left:auto,
+   plain text link in the page's text color (black in light mode, white
+   in dark) rather than the accent blue, so it reads as a quiet
+   navigational option rather than another action button. */
+.feed-view-all-link{
+  margin-left:auto;
+  font-family:var(--cond);font-size:.8rem;font-weight:700;
+  letter-spacing:.5px;color:var(--text);
+  cursor:pointer;white-space:nowrap;
+  text-decoration:none;
+  transition:opacity .12s ease;
+}
+.feed-view-all-link:hover{opacity:.65;text-decoration:underline}
 .sort-label{font-family:var(--cond);font-size:.76rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-right:4px}
 .sort-btn{appearance:none;-webkit-appearance:none;-moz-appearance:none;background:var(--card);padding:5px 13px;font-family:var(--cond);font-size:.78rem;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);border-radius:30px;border:1px solid var(--border);cursor:pointer;transition:all var(--tr);outline:none}
 .sort-btn:hover{color:var(--text);border-color:var(--mid)}
@@ -7554,6 +7567,14 @@ body.dark .exp-support-card p { color: #a0a0a0; }
 .hsr-name { font-size: .86rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hsr-sub { font-size: .74rem; color: var(--muted); }
 .hsr-empty { padding: 16px 14px; color: var(--muted); font-size: .85rem; }
+.hsr-view-all {
+  text-align: center; padding: 11px 14px;
+  font-family: var(--cond); font-size: .78rem; font-weight: 700;
+  letter-spacing: .5px; color: var(--accent); cursor: pointer;
+  border-top: 1px solid var(--subtle);
+  transition: background var(--tr);
+}
+.hsr-view-all:hover { background: var(--raised); }
 
 /* ═══════════════════════════════════════════════════════════════
    LIKES — always stay red, consistent across feed and car page

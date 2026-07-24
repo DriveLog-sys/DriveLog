@@ -219,7 +219,12 @@
     <button class="hamburger" id="hamburger"><i class="fas fa-bars"></i></button>
     <div class="logo" id="logoBtn">DRIVE<span>LOG</span></div>
     <nav class="main-nav">
-      <a class="nav-link active" data-page="home">Feed</a>
+      <div class="nav-item-dropdown">
+        <a class="nav-link active" data-page="home">Feed</a>
+        <div class="nav-dropdown-menu">
+          <a class="nav-dropdown-item" data-page="registry">All Builds</a>
+        </div>
+      </div>
       <a class="nav-link" data-page="social">Car Spotting</a>
       <a class="nav-link" data-page="discussions">Discussions</a>
       <div class="nav-item-dropdown">
@@ -386,6 +391,7 @@
           <button class="sort-btn active" data-sort="newest">Newest</button>
           <button class="sort-btn" data-sort="popular">Most Liked</button>
           <button class="sort-btn" data-sort="discussed">Most Comments</button>
+          <a class="feed-view-all-link" id="feedViewAllLink" data-page="registry">View All</a>
         </div>
         <div id="feedResultsInfo" class="feed-results-info" style="display:none"></div>
         <div class="card-grid" id="feedGrid"></div>
@@ -441,6 +447,80 @@
           <div class="tag-cloud" id="tagCloud"></div>
         </div>
       </aside>
+    </div>
+  </section>
+
+  <!-- ALL BUILDS — REGISTRY (full browsable catalog of every build) -->
+  <section class="page" id="page-registry">
+    <div class="page-head"><h1>All Builds</h1><p>Every build on DriveLog, in one place.</p></div>
+    <div class="filter-bar" id="registryFilterBar">
+      <div class="filter-scroll">
+        <button class="fpill active" data-regcat="All">All Builds</button>
+        <button class="fpill" data-regcat="JDM"><i class="fas fa-sun pill-icon"></i>JDM</button>
+        <button class="fpill" data-regcat="Euro"><i class="fas fa-compass pill-icon"></i>Euro</button>
+        <button class="fpill" data-regcat="Muscle"><i class="fas fa-bolt pill-icon"></i>Muscle</button>
+        <button class="fpill" data-regcat="Classic"><i class="fas fa-star pill-icon"></i>Classic</button>
+        <button class="fpill" data-regcat="Off-Road"><i class="fas fa-mountain pill-icon"></i>Off-Road</button>
+        <button class="fpill" data-regcat="Collector"><i class="fas fa-gem pill-icon"></i>Collector</button>
+        <button class="fpill" data-regcat="Sports Car"><i class="fas fa-car pill-icon"></i>Sports Car</button>
+        <button class="fpill" data-regcat="Truck"><i class="fas fa-truck-pickup pill-icon"></i>Truck</button>
+        <button class="fpill" data-regcat="SUV"><i class="fas fa-car-side pill-icon"></i>SUV</button>
+        <button class="fpill" data-regcat="Drift"><i class="fas fa-wind pill-icon"></i>Drift</button>
+        <button class="fpill" data-regcat="Track"><i class="fas fa-flag-checkered pill-icon"></i>Track</button>
+        <button class="fpill" data-regcat="Drag"><i class="fas fa-tachometer-alt pill-icon"></i>Drag</button>
+        <button class="fpill" data-regcat="Electric"><i class="fas fa-plug pill-icon"></i>Electric</button>
+        <button class="fpill" data-regcat="Supercar"><i class="fas fa-rocket pill-icon"></i>Supercar</button>
+        <button class="fpill" data-regcat="Hypercar"><i class="fas fa-rocket pill-icon"></i>Hypercar</button>
+      </div>
+    </div>
+    <div class="feed-wrap">
+      <div class="feed-main" style="width:100%;max-width:none">
+        <div class="sort-row">
+          <span class="sort-label">Sort</span>
+          <button class="sort-btn active" data-regsort="newest">Newest</button>
+          <button class="sort-btn" data-regsort="popular">Most Liked</button>
+          <button class="sort-btn" data-regsort="discussed">Most Comments</button>
+          <span class="feed-results-info" id="registryResultsInfo" style="margin-left:auto"></span>
+        </div>
+        <div class="card-grid" id="registryGrid"></div>
+        <div class="load-more-wrap"><button class="btn-ghost" id="registryLoadMoreBtn">Load More Builds</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SEARCH RESULTS — full page, replaces the old blue overlay window.
+       Same card grid the Feed and Registry use, so results are easy to
+       scan and click through instead of a small icon list. -->
+  <section class="page" id="page-search">
+    <div class="page-head">
+      <h1 id="searchPageTitle">Search</h1>
+      <p id="searchPageSub">Search builds and members across DriveLog.</p>
+    </div>
+    <div class="search-bar" id="searchPageBar" style="max-width:560px;margin-bottom:28px">
+      <i class="fas fa-search"></i>
+      <input type="text" id="searchPageInput" placeholder="Make, model, year, category, username…" autocomplete="off"/>
+    </div>
+
+    <div id="searchPageUsersSection" style="display:none">
+      <div class="lb-standalone-head all" style="margin-bottom:16px;padding-top:0;border-top:none">
+        <div class="lb-standalone-icon all"><i class="fas fa-user"></i></div>
+        <div class="lb-standalone-title" style="font-size:1.2rem">Members</div>
+      </div>
+      <div class="members-grid" id="searchPageUsersGrid" style="margin-bottom:36px"></div>
+    </div>
+
+    <div id="searchPageBuildsSection" style="display:none">
+      <div class="lb-standalone-head" style="margin-bottom:16px;padding-top:0;border-top:none">
+        <div class="lb-standalone-icon"><i class="fas fa-car"></i></div>
+        <div class="lb-standalone-title" style="font-size:1.2rem">Builds</div>
+      </div>
+      <div class="card-grid" id="searchPageBuildsGrid"></div>
+    </div>
+
+    <div id="searchPageEmpty" style="display:none" class="feed-empty-state">
+      <i class="fas fa-search feed-empty-icon"></i>
+      <h3>No results</h3>
+      <p id="searchPageEmptyText"></p>
     </div>
   </section>
 
@@ -1704,7 +1784,7 @@
         <a href="#" class="fsoc"><i class="fab fa-youtube"></i></a>
       </div>
     </div>
-    <div class="footer-links"><h4>Explore</h4><a href="#" data-footer-scroll="registry">Registry</a><a href="#" data-footer-page="social">Car Spotting</a><a href="https://instagram.com/drivelogofficial" target="_blank" rel="noopener">Our Instagram</a><a href="#" data-footer-gtab="dream">Dream Garage</a><a href="#" data-footer-page="compare">Compare Builds</a></div>
+    <div class="footer-links"><h4>Explore</h4><a href="#" data-footer-page="registry">Registry</a><a href="#" data-footer-page="social">Car Spotting</a><a href="https://instagram.com/drivelogofficial" target="_blank" rel="noopener">Our Instagram</a><a href="#" data-footer-gtab="dream">Dream Garage</a><a href="#" data-footer-page="compare">Compare Builds</a></div>
     <div class="footer-links"><h4>Community</h4><a href="#" data-footer-page="guidelines">Guidelines</a><a href="#" data-footer-page="about">About</a><a href="#" data-footer-page="events">Events</a><a href="#" data-footer-page="members">Members</a></div>
     <div class="footer-links"><h4>Account</h4><a href="settings.html">Settings</a><a href="#" data-footer-page="privacy">Privacy</a><a href="#" data-footer-page="help">Help</a></div>
   </div>
