@@ -1074,7 +1074,14 @@ function initHeader() {
   });
 }
 
-function avColor(username) { return '#6b7280'; }
+// avColor() intentionally NOT redefined here — the real implementation
+// lives in data.js (a colorful per-letter-of-username palette). A stray
+// duplicate definition used to sit right here doing nothing but
+// `return '#6b7280'` for every single user — since this file loads
+// after data.js, that flat gray silently won over the actual colorful
+// avatars everywhere on the site (cards, comments, member lists,
+// profile pages) with no comment explaining why. Removed so the real
+// palette shows again.
 
 // ─── IMAGE COMPRESSION ────────────────────────────────────────
 async function compressBase64(dataUrl, quality = 0.82) {
@@ -2369,6 +2376,24 @@ async function logout() {
 // ─── POST BUILD PAGE ─────────────────────────────────────────
 let pendingImages=[];
 let pendingVideos=[];
+let pendingYoutubeLinks=[];
+
+// extractYouTubeId — handles every common YouTube URL shape:
+// watch?v=ID, youtu.be/ID, /embed/ID, /shorts/ID. Returns null for
+// anything that doesn't look like a real YouTube link, so the Add
+// button can reject garbage input before it ever gets saved.
+function extractYouTubeId(url) {
+  if (!url) return null;
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/|youtube\.com\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+  ];
+  for (const re of patterns) {
+    const m = url.match(re);
+    if (m) return m[1];
+  }
+  return null;
+}
+
 function initPostModal() {
   // Upload zone
   el('uploadZone')?.addEventListener('click', ()=>el('fileInput').click());
@@ -2388,6 +2413,38 @@ function initPostModal() {
     addVideos(Array.from(e.dataTransfer.files));
   });
   el('videoFileInput')?.addEventListener('change', ()=>addVideos(Array.from(el('videoFileInput').files)));
+
+  // ── YouTube links ──────────────────────────────────────────
+  function renderYoutubeLinkList() {
+    const list = el('youtubeLinkList'); if (!list) return;
+    if (!pendingYoutubeLinks.length) { list.innerHTML = ''; return; }
+    list.innerHTML = pendingYoutubeLinks.map((yt, i) => `
+      <div class="yt-link-item" data-i="${i}">
+        <img class="yt-link-thumb" src="https://img.youtube.com/vi/${yt.id}/mqdefault.jpg" alt=""/>
+        <span class="yt-link-url">${esc(yt.url)}</span>
+        <button class="yt-link-remove" data-i="${i}" type="button"><i class="fas fa-times"></i></button>
+      </div>`).join('');
+    list.querySelectorAll('.yt-link-remove').forEach(b => b.addEventListener('click', () => {
+      pendingYoutubeLinks.splice(+b.dataset.i, 1);
+      renderYoutubeLinkList();
+    }));
+  }
+  function addYoutubeLink() {
+    const input = el('youtubeLinkInput'); if (!input) return;
+    const url = input.value.trim();
+    if (!url) return;
+    const id = extractYouTubeId(url);
+    if (!id) { toast('That doesn\'t look like a YouTube link', 'err'); return; }
+    if (pendingYoutubeLinks.length >= 5) { toast('Max 5 YouTube links per build', 'err'); return; }
+    if (pendingYoutubeLinks.some(yt => yt.id === id)) { toast('That video is already added', 'err'); return; }
+    pendingYoutubeLinks.push({ id, url });
+    input.value = '';
+    renderYoutubeLinkList();
+  }
+  el('addYoutubeLinkBtn')?.addEventListener('click', addYoutubeLink);
+  el('youtubeLinkInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addYoutubeLink(); } });
+  window._renderYoutubeLinkList = renderYoutubeLinkList; // used when opening the edit form with existing links
+
   el('postPageBack')?.addEventListener('click', ()=>{ S._editingPostId=null; const btn=el('submitPost'); if(btn){btn.innerHTML='<i class="fas fa-upload"></i> Publish Build';delete btn.dataset.editing;} goTo(S._prevPage||'home'); });
   // ── Social links toggle ──────────────────────────────────
   function updateSocialPreview() {
@@ -2603,6 +2660,8 @@ function openEditPost(post) {
     pendingImages = [...(post.images || [])];
     renderPreviews();
     pendingVideos = (post.videos||[]).map((url,i)=>({dataUrl:url,name:'video_'+(i+1)+'.mp4',type:'video/mp4',size:0}));
+    pendingYoutubeLinks = (post.youtubeLinks||[]).map(url => ({ id: extractYouTubeId(url), url })).filter(yt => yt.id);
+    window._renderYoutubeLinkList?.();
     renderVideoPreviews();
     const st = el('postShowSocials'); if(st) st.checked = post.showSocials !== false;
     const tr = el('postTransmission'); if(tr) tr.value = post.transmission||'';
@@ -2828,6 +2887,7 @@ async function submitPost() {
       if (editFailed) toast(`${editFailed} file(s) failed to upload and were skipped`, 'err');
       existing.images       = editImageUrls;
       existing.videos       = editVideoUrls;
+      existing.youtubeLinks = pendingYoutubeLinks.map(yt => yt.url);
       existing.showSocials  = el('postShowSocials')?.checked ?? true;
       existing.editedAt     = new Date().toISOString();
       // Save to Supabase
@@ -2878,6 +2938,7 @@ async function submitPost() {
       hp, mods, modsDetail, desc, transmission, mileage, buildState, zeroSixty, quarterMile, topSpeed,
       images: imageUrls,
       videos: videoUrls,
+      youtubeLinks: pendingYoutubeLinks.map(yt => yt.url),
       liked_by:[], saved_by:[], reactions:{},
       showSocials: el('postShowSocials')?.checked ?? true,
       state: el('postState')?.value || '',
@@ -2891,7 +2952,7 @@ async function submitPost() {
       id:newPost?.id||'u'+Date.now(), title, make, model, year,
       category:cat, categories:selectedCats, hp, mods, modsDetail, desc, transmission, mileage,
       user:S.user.username, likes:0, comments:[], images:imageUrls,
-      videos:videoUrls, likedBy:[], savedBy:[], reactions:{},
+      videos:videoUrls, youtubeLinks:pendingYoutubeLinks.map(yt=>yt.url), likedBy:[], savedBy:[], reactions:{},
       date:new Date().toISOString().slice(0,10),
     };
     S.posts.unshift(localPost);
@@ -2922,6 +2983,8 @@ function resetPostForm() {
   document.querySelectorAll('.mod-item-input').forEach(i=>i.value='');
   pendingVideos=[]; renderVideoPreviews();
   el('videoFileInput').value='';
+  pendingYoutubeLinks=[]; window._renderYoutubeLinkList?.();
+  const ytInput=el('youtubeLinkInput'); if(ytInput) ytInput.value='';
   const sToggle=el('postShowSocials'); if(sToggle){sToggle.checked=true;} el('postSocialPreview')&&(el('postSocialPreview').innerHTML='');
   const trEl=el('postTransmission'); if(trEl) trEl.value='';
   const bsEl=el('postState'); if(bsEl) bsEl.value='';
@@ -6397,11 +6460,18 @@ function cpSubmitComment() {
 }
 
 // ─── CAR PAGE — VIDEOS in specs right panel ───────────────────
+// Shows both uploaded video files AND YouTube links in one panel —
+// uploaded videos play inline (they're already hosted in our own
+// Storage), YouTube links show a thumbnail pulled from YouTube's own
+// public thumbnail image and open an embedded player in a lightbox
+// when clicked (no reason to navigate away from the build page just
+// to watch it).
 function renderCpVideos(post) {
   const panel = el('specsRightPanel'); if (!panel) return;
   const videos = post.videos || [];
+  const ytLinks = (post.youtubeLinks || []).map(url => ({ url, id: extractYouTubeId(url) })).filter(yt => yt.id);
   panel.style.display = 'flex';
-  if (!videos.length) {
+  if (!videos.length && !ytLinks.length) {
     panel.innerHTML = `<div class="cp-videos-label"><i class="fas fa-video"></i> Videos</div>
       <p class="cp-videos-none">No videos uploaded for this build.</p>`;
     return;
@@ -6414,6 +6484,11 @@ function renderCpVideos(post) {
           <video class="cp-video-preview" src="${esc(src)}" muted preload="metadata" playsinline></video>
           <div class="cp-video-play"><i class="fas fa-play"></i></div>
         </div>`).join('')}
+      ${ytLinks.map(yt => `
+        <div class="cp-video-thumb cp-yt-thumb" data-yt-id="${yt.id}">
+          <img class="cp-yt-thumb-img" src="https://img.youtube.com/vi/${yt.id}/hqdefault.jpg" alt="YouTube video" loading="lazy"/>
+          <div class="cp-video-play cp-yt-play"><i class="fab fa-youtube"></i></div>
+        </div>`).join('')}
     </div>`;
 
   // Seek each preview to 10% for a good thumbnail frame
@@ -6422,7 +6497,7 @@ function renderCpVideos(post) {
   });
 
   // Click to play/pause inline — video plays right in the thumbnail
-  panel.querySelectorAll('.cp-video-thumb').forEach(thumb => {
+  panel.querySelectorAll('.cp-video-thumb:not(.cp-yt-thumb)').forEach(thumb => {
     const preview = thumb.querySelector('.cp-video-preview');
     const playIcon = thumb.querySelector('.cp-video-play');
     thumb.addEventListener('click', () => {
@@ -6445,6 +6520,16 @@ function renderCpVideos(post) {
     preview?.addEventListener('pause', () => { if (playIcon) playIcon.style.display = 'flex'; });
     preview?.addEventListener('play',  () => { if (playIcon) playIcon.style.display = 'none'; });
     preview?.addEventListener('ended', () => { if (playIcon) playIcon.style.display = 'flex'; preview.controls = false; });
+  });
+
+  // YouTube thumbnails open an embedded player in a lightweight modal —
+  // clicking swaps the thumbnail image out for a real <iframe> embed
+  // rather than navigating off DriveLog to watch it.
+  panel.querySelectorAll('.cp-yt-thumb').forEach(thumb => {
+    thumb.addEventListener('click', () => {
+      const id = thumb.dataset.ytId;
+      thumb.innerHTML = `<iframe width="100%" height="100%" src="https://www.youtube.com/embed/${id}?autoplay=1" title="YouTube video" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+    }, { once: true });
   });
 }
 
@@ -9209,7 +9294,9 @@ async function submitSocialPost() {
 
   // Save to Supabase
   const { error } = await DB.createSocialPost(S.user.id, S.user.username, postData);
+  let savedToServer = true;
   if (error) {
+    savedToServer = false;
     console.warn('Social post save failed, storing locally:', error);
     // Fallback: store locally if Supabase fails
     const stored = JSON.parse(localStorage.getItem('dl_social_posts')||'[]');
@@ -9228,7 +9315,16 @@ async function submitSocialPost() {
   if (progBar) { progBar.value=100; setTimeout(()=>{ progBar.style.display='none'; progBar.value=0; },400); }
   _socialPendingFiles = []; _blurredDataURLs = [];
   if (btn) { btn.disabled=false; btn.innerHTML='<i class="fas fa-paper-plane"></i> Post to Car Spotting'; }
-  toast('Posted to Car Spotting ✓','ok');
+  // Honest messaging: a silent "posted!" when it actually only saved to
+  // this one browser's local storage is exactly what let the missing-
+  // columns bug above go unnoticed for who knows how long. If it ever
+  // fails to reach Supabase again for any reason, this says so clearly
+  // instead of claiming success either way.
+  if (savedToServer) {
+    toast('Posted to Car Spotting ✓','ok');
+  } else {
+    toast('Saved on this device only — it didn\'t reach the server. Check your connection and try again.', 'err');
+  }
   socialPage=0;
   goTo('social');
 }

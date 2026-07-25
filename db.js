@@ -1224,6 +1224,7 @@ function dbPostToApp(row) {
     reactions:    row.reactions   || {},
     images:       row.images      || [],
     videos:       row.videos      || [],
+    youtubeLinks: row.youtube_links || [],
     // Comment count comes from separate getCommentCounts() call after render
     comments:     [],
     commentCount: 0,
@@ -1288,6 +1289,7 @@ function appPostToDb(post) {
     description:  post.desc        || '',
     images:       post.images      || [],
     videos:       post.videos      || [],
+    youtube_links: post.youtubeLinks || [],
     transmission: post.transmission|| '',
     mileage:      post.mileage     || '',
     build_state:  post.buildState  || '',

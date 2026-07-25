@@ -8658,3 +8658,48 @@ html, body { overflow-x: hidden; }
   .registry-stat-num{font-size:1.6rem}
   .registry-stat-divider{height:30px}
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   YOUTUBE LINKS — post form input + build page thumbnail display
+   ═══════════════════════════════════════════════════════════════ */
+.yt-link-row{
+  display:flex;gap:10px;margin-top:14px;
+}
+.yt-link-row input{flex:1}
+.yt-link-row .btn-ghost{
+  flex-shrink:0;white-space:nowrap;
+}
+.yt-link-list{
+  display:flex;flex-direction:column;gap:8px;margin-top:10px;
+}
+.yt-link-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px;background:var(--raised);
+  border:1px solid var(--border);border-radius:var(--r-sm);
+}
+.yt-link-thumb{
+  width:64px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0;
+}
+.yt-link-url{
+  flex:1;min-width:0;font-size:.8rem;color:var(--sec);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.yt-link-remove{
+  flex-shrink:0;width:26px;height:26px;border-radius:50%;
+  background:none;border:1px solid var(--border);color:var(--muted);
+  cursor:pointer;transition:all var(--tr);
+  display:flex;align-items:center;justify-content:center;font-size:.7rem;
+}
+.yt-link-remove:hover{background:rgba(232,57,42,.1);border-color:rgba(232,57,42,.4);color:#e84242}
+
+/* Build page display — YouTube thumbnails inherit .cp-video-thumb's
+   sizing/hover/border from the base rule (both classes are applied
+   together), this just fills in the image + brand-red play icon */
+.cp-yt-thumb-img{
+  width:100%;height:100%;object-fit:cover;display:block;
+}
+.cp-yt-play{
+  background:rgba(0,0,0,.25);
+}
+.cp-yt-play i{color:#ff0000;font-size:1.8rem;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))}
+.cp-yt-thumb:hover .cp-yt-play{background:rgba(0,0,0,.4)}

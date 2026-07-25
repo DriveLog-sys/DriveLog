@@ -1343,6 +1343,16 @@
               <input type="file" id="videoFileInput" accept="video/mp4,video/quicktime,video/webm" multiple hidden/>
             </div>
             <div class="video-preview-list" id="videoPreviewList" style="display:none"></div>
+
+            <!-- YouTube links — separate from uploaded video files. Shows
+                 a thumbnail preview pulled straight from YouTube's public
+                 thumbnail image (no API key needed), same as the build
+                 page's own video panel. -->
+            <div class="yt-link-row">
+              <input type="text" class="finput" id="youtubeLinkInput" placeholder="Paste a YouTube link…" style="margin-bottom:0"/>
+              <button class="btn-ghost" id="addYoutubeLinkBtn" type="button"><i class="fas fa-plus"></i> Add</button>
+            </div>
+            <div class="yt-link-list" id="youtubeLinkList"></div>
           </div>
 
         </div>
