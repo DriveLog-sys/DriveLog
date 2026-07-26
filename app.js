@@ -62,7 +62,7 @@ const S = {
   events: [],          // community events
   page: 'home',        // current active page name (matches data-page)
   filter: 'All',       // active category filter on feed
-  sort: 'newest',      // feed sort: 'newest' | 'liked' | 'comments'
+  sort: 'hot',          // feed sort: 'hot' | 'newest' | 'popular' | 'discussed'
   visibleCount: FEED_PAGE_SIZE, // how many feed cards are showing
   evtFilter: 'All',    // event type filter
   memberSort: 'likes', // members page sort
@@ -627,7 +627,10 @@ function applyPrefs() {
     const theme = p.theme || 'dark';
     if (theme === 'dark') document.body.classList.add('dark');
     else document.body.classList.remove('dark');
-    if (p.fontSize) document.documentElement.style.fontSize = p.fontSize + 'px';
+    // Font size is no longer user-customizable — always the site default
+    // 16px (set in main.css :root). Intentionally ignoring any stored
+    // p.fontSize value here, including old ones from before this was
+    // locked, same as accent color above.
   } catch(e) {}
 }
 function setAccent(c) {
@@ -3551,7 +3554,24 @@ function renderFeed() {
     S.filters.category = '';
   }
   posts = posts.filter(p => applyFiltersToPost(p));
-  if (S.sort==='popular')    posts.sort((a,b)=>b.likes-a.likes);
+  if (S.sort==='hot') {
+    // "Hot" — builds from the last 24 hours, ranked by a combined score
+    // of views and likes (likes weighted heavier since they reflect
+    // real engagement, not just a passive page view). If very few
+    // builds were posted in the last day, fall back to ranking ALL
+    // builds by the same score instead of showing a near-empty page —
+    // a default sort landing on "basically nothing" on a quiet day
+    // would look broken rather than accurately "hot."
+    const hotScore = p => (p.views||0) + (p.likes||0) * 3;
+    const now = Date.now();
+    const last24h = posts.filter(p => {
+      const t = new Date(p.createdAt || p.date || 0).getTime();
+      return now - t <= 24*60*60*1000;
+    });
+    const pool = last24h.length >= 5 ? last24h : posts;
+    posts = [...pool].sort((a,b) => hotScore(b) - hotScore(a));
+  }
+  else if (S.sort==='popular')    posts.sort((a,b)=>b.likes-a.likes);
   else if (S.sort==='discussed') posts.sort((a,b)=>(b.comments||[]).length-(a.comments||[]).length);
   else posts.sort((a,b)=>{
     // Use full ISO timestamp if available (from Supabase), fall back to date string

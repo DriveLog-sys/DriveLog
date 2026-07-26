@@ -363,18 +363,6 @@
       </div>
 
       <div class="s-divider"></div>
-
-      <div class="s-field">
-        <label class="s-label">Font Size</label>
-        <div class="slider-wrap">
-          <span style="font-size:.75rem;color:var(--muted)">A</span>
-          <input type="range" id="fontSlider" min="13" max="18" step="1" value="15"/>
-          <span style="font-size:1.1rem;color:var(--text)">A</span>
-          <span class="slider-val" id="fontVal">15px</span>
-        </div>
-      </div>
-
-      <div class="s-divider"></div>
       <button class="btn-save" id="saveAppearance"><i class="fas fa-paint-brush"></i> Save Appearance</button>
     </div>
 
@@ -575,7 +563,8 @@
   // Accent color is fixed sitewide (blue) and no longer user-customizable —
   // intentionally not reading/applying prefs.accent here, including any
   // legacy value saved before this was locked down.
-  if (prefs.fontSize) document.documentElement.style.fontSize = prefs.fontSize + 'px';
+  // Font size is likewise fixed at 16px sitewide now — intentionally not
+  // reading/applying any legacy prefs.fontSize value either.
 
   /* ── Toast ── */
   let _tt;
@@ -687,14 +676,9 @@
   });
 
   // Font size
-  const slider = document.getElementById('fontSlider');
-  const fontVal = document.getElementById('fontVal');
-  slider.value = prefs.fontSize || 15;
-  fontVal.textContent = slider.value + 'px';
-  slider.addEventListener('input', () => {
-    fontVal.textContent = slider.value + 'px';
-    document.documentElement.style.fontSize = slider.value + 'px';
-  });
+  // Font size setting removed — site now uses a fixed 16px base
+  // font-size site-wide (see the :root font-size rule), no longer
+  // user-adjustable from Appearance.
 
   /* ── Load prefs into toggles ── */
   const np = prefs.notifs || {};
@@ -742,7 +726,6 @@
     const selectedTheme = document.querySelector('.theme-opt.selected')?.dataset.theme || 'dark';
     const p = getPrefs();
     p.theme = selectedTheme;
-    p.fontSize = +slider.value;
     savePrefs(p);
     // Apply immediately in settings page too
     if (selectedTheme === 'dark') document.body.classList.add('dark');
@@ -1048,10 +1031,8 @@
     if (idx >= 0) { users[idx] = { ...users[idx], ...u }; saveUsers(users); }
     // Save appearance
     const selectedTheme = document.querySelector('.theme-opt.selected')?.dataset.theme || 'dark';
-    const slider = document.getElementById('fontSlider');
     const p = getPrefs();
     p.theme = selectedTheme;
-    if (slider) p.fontSize = +slider.value;
     savePrefs(p);
     pushProfileToSupabase(u);
   }
