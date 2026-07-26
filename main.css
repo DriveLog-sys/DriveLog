@@ -8708,3 +8708,30 @@ html, body { overflow-x: hidden; }
 }
 .cp-yt-play i{color:#ff0000;font-size:1.8rem;filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))}
 .cp-yt-thumb:hover .cp-yt-play{background:rgba(0,0,0,.4)}
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN FEED GRID — only the very first post gets the large showcase
+   frame; every post after that is a normal uniform frame, 3 per row.
+   The site-wide .card-grid rule makes EVERY 7th card large (1st, 8th,
+   15th...), which looked fine in small numbers but became visibly
+   broken once a feed had 7+ posts — a large card would land mid-grid,
+   throwing off the row alignment and orphaning whatever card should
+   have been to its right, then repeating again at post #8. Scoped to
+   #feedGrid specifically so Profile/Garage pages (which reuse the
+   same .card-grid class) are unaffected. ═══════════════════════════════════════════════════════════════ */
+#feedGrid.card-grid{
+  grid-template-columns:repeat(3, 1fr) !important;
+}
+#feedGrid .card:nth-child(7n+1):not(:first-child){
+  grid-column:span 1 !important;
+}
+#feedGrid .card:nth-child(7n+1):not(:first-child) .card-img{
+  aspect-ratio:16/10 !important;
+}
+
+@media(max-width:900px){
+  #feedGrid.card-grid{grid-template-columns:repeat(2, 1fr) !important}
+}
+@media(max-width:600px){
+  #feedGrid.card-grid{grid-template-columns:1fr !important}
+}

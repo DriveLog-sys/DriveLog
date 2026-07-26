@@ -4915,6 +4915,24 @@ async function viewMemberProfile(username) {
   S._editingPostId = null;
   if (!username) return;
 
+  // Clear whatever profile was showing before, immediately and
+  // synchronously — before any of the async fetches below even start.
+  // This is what actually fixes the "briefly shows my own account"
+  // flash: the profile page becoming visible via switchToProfilePageSection()
+  // further down doesn't by itself change any content, so without this,
+  // whatever was already rendered in these elements (often your own
+  // profile, if that's where you were a moment ago) stayed on screen
+  // until every await below finished — which used to include a
+  // guaranteed-failing follows query with a slow fallback (fixed
+  // separately below), making that gap especially noticeable.
+  const nameEl = el('profileName');
+  if (nameEl) nameEl.textContent = username;
+  if (el('profileBio')) el('profileBio').textContent = '';
+  if (el('profileStats')) el('profileStats').innerHTML = '';
+  if (el('profileGrid')) el('profileGrid').innerHTML = Array(6).fill(0).map(()=>`<div class="skeleton-card"><div class="skeleton skeleton-card-img"></div><div class="skeleton-card-body"><div class="skeleton skeleton-card-title"></div><div class="skeleton skeleton-card-meta"></div></div></div>`).join('');
+  const avEl = el('profileAv');
+  if (avEl) avEl.innerHTML = '';
+
   // Update URL so this profile is shareable
   try {
     const url = new URL(window.location.href);
@@ -4987,11 +5005,17 @@ async function viewMemberProfile(username) {
 
   const likes = posts.reduce((a,p) => a+(p.likes||0), 0);
 
-  // Follower count — from Supabase follows table
+  // Follower count — from Supabase follows table. Was querying
+  // .select('id', ...) — the follows table has no id column (it's a
+  // pure junction table on follower_id/following_id), so this failed
+  // with a 400 on every single profile view and fell through to a much
+  // slower fallback that loops every user's localStorage data. That
+  // guaranteed-failing request was a real contributor to the profile
+  // page feeling slow to load the correct person's info.
   let followers = 0;
   if (_sbOk() && u.id) {
     try {
-      const { count } = await _sb.from('follows').select('id', {count:'exact',head:true}).eq('following_id', u.id);
+      const { count } = await _sb.from('follows').select('follower_id', {count:'exact',head:true}).eq('following_id', u.id);
       followers = count || 0;
     } catch(_) {
       // Fallback: count from local
