@@ -41,6 +41,7 @@
   --glass-bg-dropdown: rgba(255,255,255,.88);
   --glass-border:  rgba(255,255,255,.65);
   --glass-blur:    blur(20px) saturate(1.6);
+  --glass-blur-light: blur(9px) saturate(1.4);
   --glass-shadow:  0 8px 32px rgba(31,41,55,.10), inset 0 1px 0 rgba(255,255,255,.55);
 }
 
@@ -63,6 +64,7 @@ body.dark {
   --glass-bg-dropdown: rgba(32,33,38,.92);
   --glass-border:  rgba(255,255,255,.14);
   --glass-blur:    blur(20px) saturate(1.6);
+  --glass-blur-light: blur(9px) saturate(1.4);
   --glass-shadow:  0 8px 32px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.10);
 }
 
@@ -74,7 +76,25 @@ html{scroll-behavior:smooth}
    whatever the browser's own default happens to be, which isn't
    guaranteed to be 16px on every browser/OS. */
 html{font-size:16px}
-body{background:var(--bg);color:var(--text);font-family:var(--body);font-weight:400;line-height:1.6;overflow-x:hidden;transition:background .3s,color .3s;}
+/* Ambient background glow — soft, fixed-position color blooms behind
+   the page content. Without this, a glass panel's blur has nothing
+   but flat uniform color to reveal, which is exactly why the glass
+   effect read as "just gray boxes" instead of actual frosted glass —
+   blur needs something with variation behind it to diffuse. Very low
+   opacity and fixed so it reads as ambient lighting, not a visible
+   graphic. */
+body::before{
+  content:'';
+  position:fixed;inset:0;
+  z-index:-1;
+  pointer-events:none;
+  background:
+    radial-gradient(ellipse 900px 600px at 12% 8%,  var(--accent-glow) 0%, transparent 60%),
+    radial-gradient(ellipse 800px 700px at 90% 15%, rgba(168,85,247,.12) 0%, transparent 60%),
+    radial-gradient(ellipse 900px 800px at 15% 85%, rgba(34,197,94,.08) 0%, transparent 60%),
+    radial-gradient(ellipse 700px 600px at 95% 90%, var(--accent-glow) 0%, transparent 60%);
+}
+body{background:var(--bg);color:var(--text);font-family:var(--body);font-weight:400;line-height:1.6;overflow-x:hidden;transition:background .3s,color .3s;position:relative;}
 a{color:inherit;text-decoration:none}
 img{max-width:100%;display:block}
 button{cursor:pointer;border:none;background:none;font-family:inherit}
@@ -8804,15 +8824,18 @@ html, body { overflow-x: hidden; }
    ═══════════════════════════════════════════════════════════════ */
 
 /* ── Build/Feed cards, Registry, Search results ──
-   NOTE: no backdrop-filter here deliberately — a feed can show 30-60+
-   of these at once with infinite scroll, and stacking that many
-   simultaneous blur operations is a real GPU cost that can visibly
-   hurt scroll smoothness, especially on phones. The translucent
-   background + border + layered shadow below still reads as glass,
-   just without the (expensive, and here largely redundant against a
-   mostly-uniform page background) blur-what's-behind-it effect. ── */
+   Now WITH a light blur — the earlier no-blur version left these
+   looking like flat gray boxes rather than actual glass, since alpha
+   transparency alone (with nothing behind it visibly diffusing) isn't
+   what reads as "frosted glass" — the blur itself is the key visual
+   signature. Using the LIGHT blur variant (9px vs 20px) rather than
+   skipping it entirely keeps the GPU cost much lower for a grid that
+   can show many of these at once, while still giving a real glass
+   read instead of a flat color block. ── */
 .card{
   background:var(--glass-bg) !important;
+  backdrop-filter:var(--glass-blur-light) !important;
+  -webkit-backdrop-filter:var(--glass-blur-light) !important;
   border-color:var(--glass-border) !important;
   box-shadow:var(--glass-shadow) !important;
 }
@@ -8821,6 +8844,8 @@ html, body { overflow-x: hidden; }
 .social-post-card,
 .social-grid-card{
   background:var(--glass-bg) !important;
+  backdrop-filter:var(--glass-blur-light) !important;
+  -webkit-backdrop-filter:var(--glass-blur-light) !important;
   border-color:var(--glass-border) !important;
   box-shadow:var(--glass-shadow) !important;
 }
@@ -8861,6 +8886,8 @@ html, body { overflow-x: hidden; }
    there. ── */
 .disc-item{
   background:var(--glass-bg) !important;
+  backdrop-filter:var(--glass-blur-light) !important;
+  -webkit-backdrop-filter:var(--glass-blur-light) !important;
   border-color:var(--glass-border) !important;
   box-shadow:var(--glass-shadow) !important;
 }
@@ -8887,6 +8914,8 @@ html, body { overflow-x: hidden; }
 .member-card,
 .lb-row{
   background:var(--glass-bg) !important;
+  backdrop-filter:var(--glass-blur-light) !important;
+  -webkit-backdrop-filter:var(--glass-blur-light) !important;
   border-color:var(--glass-border) !important;
   box-shadow:var(--glass-shadow) !important;
 }
