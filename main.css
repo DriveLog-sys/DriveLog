@@ -31,6 +31,16 @@
      bloom reads far more modern than one hard drop shadow. */
   --sh: 0 1px 2px rgba(0,0,0,.05), 0 8px 28px rgba(0,0,0,.07);
   --shm: 0 8px 24px rgba(0,0,0,.10), 0 32px 90px rgba(0,0,0,.16);
+  /* Glassmorphism tokens — translucent versions of the SAME card color
+     above (white), not a new color, so the site's palette stays the
+     same while surfaces become frosted glass instead of flat/solid.
+     A light top-edge highlight (--glass-shadow's inset line) is what
+     sells the "glass" read — light catching the upper rim of the pane. */
+  --glass-bg:      rgba(255,255,255,.55);
+  --glass-bg-raised: rgba(255,255,255,.68);
+  --glass-border:  rgba(255,255,255,.65);
+  --glass-blur:    blur(20px) saturate(1.6);
+  --glass-shadow:  0 8px 32px rgba(31,41,55,.10), inset 0 1px 0 rgba(255,255,255,.55);
 }
 
 /* Dark mode override */
@@ -40,6 +50,16 @@ body.dark {
   --text:#f0f0f0; --sec:#d1d5db; --muted:#9ca3af;
   --sh:0 1px 2px rgba(0,0,0,.4), 0 10px 32px rgba(0,0,0,.42);
   --shm:0 12px 32px rgba(0,0,0,.5), 0 36px 100px rgba(0,0,0,.72);
+  /* Glassmorphism tokens — dark mode. Translucent version of --card
+     (#1f1f1f), same idea as light mode: a frosted pane of the SAME
+     color the site already uses, not a new one. Dark glass reads best
+     with a faint LIGHT border (catching ambient light on the edge)
+     rather than a dark one, which would just disappear. */
+  --glass-bg:      rgba(31,31,31,.55);
+  --glass-bg-raised: rgba(37,37,37,.6);
+  --glass-border:  rgba(255,255,255,.09);
+  --glass-blur:    blur(20px) saturate(1.6);
+  --glass-shadow:  0 8px 32px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
 }
 
 /* ─── RESET ─────────────────────────────────────────────────── */
@@ -8763,3 +8783,121 @@ html, body { overflow-x: hidden; }
 @media(max-width:600px){
   #feedGrid.card-grid{grid-template-columns:1fr !important}
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   GLASSMORPHISM PASS
+   ───────────────────────────────────────────────────────────────
+   Site-wide frosted-glass treatment. Deliberately touches ONLY
+   background / border-color / box-shadow / backdrop-filter on each
+   selector below — border-radius, padding, margin, width, height,
+   and every color token (accent blue, category colors, text colors)
+   are completely untouched, so the shape, size, and palette read
+   exactly as they did before. The glass background itself is a
+   translucent version of each element's ORIGINAL background color
+   (--card or --raised, both already site tokens), not a new color —
+   see the --glass-* variable definitions near the top of this file
+   for light/dark mode versions of each.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Build/Feed cards, Registry, Search results ──
+   NOTE: no backdrop-filter here deliberately — a feed can show 30-60+
+   of these at once with infinite scroll, and stacking that many
+   simultaneous blur operations is a real GPU cost that can visibly
+   hurt scroll smoothness, especially on phones. The translucent
+   background + border + layered shadow below still reads as glass,
+   just without the (expensive, and here largely redundant against a
+   mostly-uniform page background) blur-what's-behind-it effect. ── */
+.card{
+  background:var(--glass-bg) !important;
+  border-color:var(--glass-border) !important;
+  box-shadow:var(--glass-shadow) !important;
+}
+
+/* ── Car Spotting — same reasoning as Feed cards above ── */
+.social-post-card,
+.social-grid-card{
+  background:var(--glass-bg) !important;
+  border-color:var(--glass-border) !important;
+  box-shadow:var(--glass-shadow) !important;
+}
+
+/* ── Build page — spec cards and mod cards. A build page shows a
+   bounded, small handful of these (not dozens), so full blur is fine
+   here. ── */
+.spec-row,
+.cp-mod-section{
+  background:var(--glass-bg-raised) !important;
+  backdrop-filter:var(--glass-blur) !important;
+  -webkit-backdrop-filter:var(--glass-blur) !important;
+  border-color:var(--glass-border) !important;
+}
+
+/* ── Header — theme toggle, notification bell, profile chip. Always
+   exactly 3 on screen at once, full blur is cheap here. ── */
+.icon-btn,
+.av-chip{
+  background:var(--glass-bg-raised) !important;
+  backdrop-filter:var(--glass-blur) !important;
+  -webkit-backdrop-filter:var(--glass-blur) !important;
+  border-color:var(--glass-border) !important;
+}
+.notif-drop,
+.av-drop,
+.nav-dropdown-menu{
+  background:var(--glass-bg) !important;
+  backdrop-filter:var(--glass-blur) !important;
+  -webkit-backdrop-filter:var(--glass-blur) !important;
+  border-color:var(--glass-border) !important;
+  box-shadow:var(--glass-shadow) !important;
+}
+
+/* ── Discussions — a discussion LIST can have many items like the
+   Feed, so same no-blur treatment; the single-thread detail view is
+   just .modal-box (already covered above), so no separate rule needed
+   there. ── */
+.disc-item{
+  background:var(--glass-bg) !important;
+  border-color:var(--glass-border) !important;
+  box-shadow:var(--glass-shadow) !important;
+}
+
+/* ── Sidebar widgets — a small, fixed handful per page, full blur fine ── */
+.widget{
+  background:var(--glass-bg) !important;
+  backdrop-filter:var(--glass-blur) !important;
+  -webkit-backdrop-filter:var(--glass-blur) !important;
+  border-color:var(--glass-border) !important;
+}
+
+/* ── Modals — always exactly one on screen, full blur ── */
+.modal-box{
+  background:var(--glass-bg-raised) !important;
+  backdrop-filter:var(--glass-blur) !important;
+  -webkit-backdrop-filter:var(--glass-blur) !important;
+  border-color:var(--glass-border) !important;
+  box-shadow:var(--glass-shadow) !important;
+}
+
+/* ── Member cards, Leaderboard rows — grids of many, same reasoning
+   as Feed cards: translucent surface without the per-item blur cost ── */
+.member-card,
+.lb-row{
+  background:var(--glass-bg) !important;
+  border-color:var(--glass-border) !important;
+  box-shadow:var(--glass-shadow) !important;
+}
+
+/* ── Filter sidebar — one instance, full blur ── */
+.filter-sidebar{
+  background:var(--glass-bg-raised) !important;
+  backdrop-filter:var(--glass-blur) !important;
+  -webkit-backdrop-filter:var(--glass-blur) !important;
+}
+
+/* ── Elements with a light backdrop-filter blur (dark backgrounds
+   don't get a visible frosted effect against a similarly-dark page,
+   since backdrop-filter blurs whatever sits BEHIND the element —
+   these need a touch more opacity to actually read as "glass" rather
+   than just "slightly blurry"). Firefox doesn't support backdrop-filter
+   as widely as Chrome/Safari — the box still looks correct there,
+   just without the blur itself, which is a harmless graceful fallback. ── */
