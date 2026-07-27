@@ -51,17 +51,19 @@ body.dark {
   --text:#f0f0f0; --sec:#d1d5db; --muted:#9ca3af;
   --sh:0 1px 2px rgba(0,0,0,.4), 0 10px 32px rgba(0,0,0,.42);
   --shm:0 12px 32px rgba(0,0,0,.5), 0 36px 100px rgba(0,0,0,.72);
-  /* Glassmorphism tokens — dark mode. Translucent version of --card
-     (#1f1f1f), same idea as light mode: a frosted pane of the SAME
-     color the site already uses, not a new one. Dark glass reads best
-     with a faint LIGHT border (catching ambient light on the edge)
-     rather than a dark one, which would just disappear. */
-  --glass-bg:      rgba(31,31,31,.55);
-  --glass-bg-raised: rgba(37,37,37,.6);
-  --glass-bg-dropdown: rgba(24,24,24,.9);
-  --glass-border:  rgba(255,255,255,.09);
+  /* Glassmorphism tokens — dark mode. The first version of this used a
+     translucent near-black (matching --card exactly), which on a page
+     that's ALREADY dark everywhere blended in almost invisibly — glass
+     needs something behind it to visibly catch and diffuse, and a
+     uniformly dark page doesn't give it much to work with. Lightened
+     these several steps so the glass panels have real, unmistakable
+     lift off the page instead of blending back into it. */
+  --glass-bg:      rgba(58,60,66,.55);
+  --glass-bg-raised: rgba(66,68,75,.6);
+  --glass-bg-dropdown: rgba(32,33,38,.92);
+  --glass-border:  rgba(255,255,255,.14);
   --glass-blur:    blur(20px) saturate(1.6);
-  --glass-shadow:  0 8px 32px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+  --glass-shadow:  0 8px 32px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.10);
 }
 
 /* ─── RESET ─────────────────────────────────────────────────── */
