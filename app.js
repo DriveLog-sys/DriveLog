@@ -2690,6 +2690,7 @@ function openEditPost(post) {
       const extPill = document.querySelector(`#postExtColorPills .fs-color-pill[data-pcolor="${post.color}"]`);
       if (extPill) { extPill.classList.add('active'); el('postColor').value = post.color; }
     }
+    const pcnEl = el('postColorName'); if (pcnEl) pcnEl.value = post.colorName || '';
     if (post.interiorColor) {
       const intPill = document.querySelector(`#postIntColorPills .fs-color-pill[data-pintcolor="${post.interiorColor}"]`);
       if (intPill) { intPill.classList.add('active'); el('postInteriorColor').value = post.interiorColor; }
@@ -2921,6 +2922,7 @@ async function submitPost() {
       existing.videos       = editVideoUrls;
       existing.youtubeLinks = pendingYoutubeLinks.map(yt => yt.url);
       existing.color         = el('postColor')?.value || '';
+      existing.colorName     = el('postColorName')?.value.trim() || '';
       existing.interiorColor = el('postInteriorColor')?.value || '';
       existing.showSocials  = el('postShowSocials')?.checked ?? true;
       existing.editedAt     = new Date().toISOString();
@@ -2971,6 +2973,7 @@ async function submitPost() {
       title, make, model, year, category:cat, categories:selectedCats,
       hp, mods, modsDetail, desc, transmission, mileage, buildState, zeroSixty, quarterMile, topSpeed,
       color: el('postColor')?.value || '',
+      colorName: el('postColorName')?.value.trim() || '',
       interiorColor: el('postInteriorColor')?.value || '',
       images: imageUrls,
       videos: videoUrls,
@@ -3030,6 +3033,7 @@ function resetPostForm() {
   const tsEl=el('postTopSpeed'); if(tsEl) tsEl.value='';
   document.querySelectorAll('#postExtColorPills .fs-color-pill.active, #postIntColorPills .fs-color-pill.active').forEach(p=>p.classList.remove('active'));
   const pcEl=el('postColor'); if(pcEl) pcEl.value='';
+  const pcnEl=el('postColorName'); if(pcnEl) pcnEl.value='';
   const picEl=el('postInteriorColor'); if(picEl) picEl.value='';
   pendingImages=[]; renderPreviews();
 }
@@ -5996,6 +6000,8 @@ function renderCarPage(post) {
       { icon:'fas fa-flag',         label:'¼ Mile',       val: post.quarterMile,  accent:true },
       { icon:'fas fa-tachometer-alt',label:'Top Speed',   val: post.topSpeed,     accent:true },
       { icon:'fas fa-map-marker-alt',label:'State',       val: post.buildState },
+      { icon:'fas fa-palette',      label:'Exterior Color', val: post.colorName || post.color },
+      { icon:'fas fa-couch',        label:'Interior Color', val: post.interiorColor },
     ].filter(r => r.val && r.val.toString().trim());
 
     cpChipsEl.innerHTML = `

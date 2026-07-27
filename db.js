@@ -1226,6 +1226,7 @@ function dbPostToApp(row) {
     videos:       row.videos      || [],
     youtubeLinks: row.youtube_links || [],
     color:          row.color          || '',
+    colorName:      row.color_name     || '',
     interiorColor:  row.interior_color || '',
     // Comment count comes from separate getCommentCounts() call after render
     comments:     [],
@@ -1293,6 +1294,7 @@ function appPostToDb(post) {
     videos:       post.videos      || [],
     youtube_links: post.youtubeLinks || [],
     color:          post.color         || '',
+    color_name:     post.colorName     || '',
     interior_color: post.interiorColor || '',
     transmission: post.transmission|| '',
     mileage:      post.mileage     || '',
