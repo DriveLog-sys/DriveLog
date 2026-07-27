@@ -52,20 +52,21 @@ body.dark {
   --text:#f0f0f0; --sec:#d1d5db; --muted:#9ca3af;
   --sh:0 1px 2px rgba(0,0,0,.4), 0 10px 32px rgba(0,0,0,.42);
   --shm:0 12px 32px rgba(0,0,0,.5), 0 36px 100px rgba(0,0,0,.72);
-  /* Glassmorphism tokens — dark mode. The first version of this used a
-     translucent near-black (matching --card exactly), which on a page
-     that's ALREADY dark everywhere blended in almost invisibly — glass
-     needs something behind it to visibly catch and diffuse, and a
-     uniformly dark page doesn't give it much to work with. Lightened
-     these several steps so the glass panels have real, unmistakable
-     lift off the page instead of blending back into it. */
-  --glass-bg:      rgba(58,60,66,.55);
-  --glass-bg-raised: rgba(66,68,75,.6);
-  --glass-bg-dropdown: rgba(32,33,38,.92);
-  --glass-border:  rgba(255,255,255,.14);
+  /* Glassmorphism tokens — dark mode, recalibrated toward a sharper,
+     more neutral black/white palette per feedback: panels should blend
+     with the page rather than visibly pop off it, with the BORDER
+     (crisp, near-white) doing the work of defining the edge instead of
+     a big brightness jump in the fill itself. This sits deliberately
+     between the very first version (blended in almost invisibly) and
+     the following one (too bright/gray) — a smaller, more subtle lift
+     off the page background. */
+  --glass-bg:      rgba(40,41,45,.55);
+  --glass-bg-raised: rgba(46,47,52,.6);
+  --glass-bg-dropdown: rgba(26,27,30,.92);
+  --glass-border:  rgba(255,255,255,.16);
   --glass-blur:    blur(20px) saturate(1.6);
   --glass-blur-light: blur(9px) saturate(1.4);
-  --glass-shadow:  0 8px 32px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.10);
+  --glass-shadow:  0 8px 32px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.09);
 }
 
 /* ─── RESET ─────────────────────────────────────────────────── */
@@ -76,23 +77,23 @@ html{scroll-behavior:smooth}
    whatever the browser's own default happens to be, which isn't
    guaranteed to be 16px on every browser/OS. */
 html{font-size:16px}
-/* Ambient background glow — soft, fixed-position color blooms behind
-   the page content. Without this, a glass panel's blur has nothing
-   but flat uniform color to reveal, which is exactly why the glass
-   effect read as "just gray boxes" instead of actual frosted glass —
-   blur needs something with variation behind it to diffuse. Very low
-   opacity and fixed so it reads as ambient lighting, not a visible
-   graphic. */
+/* Ambient background glow — soft, fixed-position blooms behind the
+   page content, giving the glass blur something with variation to
+   diffuse (flat uniform color makes blur invisible). Switched from
+   colored (blue/purple/green) to pure white — reads as light catching
+   frosted glass rather than a colored graphic, which is a sharper,
+   more monochrome look and keeps focus on the site's actual accent
+   colors instead of competing with them. */
 body::before{
   content:'';
   position:fixed;inset:0;
   z-index:-1;
   pointer-events:none;
   background:
-    radial-gradient(ellipse 900px 600px at 12% 8%,  var(--accent-glow) 0%, transparent 60%),
-    radial-gradient(ellipse 800px 700px at 90% 15%, rgba(168,85,247,.12) 0%, transparent 60%),
-    radial-gradient(ellipse 900px 800px at 15% 85%, rgba(34,197,94,.08) 0%, transparent 60%),
-    radial-gradient(ellipse 700px 600px at 95% 90%, var(--accent-glow) 0%, transparent 60%);
+    radial-gradient(ellipse 900px 600px at 12% 8%,  rgba(255,255,255,.05) 0%, transparent 62%),
+    radial-gradient(ellipse 800px 700px at 90% 12%, rgba(255,255,255,.04) 0%, transparent 62%),
+    radial-gradient(ellipse 900px 800px at 15% 88%, rgba(255,255,255,.035) 0%, transparent 62%),
+    radial-gradient(ellipse 700px 600px at 95% 92%, rgba(255,255,255,.04) 0%, transparent 62%);
 }
 body{background:var(--bg);color:var(--text);font-family:var(--body);font-weight:400;line-height:1.6;overflow-x:hidden;transition:background .3s,color .3s;position:relative;}
 a{color:inherit;text-decoration:none}
