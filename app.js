@@ -72,7 +72,7 @@ const S = {
   following: [],       // array of usernames the logged-in user follows
   blockedUsers: [],    // array of usernames the logged-in user has blocked
   notifs: [],          // notification objects for current user
-  filters: { categories:[], make:"", yearMin:1900, yearMax:new Date().getFullYear()+1, hp:0, likes:0, colors:[], bodyTypes:[], engines:[], drivetrains:[], transmissions:[], fuelTypes:[] },
+  filters: { categories:[], make:"", yearMin:1900, yearMax:new Date().getFullYear()+1, hp:0, likes:0, colors:[], interiorColors:[], bodyTypes:[], engines:[], drivetrains:[], transmissions:[], fuelTypes:[] },
   dms: {},             // { otherUsername: [{from,text,ts},...] }
   openDm: null,        // username of active DM conversation
   openCarPost: null,   // post currently shown on the full car detail page
@@ -2448,6 +2448,27 @@ function initPostModal() {
   el('youtubeLinkInput')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addYoutubeLink(); } });
   window._renderYoutubeLinkList = renderYoutubeLinkList; // used when opening the edit form with existing links
 
+  // ── Exterior / Interior color pills — single-select (a car has one
+  // dominant color of each), unlike the filter sidebar's multi-select
+  // version of the same pills. Clicking toggles .active and writes the
+  // chosen color into a hidden input, same pattern as postCategory. ──
+  function wireSingleColorPills(selector, hiddenInputId) {
+    document.querySelectorAll(selector).forEach(pill => {
+      pill.addEventListener('click', () => {
+        const alreadyActive = pill.classList.contains('active');
+        document.querySelectorAll(selector).forEach(p => p.classList.remove('active'));
+        if (!alreadyActive) {
+          pill.classList.add('active');
+          el(hiddenInputId).value = pill.dataset.pcolor || pill.dataset.pintcolor;
+        } else {
+          el(hiddenInputId).value = '';
+        }
+      });
+    });
+  }
+  wireSingleColorPills('#postExtColorPills .fs-color-pill', 'postColor');
+  wireSingleColorPills('#postIntColorPills .fs-color-pill', 'postInteriorColor');
+
   el('postPageBack')?.addEventListener('click', ()=>{ S._editingPostId=null; const btn=el('submitPost'); if(btn){btn.innerHTML='<i class="fas fa-upload"></i> Publish Build';delete btn.dataset.editing;} goTo(S._prevPage||'home'); });
   // ── Social links toggle ──────────────────────────────────
   function updateSocialPreview() {
@@ -2665,6 +2686,14 @@ function openEditPost(post) {
     pendingVideos = (post.videos||[]).map((url,i)=>({dataUrl:url,name:'video_'+(i+1)+'.mp4',type:'video/mp4',size:0}));
     pendingYoutubeLinks = (post.youtubeLinks||[]).map(url => ({ id: extractYouTubeId(url), url })).filter(yt => yt.id);
     window._renderYoutubeLinkList?.();
+    if (post.color) {
+      const extPill = document.querySelector(`#postExtColorPills .fs-color-pill[data-pcolor="${post.color}"]`);
+      if (extPill) { extPill.classList.add('active'); el('postColor').value = post.color; }
+    }
+    if (post.interiorColor) {
+      const intPill = document.querySelector(`#postIntColorPills .fs-color-pill[data-pintcolor="${post.interiorColor}"]`);
+      if (intPill) { intPill.classList.add('active'); el('postInteriorColor').value = post.interiorColor; }
+    }
     renderVideoPreviews();
     const st = el('postShowSocials'); if(st) st.checked = post.showSocials !== false;
     const tr = el('postTransmission'); if(tr) tr.value = post.transmission||'';
@@ -2891,6 +2920,8 @@ async function submitPost() {
       existing.images       = editImageUrls;
       existing.videos       = editVideoUrls;
       existing.youtubeLinks = pendingYoutubeLinks.map(yt => yt.url);
+      existing.color         = el('postColor')?.value || '';
+      existing.interiorColor = el('postInteriorColor')?.value || '';
       existing.showSocials  = el('postShowSocials')?.checked ?? true;
       existing.editedAt     = new Date().toISOString();
       // Save to Supabase
@@ -2939,6 +2970,8 @@ async function submitPost() {
     const postData = appPostToDb({
       title, make, model, year, category:cat, categories:selectedCats,
       hp, mods, modsDetail, desc, transmission, mileage, buildState, zeroSixty, quarterMile, topSpeed,
+      color: el('postColor')?.value || '',
+      interiorColor: el('postInteriorColor')?.value || '',
       images: imageUrls,
       videos: videoUrls,
       youtubeLinks: pendingYoutubeLinks.map(yt => yt.url),
@@ -2995,6 +3028,9 @@ function resetPostForm() {
   const z60El=el('postZeroSixty'); if(z60El) z60El.value='';
   const qmEl=el('postQuarterMile'); if(qmEl) qmEl.value='';
   const tsEl=el('postTopSpeed'); if(tsEl) tsEl.value='';
+  document.querySelectorAll('#postExtColorPills .fs-color-pill.active, #postIntColorPills .fs-color-pill.active').forEach(p=>p.classList.remove('active'));
+  const pcEl=el('postColor'); if(pcEl) pcEl.value='';
+  const picEl=el('postInteriorColor'); if(picEl) picEl.value='';
   pendingImages=[]; renderPreviews();
 }
 
@@ -3519,10 +3555,12 @@ function applyFiltersToPost(p) {
   }
   if (f.likes > 0  && p.likes < f.likes) return false;
 
-  // CarGurus-style filters — these fields don't exist on posts yet (the
-  // upload form doesn't collect them), so these checks are no-ops until
-  // that's added; harmless in the meantime, ready to go once it is.
+  // CarGurus-style filters — color/interiorColor are now collected by
+  // the upload form (see the post form's Exterior/Interior Color
+  // sections); the rest still don't exist on posts yet, so those
+  // checks stay harmless no-ops until the form collects them too.
   if (f.colors?.length        && !f.colors.includes(p.color))            return false;
+  if (f.interiorColors?.length && !f.interiorColors.includes(p.interiorColor)) return false;
   if (f.bodyTypes?.length     && !f.bodyTypes.includes(p.bodyType))       return false;
   if (f.engines?.length       && !f.engines.includes(p.engine))          return false;
   if (f.drivetrains?.length   && !f.drivetrains.includes(p.drivetrain))  return false;
@@ -3536,7 +3574,7 @@ function countActiveFilters() {
   const f = S.filters; let n = 0;
   if (f.categories.length > 0) n++; if (f.make) n++; if (f.hp > 0) n++;
   if (f.likes > 0) n++;
-  if (f.colors?.length) n++; if (f.bodyTypes?.length) n++; if (f.engines?.length) n++;
+  if (f.colors?.length) n++; if (f.interiorColors?.length) n++; if (f.bodyTypes?.length) n++; if (f.engines?.length) n++;
   if (f.drivetrains?.length) n++; if (f.transmissions?.length) n++; if (f.fuelTypes?.length) n++;
   if (f.yearMin > 1900 || f.yearMax < new Date().getFullYear()+1) n++;
   return n;
@@ -3860,6 +3898,7 @@ function initFilterSidebar() {
     }));
   }
   wireMultiSelectPills('.fs-pill[data-fcolor]', 'fcolor', 'colors');
+  wireMultiSelectPills('.fs-pill[data-fintcolor]', 'fintcolor', 'interiorColors');
   wireMultiSelectPills('.fs-pill[data-fbody]',  'fbody',  'bodyTypes');
   wireMultiSelectPills('.fs-pill[data-fengine]','fengine','engines');
   wireMultiSelectPills('.fs-pill[data-fdrive]', 'fdrive', 'drivetrains');
@@ -3921,7 +3960,7 @@ function initFilterSidebar() {
   // Reset — resets to real data defaults (not hardcoded values)
   el('filterReset')?.addEventListener('click', ()=>{
     const r = side._ranges || computeRanges();
-    S.filters = { categories:[], make:'', yearMin:r.yearMin, yearMax:r.yearMax, hp:0, likes:0, colors:[], bodyTypes:[], engines:[], drivetrains:[], transmissions:[], fuelTypes:[] };
+    S.filters = { categories:[], make:'', yearMin:r.yearMin, yearMax:r.yearMax, hp:0, likes:0, colors:[], interiorColors:[], bodyTypes:[], engines:[], drivetrains:[], transmissions:[], fuelTypes:[] };
     S.visibleCount = FEED_PAGE_SIZE;
     syncFilterUI();
     if (side._context === 'garage') {
@@ -3943,6 +3982,7 @@ function initFilterSidebar() {
     const f = S.filters;
     side.querySelectorAll('.fs-pill[data-fc]').forEach(p=>p.classList.toggle('active', (f.categories||[]).includes(p.dataset.fc)));
     side.querySelectorAll('.fs-pill[data-fcolor]').forEach(p=>p.classList.toggle('active', (f.colors||[]).includes(p.dataset.fcolor)));
+    side.querySelectorAll('.fs-pill[data-fintcolor]').forEach(p=>p.classList.toggle('active', (f.interiorColors||[]).includes(p.dataset.fintcolor)));
     side.querySelectorAll('.fs-pill[data-fbody]').forEach(p=>p.classList.toggle('active', (f.bodyTypes||[]).includes(p.dataset.fbody)));
     side.querySelectorAll('.fs-pill[data-fengine]').forEach(p=>p.classList.toggle('active', (f.engines||[]).includes(p.dataset.fengine)));
     side.querySelectorAll('.fs-pill[data-fdrive]').forEach(p=>p.classList.toggle('active', (f.drivetrains||[]).includes(p.dataset.fdrive)));

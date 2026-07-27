@@ -1174,7 +1174,46 @@
               </select>
               <input class="finput" type="number" id="postMileage" placeholder="Mileage (e.g. 45000)" min="0" max="9999999"/>
             </div>
-            <select class="finput" id="postState" style="margin-top:12px">
+
+            <div class="perf-fields-label" style="margin-top:14px">Exterior Color <span class="post-section-optional">Optional</span></div>
+            <div class="fs-pills" id="postExtColorPills">
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Black"><span class="fs-color-dot" style="background:#1c1c1e"></span>Black</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="White"><span class="fs-color-dot" style="background:#f8f8f8"></span>White</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Silver"><span class="fs-color-dot" style="background:#c4c8cc"></span>Silver</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Gray"><span class="fs-color-dot" style="background:#6b7280"></span>Gray</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Red"><span class="fs-color-dot" style="background:#dc2626"></span>Red</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Maroon"><span class="fs-color-dot" style="background:#7f1d1d"></span>Maroon</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Blue"><span class="fs-color-dot" style="background:#2563eb"></span>Blue</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Dark Blue"><span class="fs-color-dot" style="background:#1e3a5f"></span>Dark Blue</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Green"><span class="fs-color-dot" style="background:#16a34a"></span>Green</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Yellow"><span class="fs-color-dot" style="background:#eab308"></span>Yellow</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Orange"><span class="fs-color-dot" style="background:#f97316"></span>Orange</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Brown"><span class="fs-color-dot" style="background:#78350f"></span>Brown</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Beige"><span class="fs-color-dot" style="background:#d9c7a8"></span>Beige</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Gold"><span class="fs-color-dot" style="background:#ca8a04"></span>Gold</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Purple"><span class="fs-color-dot" style="background:#9333ea"></span>Purple</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Pink"><span class="fs-color-dot" style="background:#ec4899"></span>Pink</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Teal"><span class="fs-color-dot" style="background:#0d9488"></span>Teal</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pcolor="Other"><span class="fs-color-dot fs-color-dot-other"></span>Other</button>
+            </div>
+            <input type="hidden" id="postColor" value=""/>
+
+            <div class="perf-fields-label" style="margin-top:14px">Interior Color <span class="post-section-optional">Optional</span></div>
+            <div class="fs-pills" id="postIntColorPills">
+              <button type="button" class="fs-pill fs-color-pill" data-pintcolor="Black"><span class="fs-color-dot" style="background:#1c1c1e"></span>Black</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pintcolor="Gray"><span class="fs-color-dot" style="background:#6b7280"></span>Gray</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pintcolor="White"><span class="fs-color-dot" style="background:#f8f8f8"></span>White</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pintcolor="Beige"><span class="fs-color-dot" style="background:#d9c7a8"></span>Beige</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pintcolor="Tan"><span class="fs-color-dot" style="background:#c9a876"></span>Tan</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pintcolor="Brown"><span class="fs-color-dot" style="background:#78350f"></span>Brown</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pintcolor="Red"><span class="fs-color-dot" style="background:#dc2626"></span>Red</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pintcolor="Blue"><span class="fs-color-dot" style="background:#2563eb"></span>Blue</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pintcolor="Orange"><span class="fs-color-dot" style="background:#f97316"></span>Orange</button>
+              <button type="button" class="fs-pill fs-color-pill" data-pintcolor="Other"><span class="fs-color-dot fs-color-dot-other"></span>Other</button>
+            </div>
+            <input type="hidden" id="postInteriorColor" value=""/>
+
+            <select class="finput" id="postState" style="margin-top:14px">
               <option value="">— Build State (optional) —</option>
               <option>Alabama</option><option>Alaska</option><option>Arizona</option><option>Arkansas</option><option>California</option><option>Colorado</option><option>Connecticut</option><option>Delaware</option><option>Florida</option><option>Georgia</option><option>Hawaii</option><option>Idaho</option><option>Illinois</option><option>Indiana</option><option>Iowa</option><option>Kansas</option><option>Kentucky</option><option>Louisiana</option><option>Maine</option><option>Maryland</option><option>Massachusetts</option><option>Michigan</option><option>Minnesota</option><option>Mississippi</option><option>Missouri</option><option>Montana</option><option>Nebraska</option><option>Nevada</option><option>New Hampshire</option><option>New Jersey</option><option>New Mexico</option><option>New York</option><option>North Carolina</option><option>North Dakota</option><option>Ohio</option><option>Oklahoma</option><option>Oregon</option><option>Pennsylvania</option><option>Rhode Island</option><option>South Carolina</option><option>South Dakota</option><option>Tennessee</option><option>Texas</option><option>Utah</option><option>Vermont</option><option>Virginia</option><option>Washington</option><option>West Virginia</option><option>Wisconsin</option><option>Wyoming</option>
             </select>
@@ -1962,18 +2001,43 @@
     <div class="fs-group">
       <div class="fs-group-label">Exterior Color <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
       <div class="fs-pills" id="fsColorPills">
-        <button class="fs-pill" data-fcolor="Black">Black</button>
-        <button class="fs-pill" data-fcolor="White">White</button>
-        <button class="fs-pill" data-fcolor="Silver">Silver</button>
-        <button class="fs-pill" data-fcolor="Gray">Gray</button>
-        <button class="fs-pill" data-fcolor="Red">Red</button>
-        <button class="fs-pill" data-fcolor="Blue">Blue</button>
-        <button class="fs-pill" data-fcolor="Green">Green</button>
-        <button class="fs-pill" data-fcolor="Yellow">Yellow</button>
-        <button class="fs-pill" data-fcolor="Orange">Orange</button>
-        <button class="fs-pill" data-fcolor="Brown">Brown</button>
-        <button class="fs-pill" data-fcolor="Gold">Gold</button>
-        <button class="fs-pill" data-fcolor="Purple">Purple</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Black"><span class="fs-color-dot" style="background:#1c1c1e"></span>Black</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="White"><span class="fs-color-dot" style="background:#f8f8f8"></span>White</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Silver"><span class="fs-color-dot" style="background:#c4c8cc"></span>Silver</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Gray"><span class="fs-color-dot" style="background:#6b7280"></span>Gray</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Red"><span class="fs-color-dot" style="background:#dc2626"></span>Red</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Maroon"><span class="fs-color-dot" style="background:#7f1d1d"></span>Maroon</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Blue"><span class="fs-color-dot" style="background:#2563eb"></span>Blue</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Dark Blue"><span class="fs-color-dot" style="background:#1e3a5f"></span>Dark Blue</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Green"><span class="fs-color-dot" style="background:#16a34a"></span>Green</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Yellow"><span class="fs-color-dot" style="background:#eab308"></span>Yellow</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Orange"><span class="fs-color-dot" style="background:#f97316"></span>Orange</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Brown"><span class="fs-color-dot" style="background:#78350f"></span>Brown</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Beige"><span class="fs-color-dot" style="background:#d9c7a8"></span>Beige</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Gold"><span class="fs-color-dot" style="background:#ca8a04"></span>Gold</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Purple"><span class="fs-color-dot" style="background:#9333ea"></span>Purple</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Pink"><span class="fs-color-dot" style="background:#ec4899"></span>Pink</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Teal"><span class="fs-color-dot" style="background:#0d9488"></span>Teal</button>
+        <button class="fs-pill fs-color-pill" data-fcolor="Other"><span class="fs-color-dot fs-color-dot-other"></span>Other</button>
+      </div>
+    </div>
+
+    <div class="fs-divider"></div>
+
+    <!-- Interior Color -->
+    <div class="fs-group">
+      <div class="fs-group-label">Interior Color <span style="font-size:.65rem;color:var(--muted);margin-left:4px;font-weight:400;text-transform:none;letter-spacing:0">Select multiple</span></div>
+      <div class="fs-pills" id="fsIntColorPills">
+        <button class="fs-pill fs-color-pill" data-fintcolor="Black"><span class="fs-color-dot" style="background:#1c1c1e"></span>Black</button>
+        <button class="fs-pill fs-color-pill" data-fintcolor="Gray"><span class="fs-color-dot" style="background:#6b7280"></span>Gray</button>
+        <button class="fs-pill fs-color-pill" data-fintcolor="White"><span class="fs-color-dot" style="background:#f8f8f8"></span>White</button>
+        <button class="fs-pill fs-color-pill" data-fintcolor="Beige"><span class="fs-color-dot" style="background:#d9c7a8"></span>Beige</button>
+        <button class="fs-pill fs-color-pill" data-fintcolor="Tan"><span class="fs-color-dot" style="background:#c9a876"></span>Tan</button>
+        <button class="fs-pill fs-color-pill" data-fintcolor="Brown"><span class="fs-color-dot" style="background:#78350f"></span>Brown</button>
+        <button class="fs-pill fs-color-pill" data-fintcolor="Red"><span class="fs-color-dot" style="background:#dc2626"></span>Red</button>
+        <button class="fs-pill fs-color-pill" data-fintcolor="Blue"><span class="fs-color-dot" style="background:#2563eb"></span>Blue</button>
+        <button class="fs-pill fs-color-pill" data-fintcolor="Orange"><span class="fs-color-dot" style="background:#f97316"></span>Orange</button>
+        <button class="fs-pill fs-color-pill" data-fintcolor="Other"><span class="fs-color-dot fs-color-dot-other"></span>Other</button>
       </div>
     </div>
 

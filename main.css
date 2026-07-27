@@ -467,7 +467,7 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
 .filter-bar{background:var(--surface);border-bottom:1px solid var(--subtle);position:sticky;top:62px;z-index:90;overflow:hidden}
 .filter-scroll{max-width:1440px;margin:0 auto;padding:9px 24px;display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .filter-scroll::-webkit-scrollbar{display:none}
-.fpill{padding:6px 17px;border-radius:30px;font-family:var(--cond);font-size:.8rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--card);border:1px solid var(--border);white-space:nowrap;cursor:pointer;transition:all var(--tr);flex-shrink:0;outline:none}
+.fpill{padding:6px 17px;border-radius:30px;font-family:var(--cond);font-size:.8rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--card);border:1px solid var(--border);white-space:nowrap;cursor:pointer;transition:all var(--tr);flex-shrink:0;outline:none}
 .fpill:hover{color:var(--text);border-color:var(--mid)}
 .fpill:focus-visible{box-shadow:0 0 0 2px var(--accent-soft);border-color:var(--accent)}
 .fpill.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 4px 14px var(--accent-glow)}
@@ -896,9 +896,23 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 .fs-group{margin-bottom:18px}
 .fs-group-label{font-family:var(--cond);font-size:.72rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
 .fs-pills{display:flex;flex-wrap:wrap;gap:6px}
-.fs-pill{padding:5px 14px;border-radius:30px;font-family:var(--cond);font-size:.77rem;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--sec);background:var(--raised);border:1px solid var(--border);cursor:pointer;transition:all var(--tr)}
+.fs-pill{padding:5px 14px;border-radius:30px;font-family:var(--cond);font-size:.77rem;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--sec);background:var(--raised);border:1px solid var(--border);cursor:pointer;transition:all var(--tr)}
 .fs-pill:hover{border-color:var(--mid);color:var(--text)}
 .fs-pill.active{background:var(--accent);border-color:var(--accent);color:#fff}
+/* Color swatch pills — a small circle showing the actual color sits to
+   the left of the label, CarGurus-style. Vivid, appealing tones rather
+   than flat/muddy ones (see the inline colors on each button), with a
+   subtle inset ring so light colors like White still read clearly
+   against the pill's own background. */
+.fs-color-pill{display:inline-flex;align-items:center;gap:7px}
+.fs-color-dot{
+  width:14px;height:14px;border-radius:50%;flex-shrink:0;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.18), 0 1px 2px rgba(0,0,0,.15);
+}
+.fs-color-dot-other{
+  background:conic-gradient(from 0deg, #ef4444, #f59e0b, #22c55e, #3b82f6, #a855f7, #ef4444);
+}
+.fs-pill.active .fs-color-dot{box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.6), 0 1px 2px rgba(0,0,0,.25)}
 .fs-select-wrap{position:relative}
 .fs-select{width:100%;padding:10px 36px 10px 12px;background:var(--raised);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);font-family:var(--body);font-size:.88rem;appearance:none;cursor:pointer;outline:none;transition:border-color var(--tr)}
 .fs-select:focus{border-color:var(--accent)}
@@ -1127,7 +1141,7 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 .post-cat-label{font-family:var(--cond);font-size:.78rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:9px;display:flex;align-items:center;gap:6px}
 .post-cat-hint{font-family:var(--body);font-size:.72rem;font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);font-style:italic}
 .post-cat-pills{display:flex;flex-wrap:wrap;gap:7px}
-.post-cat-pill{padding:6px 15px;border-radius:30px;font-family:var(--cond);font-size:.8rem;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--sec);background:var(--raised);border:1.5px solid var(--border);cursor:pointer;transition:all var(--tr);user-select:none}
+.post-cat-pill{padding:6px 15px;border-radius:30px;font-family:var(--cond);font-size:.8rem;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--sec);background:var(--raised);border:1.5px solid var(--border);cursor:pointer;transition:all var(--tr);user-select:none}
 .post-cat-pill:hover{border-color:var(--mid);color:var(--text)}
 .post-cat-pill.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 3px 12px var(--accent-glow)}
 
