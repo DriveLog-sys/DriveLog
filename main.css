@@ -47,24 +47,27 @@
 
 /* Dark mode override */
 body.dark {
-  --bg:#050505; --surface:#1a1a1a; --card:#1f1f1f; --raised:#252525; --hover:#2a2a2a;
-  --border:#2e2e2e; --mid:#383838; --subtle:#202020;
-  --text:#f0f0f0; --sec:#d1d5db; --muted:#9ca3af;
+  --bg:#000; --surface:#0d0d0d; --card:#0d0d0d; --raised:#161616; --hover:#1c1c1c;
+  --border:#262626; --mid:#2e2e2e; --subtle:#1a1a1a;
+  --text:#f0f0f0; --sec:#d1d5db; --muted:#8e8e8e;
   --sh:0 1px 2px rgba(0,0,0,.4), 0 10px 32px rgba(0,0,0,.42);
   --shm:0 12px 32px rgba(0,0,0,.5), 0 36px 100px rgba(0,0,0,.72);
-  /* Glassmorphism tokens — dark mode, iteration 4: pushed toward a
-     true-black background with a cool-toned (slightly blue) glass
-     tint and a more luminous glowing edge, matching a reference image
-     of dark glassmorphism the person shared — a near-black backdrop,
-     dark blue-gray glass panels, and a crisp bright rim-light border
-     rather than a flat gray one. */
-  --glass-bg:      rgba(38,44,58,.55);
-  --glass-bg-raised: rgba(46,52,68,.6);
-  --glass-bg-dropdown: rgba(20,23,30,.92);
-  --glass-border:  rgba(255,255,255,.22);
-  --glass-blur:    blur(20px) saturate(1.6);
-  --glass-blur-light: blur(9px) saturate(1.4);
-  --glass-shadow:  0 8px 32px rgba(0,0,0,.55), 0 0 0 1px rgba(120,150,255,.05), inset 0 1px 0 rgba(255,255,255,.14);
+  /* Pivoted away from glassmorphism to a flat Instagram-dark-mode
+     style: true black page, surfaces that sit almost flush with it
+     rather than visibly "elevated" cards, a thin low-contrast divider
+     instead of a glowing rim, and NO blur at all — Instagram's dark
+     mode is deliberately flat/matte, with color reserved for a few
+     specific accents (story ring, Follow buttons, likes) rather than
+     the surfaces themselves. Every class that was built against these
+     --glass-* tokens automatically follows this new look without
+     needing to be touched individually — only the tokens changed. */
+  --glass-bg:      rgba(13,13,13,.94);
+  --glass-bg-raised: rgba(22,22,22,.96);
+  --glass-bg-dropdown: rgba(13,13,13,.98);
+  --glass-border:  rgba(255,255,255,.09);
+  --glass-blur:    none;
+  --glass-blur-light: none;
+  --glass-shadow:  0 1px 2px rgba(0,0,0,.3);
 }
 
 /* ─── RESET ─────────────────────────────────────────────────── */
@@ -141,7 +144,7 @@ textarea.finput{resize:vertical}
 
 /* ─── HEADER ─────────────────────────────────────────────────── */
 .site-header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.88);backdrop-filter:blur(20px) saturate(1.8);-webkit-backdrop-filter:blur(20px) saturate(1.8);border-bottom:1px solid var(--border);transition:background var(--tr),box-shadow var(--tr)}
-body.dark .site-header{background:rgba(20,20,20,.9);border-bottom-color:rgba(255,255,255,.07)}
+body.dark .site-header{background:#000;backdrop-filter:none;-webkit-backdrop-filter:none;border-bottom-color:rgba(255,255,255,.08)}
 .site-header.scrolled{background:rgba(255,255,255,.96);box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06);border-bottom-color:var(--border)}
 body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
 .header-inner{max-width:1440px;margin:0 auto;padding:0 24px;height:62px;display:flex;align-items:center;gap:28px}
@@ -8269,12 +8272,14 @@ html, body { overflow-x: hidden; }
     max-width: 420px !important;
     height: 56px !important;
     border-radius: 22px !important;
-    /* Dark mode frosted glass */
-    background: rgba(18, 18, 22, 0.78) !important;
-    backdrop-filter: blur(20px) !important;
-    -webkit-backdrop-filter: blur(20px) !important;
+    /* Flat black — matches the Instagram-style pivot elsewhere; kept
+       the existing floating rounded-pill SHAPE untouched, only the
+       surface treatment changed from frosted glass to flat black. */
+    background: #000 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
     border: 1px solid rgba(255, 255, 255, 0.09) !important;
-    box-shadow: 0 8px 32px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.07) !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,.5) !important;
     z-index: 300 !important;
     justify-content: space-around !important;
     align-items: center !important;
