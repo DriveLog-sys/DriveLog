@@ -38,6 +38,7 @@
      sells the "glass" read — light catching the upper rim of the pane. */
   --glass-bg:      rgba(255,255,255,.55);
   --glass-bg-raised: rgba(255,255,255,.68);
+  --glass-bg-dropdown: rgba(255,255,255,.88);
   --glass-border:  rgba(255,255,255,.65);
   --glass-blur:    blur(20px) saturate(1.6);
   --glass-shadow:  0 8px 32px rgba(31,41,55,.10), inset 0 1px 0 rgba(255,255,255,.55);
@@ -57,6 +58,7 @@ body.dark {
      rather than a dark one, which would just disappear. */
   --glass-bg:      rgba(31,31,31,.55);
   --glass-bg-raised: rgba(37,37,37,.6);
+  --glass-bg-dropdown: rgba(24,24,24,.9);
   --glass-border:  rgba(255,255,255,.09);
   --glass-blur:    blur(20px) saturate(1.6);
   --glass-shadow:  0 8px 32px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
@@ -8844,7 +8846,7 @@ html, body { overflow-x: hidden; }
 .notif-drop,
 .av-drop,
 .nav-dropdown-menu{
-  background:var(--glass-bg) !important;
+  background:var(--glass-bg-dropdown) !important;
   backdrop-filter:var(--glass-blur) !important;
   -webkit-backdrop-filter:var(--glass-blur) !important;
   border-color:var(--glass-border) !important;
@@ -8892,6 +8894,50 @@ html, body { overflow-x: hidden; }
   background:var(--glass-bg-raised) !important;
   backdrop-filter:var(--glass-blur) !important;
   -webkit-backdrop-filter:var(--glass-blur) !important;
+}
+
+/* ── Buttons — neutral/secondary buttons get the glass treatment too
+   (ghost buttons, sort buttons, action buttons like Share, and pills
+   in their default/unselected state). Primary action buttons (Post
+   Build, Save, Publish) and any button's ACTIVE/selected state
+   deliberately keep their current solid accent color rather than
+   going translucent — those exist specifically to stand out as "this
+   is the main action" or "this is currently selected," and a glass
+   treatment would blur that visual signal rather than help it. Every
+   one of these appears in small, bounded numbers on screen at once
+   (never a 30+ item scrolling grid), so full blur is performance-safe
+   here the same way it is for header buttons and modals. ── */
+.btn-ghost,
+.act-btn,
+.sort-btn,
+.fs-pill,
+.fpill,
+.post-cat-pill{
+  background:var(--glass-bg-raised) !important;
+  backdrop-filter:var(--glass-blur) !important;
+  -webkit-backdrop-filter:var(--glass-blur) !important;
+  border-color:var(--glass-border) !important;
+}
+/* Keep the active/selected state's solid accent color — re-asserted
+   after the glass rules above since they'd otherwise also match these
+   same elements once .active is added */
+.sort-btn.active,
+.fs-pill.active,
+.fpill.active,
+.post-cat-pill.active{
+  background:var(--accent) !important;
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+  border-color:var(--accent) !important;
+}
+/* Like/Save on the build page were intentionally made bare-icon (no
+   box at all) in an earlier pass — excluded here so that stays true */
+.act-btn.like-btn,
+.act-btn.save-btn{
+  background:none !important;
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
+  border-color:transparent !important;
 }
 
 /* ── Elements with a light backdrop-filter blur (dark backgrounds
