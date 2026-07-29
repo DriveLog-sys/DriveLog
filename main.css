@@ -595,14 +595,18 @@ body.dark .card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 16px 48px rgba(0,0,
 /* Soft white glow behind the sidebar — makes the Trending/Top Members/
    stats column read as a distinct, lit-up area rather than blending
    into the page, without changing the actual panel colors themselves.
-   Sits behind everything (negative z-index) and extends past the
-   sidebar's own edges so it reads as ambient backlighting, not a
-   visible shape with hard edges. */
+   Contained fully within the sidebar's own box (inset:0) rather than
+   extending past its edges — an earlier version used negative offsets
+   to spill outside the box for a softer look, but that can affect how
+   the browser calculates total page height even when the overflow is
+   visually clipped, which caused an unwanted scrollbar. The gradient's
+   own soft falloff still reads as ambient glow without needing to
+   actually extend past the element's real bounds. */
 .sidebar::before{
   content:'';
   position:absolute;
-  top:-40px;left:-60px;right:-60px;bottom:-40px;
-  background:radial-gradient(ellipse 70% 55% at 50% 30%, rgba(255,255,255,.06) 0%, transparent 70%);
+  inset:0;
+  background:radial-gradient(ellipse 140% 60% at 50% 20%, rgba(255,255,255,.07) 0%, transparent 70%);
   z-index:-1;
   pointer-events:none;
 }
