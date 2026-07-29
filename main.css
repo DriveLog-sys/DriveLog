@@ -1091,13 +1091,23 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 .car-page-layout{
   display:grid;grid-template-columns:1.4fr 400px;gap:36px;margin-bottom:0;align-items:start;min-width:0;position:relative;
   --car-glow-color:255,255,255;
-  --car-glow-alpha:.05;
+  --car-glow-alpha:.09;
 }
 .car-page-layout::before{
   content:'';
   position:absolute;
   inset:0;
-  background:radial-gradient(ellipse 90% 70% at 30% 20%, rgba(var(--car-glow-color),var(--car-glow-alpha)) 0%, transparent 70%);
+  /* Repositioned to sit over the top-left of the main image
+     specifically — the gradient spans the FULL grid (image column +
+     specs column combined), so a center point that looks reasonable
+     as a percentage of the whole area was actually landing near the
+     boundary between the two columns rather than over the photo
+     itself, which read as "coming from the right side." Also
+     meaningfully more intense than before — the previous alpha values
+     were tuned to match the other very-subtle ambient glows elsewhere
+     on the site, but this one is meant to be a distinguishing, more
+     noticeable feature per build, not just background texture. */
+  background:radial-gradient(ellipse 75% 65% at 12% 8%, rgba(var(--car-glow-color),var(--car-glow-alpha)) 0%, transparent 72%);
   transition:background 1.1s ease;
   z-index:-1;
   pointer-events:none;

@@ -1189,13 +1189,13 @@ async function applyCarPageGlow(imgUrl) {
   // the most recent one before actually applying anything.
   const myRequestId = ++_carGlowRequestId;
   layout.style.setProperty('--car-glow-color', '255,255,255');
-  layout.style.setProperty('--car-glow-alpha', '.05');
+  layout.style.setProperty('--car-glow-alpha', '.09');
   const color = await extractDominantColor(imgUrl);
   if (myRequestId !== _carGlowRequestId) return; // a newer build page has opened since this call started
   const stillLayout = document.querySelector('.car-page-layout');
   if (!stillLayout || color === null) return;
   stillLayout.style.setProperty('--car-glow-color', color);
-  stillLayout.style.setProperty('--car-glow-alpha', '.10');
+  stillLayout.style.setProperty('--car-glow-alpha', '.26');
 }
 
 async function compressBase64(dataUrl, quality = 0.82) {
