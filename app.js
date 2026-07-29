@@ -1085,6 +1085,119 @@ function initHeader() {
 // palette shows again.
 
 // ─── IMAGE COMPRESSION ────────────────────────────────────────
+// ─── AMBIENT GLOW COLOR EXTRACTION ────────────────────────────
+// extractDominantColor(imgUrl) — samples a build's own main photo and
+// returns an "r,g,b" string suitable for the build page's ambient glow
+// (see .car-page-layout's --car-glow-color), the same idea YouTube
+// uses behind its video player: a personalized, subtle color instead
+// of one flat static tone for every page.
+//
+// Deliberately shrinks the image down to a tiny canvas FIRST — we only
+// need to know roughly "this photo is warm orange" or "this one's cool
+// blue-gray," not analyze every pixel at full resolution, which would
+// be needless work for a purely ambient effect. Samples more heavily
+// from the edges/corners than dead center, since that's the part of a
+// photo that would realistically "bleed" into a glow around it.
+//
+// Results are cached by URL so the same build's color is never
+// recomputed on a repeat visit. Fails gracefully (resolves null) on
+// anything that goes wrong — a slow network, a broken image, or most
+// importantly cross-origin pixel-read restrictions if the image host
+// doesn't send the right CORS headers — so the caller can always fall
+// back to the plain default glow rather than break the page.
+const _glowColorCache = new Map();
+function extractDominantColor(imgUrl) {
+  if (!imgUrl) return Promise.resolve(null);
+  if (_glowColorCache.has(imgUrl)) return Promise.resolve(_glowColorCache.get(imgUrl));
+
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous'; // must be set before .src is assigned, or the canvas read below will always fail
+    const finish = (result) => { _glowColorCache.set(imgUrl, result); resolve(result); };
+    const timeout = setTimeout(() => finish(null), 4000); // don't hang the page if the image is slow/stuck
+
+    img.onload = () => {
+      clearTimeout(timeout);
+      try {
+        const SIZE = 48;
+        const canvas = document.createElement('canvas');
+        canvas.width = SIZE; canvas.height = SIZE;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, SIZE, SIZE);
+        const { data } = ctx.getImageData(0, 0, SIZE, SIZE); // throws if CORS isn't allowed — caught below
+
+        let rSum = 0, gSum = 0, bSum = 0, weightSum = 0;
+        const edgeBand = SIZE * 0.22; // how much of the border counts as "edge" for weighting
+        for (let y = 0; y < SIZE; y++) {
+          for (let x = 0; x < SIZE; x++) {
+            const i = (y * SIZE + x) * 4;
+            const a = data[i+3];
+            if (a < 200) continue; // skip mostly-transparent pixels
+            const r = data[i], g = data[i+1], b = data[i+2];
+            // Skip near-black / near-white extremes — these are almost
+            // always shadows or blown-out highlights, not the photo's
+            // actual color identity, and would otherwise wash the
+            // average toward gray.
+            const lum = (r + g + b) / 3;
+            if (lum < 18 || lum > 240) continue;
+            const distFromEdge = Math.min(x, y, SIZE-1-x, SIZE-1-y);
+            const weight = distFromEdge < edgeBand ? 2.2 : 1;
+            rSum += r * weight; gSum += g * weight; bSum += b * weight;
+            weightSum += weight;
+          }
+        }
+        if (weightSum === 0) { finish(null); return; }
+        let r = rSum / weightSum, g = gSum / weightSum, b = bSum / weightSum;
+
+        // Boost saturation a bit — photo averages tend to land fairly
+        // muted/gray, and a barely-tinted glow doesn't read as "this
+        // build's color" the way a slightly richer one does. Keeping
+        // the actual glow opacity very low (set in CSS) is what keeps
+        // this subtle rather than garish, not muting the color itself.
+        const max = Math.max(r,g,b), min = Math.min(r,g,b);
+        const boost = 1.35;
+        const mid = (max + min) / 2;
+        r = mid + (r - mid) * boost; g = mid + (g - mid) * boost; b = mid + (b - mid) * boost;
+        const clamp = v => Math.max(0, Math.min(255, Math.round(v)));
+        finish(`${clamp(r)},${clamp(g)},${clamp(b)}`);
+      } catch (err) {
+        // Most commonly a cross-origin security error — the canvas
+        // simply isn't allowed to read pixels back out. Fail quietly;
+        // the caller falls back to the default white glow.
+        finish(null);
+      }
+    };
+    img.onerror = () => { clearTimeout(timeout); finish(null); };
+    img.src = imgUrl;
+  });
+}
+
+// applyCarPageGlow(imgUrl) — computes (or reuses the cached) color for
+// this build's photo and fades the build page's ambient glow into it.
+// Safe to call with no image or a failed extraction — just leaves the
+// default white glow in place.
+let _carGlowRequestId = 0;
+async function applyCarPageGlow(imgUrl) {
+  const layout = document.querySelector('.car-page-layout');
+  if (!layout) return;
+  // .car-page-layout is one persistent DOM node reused across every
+  // build page view (its CONTENTS change, the wrapper doesn't) — so if
+  // someone opens Build A then quickly navigates to Build B before A's
+  // extraction finishes, a naive "does .car-page-layout still exist"
+  // check would still pass, and A's color could land on B's glow after
+  // the fact. This request-id token makes each call check it's still
+  // the most recent one before actually applying anything.
+  const myRequestId = ++_carGlowRequestId;
+  layout.style.setProperty('--car-glow-color', '255,255,255');
+  layout.style.setProperty('--car-glow-alpha', '.05');
+  const color = await extractDominantColor(imgUrl);
+  if (myRequestId !== _carGlowRequestId) return; // a newer build page has opened since this call started
+  const stillLayout = document.querySelector('.car-page-layout');
+  if (!stillLayout || color === null) return;
+  stillLayout.style.setProperty('--car-glow-color', color);
+  stillLayout.style.setProperty('--car-glow-alpha', '.10');
+}
+
 async function compressBase64(dataUrl, quality = 0.82) {
   return new Promise(resolve => {
     const img = new Image();
@@ -6262,6 +6375,13 @@ function renderCarPage(post) {
 }
 
 function cpRenderGallery(post) {
+  // Personalize the ambient glow behind this build's gallery/specs
+  // area using its own main photo's color — see applyCarPageGlow()
+  // near the top of this file. Fire-and-forget: this is purely a
+  // visual nicety and must never block or delay the actual gallery
+  // rendering below it.
+  applyCarPageGlow(post.images?.[0]).catch(()=>{});
+
   // Add touch swipe support after rendering
   const gallMain = el('cpGallMain');
   if (gallMain && !gallMain._swipeWired) {

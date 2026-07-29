@@ -1078,18 +1078,27 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 /* ─── CAR DETAIL PAGE ─────────────────────────────────────────── */
 .car-page-wrap{max-width:1440px;margin:0 auto;padding:24px 48px 60px}
 .car-page-back{margin-bottom:20px}
-.car-page-layout{display:grid;grid-template-columns:1.4fr 400px;gap:36px;margin-bottom:0;align-items:start;min-width:0;position:relative}
-/* Subtle white glow behind the build page's top section (main gallery
-   + videos panel) — same ambient backlighting treatment used elsewhere
-   on the site (Feed sidebar, Hot Right Now, Community's Build of the
-   Month) so key areas read as lit-up rather than flat. Contained
-   fully within its own bounds (no negative offsets) — see the Feed
-   sidebar glow fix earlier for why that matters. */
+/* Ambient glow behind the build page's top section — color is dynamic
+   per build now, sampled from that build's own main photo (see
+   extractDominantColor() in app.js), the same idea YouTube uses behind
+   its video player. --car-glow-color defaults to plain white here so
+   the page never looks broken while the color is still being computed,
+   or if color extraction fails for any reason (CORS, load failure,
+   etc.) — falls back to exactly the same effect this used to always
+   be. The transition means the real color fades in a beat after the
+   page appears rather than snapping in abruptly, matching how
+   YouTube's own version doesn't appear instantly either. */
+.car-page-layout{
+  display:grid;grid-template-columns:1.4fr 400px;gap:36px;margin-bottom:0;align-items:start;min-width:0;position:relative;
+  --car-glow-color:255,255,255;
+  --car-glow-alpha:.05;
+}
 .car-page-layout::before{
   content:'';
   position:absolute;
   inset:0;
-  background:radial-gradient(ellipse 90% 70% at 30% 20%, rgba(255,255,255,.05) 0%, transparent 70%);
+  background:radial-gradient(ellipse 90% 70% at 30% 20%, rgba(var(--car-glow-color),var(--car-glow-alpha)) 0%, transparent 70%);
+  transition:background 1.1s ease;
   z-index:-1;
   pointer-events:none;
 }
