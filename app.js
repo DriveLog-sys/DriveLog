@@ -4087,6 +4087,11 @@ function cardHTML(post,animIdx) {
   return `<div class="card" data-id="${post.id}" style="animation-delay:${animIdx*.04}s">
     <div class="card-img-wrap">${imgHTML}<span class="cat-badge ${cfg.badge}">${post.category}</span>${multi}</div>
     <div class="card-body">
+      <button class="card-menu-btn" data-id="${post.id}" title="More options"><i class="fas fa-ellipsis-vertical"></i></button>
+      <div class="card-menu-dropdown" data-id="${post.id}">
+        <button class="card-menu-item card-menu-share" data-id="${post.id}"><i class="fas fa-share"></i> Share</button>
+        <button class="card-menu-item card-menu-report" data-id="${post.id}"><i class="fas fa-flag"></i> Report</button>
+      </div>
       <div class="card-title">${esc(post.title)}</div>
       <div class="card-sub">${post.year?post.year+' · ':''}${post.hp?post.hp+' · ':''}by ${esc(post.user)}</div>
       <div class="card-foot">
@@ -4105,6 +4110,48 @@ function attachCardEvents(container) {
   container.querySelectorAll('.card-av.av-circle[data-user]').forEach(av => {
     setAvEl(av, av.dataset.user);
   });
+
+  // 3-dot menu — event delegation on the container (not per-card
+  // listeners) so this works correctly no matter how many times
+  // attachCardEvents() re-runs on the same container without risking
+  // the double-binding bug that's bitten this codebase before.
+  if (!container._cardMenuWired) {
+    container._cardMenuWired = true;
+    container.addEventListener('click', e => {
+      const menuBtn = e.target.closest('.card-menu-btn');
+      if (menuBtn) {
+        e.stopPropagation();
+        const dropdown = container.querySelector(`.card-menu-dropdown[data-id="${menuBtn.dataset.id}"]`);
+        const wasOpen = dropdown?.classList.contains('open');
+        container.querySelectorAll('.card-menu-dropdown.open').forEach(d => d.classList.remove('open'));
+        if (dropdown && !wasOpen) dropdown.classList.add('open');
+        return;
+      }
+      const shareBtn = e.target.closest('.card-menu-share');
+      if (shareBtn) {
+        e.stopPropagation();
+        const post = S.posts.find(p => p.id === shareBtn.dataset.id);
+        const url = window.location.href.split('#')[0] + '#car:' + shareBtn.dataset.id;
+        if (navigator.share) navigator.share({ title: post?.title, url });
+        else navigator.clipboard.writeText(url).then(() => toast('Link copied', 'ok'));
+        container.querySelectorAll('.card-menu-dropdown.open').forEach(d => d.classList.remove('open'));
+        return;
+      }
+      const reportBtn = e.target.closest('.card-menu-report');
+      if (reportBtn) {
+        e.stopPropagation();
+        const post = S.posts.find(p => p.id === reportBtn.dataset.id);
+        openReport('post', reportBtn.dataset.id, post?.title || '');
+        container.querySelectorAll('.card-menu-dropdown.open').forEach(d => d.classList.remove('open'));
+        return;
+      }
+      // Clicked anywhere else in the container — close any open dropdown
+      if (!e.target.closest('.card-menu-dropdown')) {
+        container.querySelectorAll('.card-menu-dropdown.open').forEach(d => d.classList.remove('open'));
+      }
+    });
+  }
+
   container.querySelectorAll('.card').forEach(card=>{
     let clickTimer=null, lastTap=0;
     const imgWrap = card.querySelector('.card-img-wrap');
@@ -4132,6 +4179,7 @@ function attachCardEvents(container) {
     });
     card.addEventListener('click',e=>{
       if(e.target.closest('.card-likes'))return;
+      if(e.target.closest('.card-menu-btn')||e.target.closest('.card-menu-dropdown'))return;
       const p=S.posts.find(x=>x.id===card.dataset.id); if(!p)return;
       // Clicks on the image get a short delay so a double-tap can like
       // instead of navigating. Clicks anywhere else open instantly.
