@@ -813,8 +813,6 @@ function initNavLinks() {
       waitForLayout(() => {
         if (targetId === 'expMerchSection') {
           window.scrollTo({ top: 0, behavior: 'smooth' });
-        } else if (targetId === 'expContactSection') {
-          el(targetId)?.scrollIntoView({ behavior:'smooth', block:'start' });
         } else {
           const target = el(targetId);
           if (!target) return;

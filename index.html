@@ -468,35 +468,33 @@
        Same card grid the Feed and Registry use, so results are easy to
        scan and click through instead of a small icon list. -->
   <section class="page" id="page-search">
-    <div class="page-head">
-      <h1 id="searchPageTitle">Search</h1>
-      <p id="searchPageSub">Search builds and members across DriveLog.</p>
-    </div>
-    <div class="search-bar" id="searchPageBar" style="max-width:560px;margin:0 auto 28px">
-      <i class="fas fa-search"></i>
-      <input type="text" id="searchPageInput" placeholder="Make, model, year, category, username…" autocomplete="off"/>
-    </div>
-
-    <div id="searchPageUsersSection" style="display:none">
-      <div class="lb-standalone-head all" style="margin-bottom:16px;padding-top:0;border-top:none">
-        <div class="lb-standalone-icon all"><i class="fas fa-user"></i></div>
-        <div class="lb-standalone-title" style="font-size:1.2rem">Members</div>
+    <div class="search-page-wrap">
+      <div class="search-page-head">
+        <h1 id="searchPageTitle">Search</h1>
+        <p id="searchPageSub">Search builds and members across DriveLog.</p>
       </div>
-      <div class="members-grid" id="searchPageUsersGrid" style="margin-bottom:36px"></div>
-    </div>
 
-    <div id="searchPageBuildsSection" style="display:none">
-      <div class="lb-standalone-head" style="margin-bottom:16px;padding-top:0;border-top:none">
-        <div class="lb-standalone-icon"><i class="fas fa-car"></i></div>
-        <div class="lb-standalone-title" style="font-size:1.2rem">Builds</div>
+      <div id="searchPageUsersSection" style="display:none">
+        <div class="lb-standalone-head all" style="margin-bottom:16px;padding-top:0;border-top:none">
+          <div class="lb-standalone-icon all"><i class="fas fa-user"></i></div>
+          <div class="lb-standalone-title" style="font-size:1.2rem">Members</div>
+        </div>
+        <div class="members-grid" id="searchPageUsersGrid" style="margin-bottom:36px"></div>
       </div>
-      <div class="card-grid card-grid-uniform" id="searchPageBuildsGrid"></div>
-    </div>
 
-    <div id="searchPageEmpty" style="display:none" class="feed-empty-state">
-      <i class="fas fa-search feed-empty-icon"></i>
-      <h3>No results</h3>
-      <p id="searchPageEmptyText"></p>
+      <div id="searchPageBuildsSection" style="display:none">
+        <div class="lb-standalone-head" style="margin-bottom:16px;padding-top:0;border-top:none">
+          <div class="lb-standalone-icon"><i class="fas fa-car"></i></div>
+          <div class="lb-standalone-title" style="font-size:1.2rem">Builds</div>
+        </div>
+        <div class="card-grid card-grid-uniform" id="searchPageBuildsGrid"></div>
+      </div>
+
+      <div id="searchPageEmpty" style="display:none" class="feed-empty-state">
+        <i class="fas fa-search feed-empty-icon"></i>
+        <h3>No results</h3>
+        <p id="searchPageEmptyText"></p>
+      </div>
     </div>
   </section>
 
@@ -1834,7 +1832,7 @@
   </div>
   <div class="footer-bottom">
     <svg class="footer-accent-line" viewBox="0 0 1440 20" preserveAspectRatio="none">
-      <path d="M 0,4 C 150,-9 300,10 480,6 L 1440,6" />
+      <path d="M 0,0 Q 240,0 420,7 L 1440,7" />
     </svg>
     <p>© 2026 DriveLog. Built for car people, by car people.</p>
   </div>
