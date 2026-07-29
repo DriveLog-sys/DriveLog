@@ -1110,13 +1110,28 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
    Layered with a solid color matching the page so there's a real,
    complete background here rather than relying on an ancestor's
    background showing through underneath a transparent gradient. */
-.car-page-wrap{
-  max-width:1440px;margin:0 auto;padding:24px 48px 60px;position:relative;
+/* SECOND glow layer, on the full-width page container rather than the
+   1440px-capped wrap — this is the actual fix for the black strip.
+   .car-page-wrap has margin:0 auto, so on any screen wider than
+   1440px, the browser centers it and leaves genuinely empty page
+   background on either side — space the wrap's OWN glow (above) can
+   never reach, since that glow only covers the wrap's own box, not
+   the space outside it. This is exactly why every previous attempt
+   (repositioning, reshaping, boosting intensity, even switching the
+   whole rendering technique) produced no visible change — all of them
+   were fixes to the right effect in the wrong place. Uses the SAME
+   --car-glow-color/--car-glow-alpha variables the JS already sets, so
+   both layers update together automatically with zero extra code. */
+#page-car{
+  position:relative;
   --car-glow-color:255,255,255;--car-glow-alpha:.22;
   background:
-    radial-gradient(ellipse 55% 140% at 6% 45%, rgba(var(--car-glow-color),var(--car-glow-alpha)) 0%, transparent 75%),
+    radial-gradient(ellipse 45% 90% at 0% 45%, rgba(var(--car-glow-color),var(--car-glow-alpha)) 0%, transparent 78%),
     var(--bg);
   transition:background 1.1s ease;
+}
+.car-page-wrap{
+  max-width:1440px;margin:0 auto;padding:24px 48px 60px;position:relative;
 }
 .car-page-layout{
   display:grid;grid-template-columns:1.4fr 400px;gap:36px;margin-bottom:0;align-items:start;min-width:0;position:relative;

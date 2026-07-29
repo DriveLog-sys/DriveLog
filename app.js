@@ -1178,21 +1178,21 @@ function extractDominantColor(imgUrl) {
 // default white glow in place.
 let _carGlowRequestId = 0;
 async function applyCarPageGlow(imgUrl) {
-  const wrap = document.querySelector('.car-page-wrap');
+  const wrap = document.querySelector('#page-car');
   if (!wrap) return;
-  // .car-page-wrap is one persistent DOM node reused across every
-  // build page view (its CONTENTS change, the wrapper doesn't) — so if
+  // #page-car is one persistent DOM node reused across every build
+  // page view (its CONTENTS change, the wrapper doesn't) — so if
   // someone opens Build A then quickly navigates to Build B before A's
-  // extraction finishes, a naive "does .car-page-wrap still exist"
-  // check would still pass, and A's color could land on B's glow after
-  // the fact. This request-id token makes each call check it's still
-  // the most recent one before actually applying anything.
+  // extraction finishes, a naive "does #page-car still exist" check
+  // would still pass, and A's color could land on B's glow after the
+  // fact. This request-id token makes each call check it's still the
+  // most recent one before actually applying anything.
   const myRequestId = ++_carGlowRequestId;
   wrap.style.setProperty('--car-glow-color', '255,255,255');
   wrap.style.setProperty('--car-glow-alpha', '.22');
   const color = await extractDominantColor(imgUrl);
   if (myRequestId !== _carGlowRequestId) return; // a newer build page has opened since this call started
-  const stillWrap = document.querySelector('.car-page-wrap');
+  const stillWrap = document.querySelector('#page-car');
   if (!stillWrap || color === null) return;
   stillWrap.style.setProperty('--car-glow-color', color);
   stillWrap.style.setProperty('--car-glow-alpha', '.26');
