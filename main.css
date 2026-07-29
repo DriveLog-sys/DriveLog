@@ -3891,6 +3891,24 @@ body:not(.dark) .lb-list { border-color: #c8cdd6; }
   height:420px;cursor:pointer;
   background:var(--card);border:1px solid var(--border);
 }
+/* Soft white glow behind the Build of the Month preview — the most
+   prominent single build showcase on the Community page, so it gets
+   the same ambient backlighting treatment as the Feed page's sidebar
+   and Hot Right Now section. Lives on the wrapper (not .botm-cinematic
+   itself) since that element's own overflow:hidden — needed to
+   contain the big photo — would otherwise clip the glow. Uses the
+   same safe, fully-contained pattern (no negative offsets) that
+   avoided the earlier scrollbar issue on the Feed page. */
+#memBotmWinner{position:relative}
+#memBotmWinner::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  border-radius:var(--r-lg);
+  background:radial-gradient(ellipse 100% 90% at 50% 50%, rgba(255,255,255,.07) 0%, transparent 70%);
+  z-index:-1;
+  pointer-events:none;
+}
 .botm-cinematic:hover .botm-cinematic-img img{transform:scale(1.03)}
 .botm-cinematic-img{position:absolute;inset:0}
 .botm-cinematic-img img{
@@ -3910,7 +3928,7 @@ body:not(.dark) .lb-list { border-color: #c8cdd6; }
 .botm-cinematic-badge{
   font-family:var(--cond);font-size:.7rem;font-weight:700;
   letter-spacing:2px;text-transform:uppercase;
-  color:#d97706;display:flex;align-items:center;gap:7px;
+  color:#fff;display:flex;align-items:center;gap:7px;
   margin-bottom:12px;
 }
 .botm-cinematic-title{

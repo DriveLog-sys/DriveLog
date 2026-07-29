@@ -4089,6 +4089,7 @@ function cardHTML(post,animIdx) {
     <div class="card-body">
       <button class="card-menu-btn" data-id="${post.id}" title="More options"><i class="fas fa-ellipsis-vertical"></i></button>
       <div class="card-menu-dropdown" data-id="${post.id}">
+        <button class="card-menu-item card-menu-save" data-id="${post.id}"><i class="${S.user&&(post.savedBy||[]).includes(S.user.username)?'fas':'far'} fa-bookmark"></i> ${S.user&&(post.savedBy||[]).includes(S.user.username)?'Saved':'Save'}</button>
         <button class="card-menu-item card-menu-share" data-id="${post.id}"><i class="fas fa-share"></i> Share</button>
         <button class="card-menu-item card-menu-report" data-id="${post.id}"><i class="fas fa-flag"></i> Report</button>
       </div>
@@ -4125,6 +4126,25 @@ function attachCardEvents(container) {
         const wasOpen = dropdown?.classList.contains('open');
         container.querySelectorAll('.card-menu-dropdown.open').forEach(d => d.classList.remove('open'));
         if (dropdown && !wasOpen) dropdown.classList.add('open');
+        return;
+      }
+      const saveBtn = e.target.closest('.card-menu-save');
+      if (saveBtn) {
+        e.stopPropagation();
+        if (!S.user) { toast('Sign in to save','err'); el('authModal').classList.add('open'); container.querySelectorAll('.card-menu-dropdown.open').forEach(d => d.classList.remove('open')); return; }
+        const post = S.posts.find(p => p.id === saveBtn.dataset.id);
+        if (post) {
+          if (!post.savedBy) post.savedBy = [];
+          const vid = S.user.username;
+          const idx = post.savedBy.indexOf(vid);
+          if (idx >= 0) { post.savedBy.splice(idx,1); toast('Removed from garage',''); }
+          else { post.savedBy.push(vid); toast('Saved to garage ✓','ok'); }
+          DB.toggleSave(post.id, vid).catch(()=>{});
+          save();
+          const nowSaved = post.savedBy.includes(vid);
+          saveBtn.innerHTML = `<i class="${nowSaved?'fas':'far'} fa-bookmark"></i> ${nowSaved?'Saved':'Save'}`;
+        }
+        container.querySelectorAll('.card-menu-dropdown.open').forEach(d => d.classList.remove('open'));
         return;
       }
       const shareBtn = e.target.closest('.card-menu-share');
