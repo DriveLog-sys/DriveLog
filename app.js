@@ -1663,6 +1663,15 @@ function initSearch() {
   const clearBtn = el('headerSearchClear');
   let _searchTimer = null;
 
+  // Clicking anywhere in the search bar (the icon, the empty padding
+  // around the text, not just the input text itself) focuses the
+  // input — previously only clicking directly on the input's own text
+  // area worked, which made the icon/padding areas feel unresponsive.
+  el('headerSearchBar')?.addEventListener('click', e => {
+    if (e.target.closest('#headerSearchClear')) return; // that button has its own job
+    input?.focus();
+  });
+
   function hideInlineResults() {
     if (input) input.value = '';
     if (results) { results.innerHTML = ''; results.style.display = 'none'; }

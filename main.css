@@ -2984,7 +2984,7 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
 }
 /* hot-slide-cats removed — category tags no longer shown on hot slider */
 .hot-slide-title{
-  font-family:var(--disp);font-size:1.6rem;color:#fff;
+  font-family:'Bebas Neue', Impact, 'Arial Narrow', sans-serif;font-size:1.6rem;color:#fff;
   letter-spacing:1px;line-height:1.1;margin-bottom:4px;
 }
 .hot-slide-sub{
