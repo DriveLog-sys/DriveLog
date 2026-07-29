@@ -1087,30 +1087,28 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
    etc.) — falls back to exactly the same effect this used to always
    be. The transition means the real color fades in a beat after the
    page appears rather than snapping in abruptly, matching how
-   YouTube's own version doesn't appear instantly either. */
-.car-page-layout{
-  display:grid;grid-template-columns:1.4fr 400px;gap:36px;margin-bottom:0;align-items:start;min-width:0;position:relative;
-  --car-glow-color:255,255,255;
-  --car-glow-alpha:.09;
-}
-.car-page-layout::before{
+   YouTube's own version doesn't appear instantly either.
+
+   Lives on .car-page-wrap (not .car-page-layout) deliberately — the
+   layout grid is almost ENTIRELY covered by its own two opaque
+   children (the gallery image + the specs panel, with only a thin gap
+   between them), so a glow living there had virtually no visible
+   surface to actually show through no matter how strong it was made.
+   The wrap has real padding around that grid — genuinely empty space
+   — which is where a glow can actually be seen bleeding around the
+   image's edges. */
+.car-page-wrap{max-width:1440px;margin:0 auto;padding:24px 48px 60px;position:relative;--car-glow-color:255,255,255;--car-glow-alpha:.09}
+.car-page-wrap::before{
   content:'';
   position:absolute;
   inset:0;
-  /* Repositioned to sit over the top-left of the main image
-     specifically — the gradient spans the FULL grid (image column +
-     specs column combined), so a center point that looks reasonable
-     as a percentage of the whole area was actually landing near the
-     boundary between the two columns rather than over the photo
-     itself, which read as "coming from the right side." Also
-     meaningfully more intense than before — the previous alpha values
-     were tuned to match the other very-subtle ambient glows elsewhere
-     on the site, but this one is meant to be a distinguishing, more
-     noticeable feature per build, not just background texture. */
-  background:radial-gradient(ellipse 75% 65% at 12% 8%, rgba(var(--car-glow-color),var(--car-glow-alpha)) 0%, transparent 72%);
+  background:radial-gradient(ellipse 60% 55% at 8% 4%, rgba(var(--car-glow-color),var(--car-glow-alpha)) 0%, transparent 72%);
   transition:background 1.1s ease;
   z-index:-1;
   pointer-events:none;
+}
+.car-page-layout{
+  display:grid;grid-template-columns:1.4fr 400px;gap:36px;margin-bottom:0;align-items:start;min-width:0;position:relative;
 }
 .car-page-left{display:flex;flex-direction:column;gap:8px;position:sticky;top:80px;min-width:0;overflow:hidden}
 .car-page-gallery-main{border-radius:var(--r-img);overflow:hidden;background:var(--raised);position:relative;aspect-ratio:4/3;width:100%;max-width:100%}
