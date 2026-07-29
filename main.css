@@ -1098,11 +1098,17 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
    — which is where a glow can actually be seen bleeding around the
    image's edges. */
 .car-page-wrap{max-width:1440px;margin:0 auto;padding:24px 48px 60px;position:relative;--car-glow-color:255,255,255;--car-glow-alpha:.09}
+/* Ellipse is tall (140%) and centered vertically at the middle of the
+   page rather than near the top — the gallery image runs quite tall,
+   and a shorter/higher glow was fading out well before reaching the
+   bottom of the left edge, leaving a plain black strip along the rest
+   of it. This keeps real color running the full height of the image's
+   left side instead of just the top portion. */
 .car-page-wrap::before{
   content:'';
   position:absolute;
   inset:0;
-  background:radial-gradient(ellipse 60% 55% at 8% 4%, rgba(var(--car-glow-color),var(--car-glow-alpha)) 0%, transparent 72%);
+  background:radial-gradient(ellipse 55% 140% at 6% 45%, rgba(var(--car-glow-color),var(--car-glow-alpha)) 0%, transparent 75%);
   transition:background 1.1s ease;
   z-index:-1;
   pointer-events:none;
