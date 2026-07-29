@@ -365,11 +365,20 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
   color:var(--muted);
   font-size:.95rem;
 }
+.act-btn.like-btn i,
+.act-btn.save-btn i{
+  display:inline-block;
+  transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+}
 .act-btn.like-btn:hover,
 .act-btn.save-btn:hover{
   background:none;
   color:var(--text);
   transform:none;
+}
+.act-btn.like-btn:hover i,
+.act-btn.save-btn:hover i{
+  transform:scale(1.22);
 }
 .act-btn.like-btn span{font-family:var(--cond);font-size:.82rem;font-weight:700;letter-spacing:0;text-transform:none}
 .act-btn.like-btn.liked{color:#ef4444}
@@ -565,10 +574,10 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
 /* Modern polish: cards share the widget radius (--r-lg) for one consistent
    corner system, hover lift is gentler, and the shadow is theme-aware
    (the old rgba(0,0,0,.6) drop was far too heavy in light mode). */
-.card{background:var(--card);border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--border);cursor:pointer;animation:cardIn .4s ease both;transition:transform var(--tr),box-shadow var(--tr),border-color var(--tr)}
+.card{background:var(--card);border-radius:var(--r-lg);border:1px solid var(--border);cursor:pointer;animation:cardIn .4s ease both;transition:transform var(--tr),box-shadow var(--tr),border-color var(--tr)}
 .card:hover{transform:translateY(-3px);box-shadow:0 2px 6px rgba(0,0,0,.06),0 16px 44px rgba(0,0,0,.14);border-color:var(--mid)}
 body.dark .card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 16px 48px rgba(0,0,0,.5);border-color:#3a3a3a}
-.card-img-wrap{position:relative;overflow:hidden}
+.card-img-wrap{position:relative;overflow:hidden;border-radius:var(--r-lg) var(--r-lg) 0 0}
 .card-img{width:100%;aspect-ratio:16/10;object-fit:cover;background:var(--raised);display:block;transition:transform .45s cubic-bezier(.4,0,.2,1)}
 .card:hover .card-img{transform:scale(1.03)}
 .cat-badge{position:absolute;top:9px;left:9px;font-family:var(--cond);font-size:.67rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:30px;color:#fff}
@@ -1069,7 +1078,21 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 /* ─── CAR DETAIL PAGE ─────────────────────────────────────────── */
 .car-page-wrap{max-width:1440px;margin:0 auto;padding:24px 48px 60px}
 .car-page-back{margin-bottom:20px}
-.car-page-layout{display:grid;grid-template-columns:1.4fr 400px;gap:36px;margin-bottom:0;align-items:start;min-width:0}
+.car-page-layout{display:grid;grid-template-columns:1.4fr 400px;gap:36px;margin-bottom:0;align-items:start;min-width:0;position:relative}
+/* Subtle white glow behind the build page's top section (main gallery
+   + videos panel) — same ambient backlighting treatment used elsewhere
+   on the site (Feed sidebar, Hot Right Now, Community's Build of the
+   Month) so key areas read as lit-up rather than flat. Contained
+   fully within its own bounds (no negative offsets) — see the Feed
+   sidebar glow fix earlier for why that matters. */
+.car-page-layout::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:radial-gradient(ellipse 90% 70% at 30% 20%, rgba(255,255,255,.05) 0%, transparent 70%);
+  z-index:-1;
+  pointer-events:none;
+}
 .car-page-left{display:flex;flex-direction:column;gap:8px;position:sticky;top:80px;min-width:0;overflow:hidden}
 .car-page-gallery-main{border-radius:var(--r-img);overflow:hidden;background:var(--raised);position:relative;aspect-ratio:4/3;width:100%;max-width:100%}
 .car-page-gallery-main img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s ease}
@@ -1090,7 +1113,7 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 
 /* Car page tabs */
 .car-page-tabs-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden}
-.car-page-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--raised)}
+.car-page-tabs{display:flex;border-bottom:1px solid var(--glass-border);background:var(--glass-bg-raised);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur)}
 .cptab{padding:13px 22px;font-family:var(--cond);font-size:.82rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;transition:all var(--tr);display:flex;align-items:center;gap:7px}
 .cptab.active{color:var(--accent);border-bottom-color:var(--accent)}
 .cptab:hover{color:var(--text)}
@@ -2720,9 +2743,10 @@ body.dark .card-poster { color:#e8e8e8 }
    ═══════════════════════════════════════════════════════════════ */
 .car-page-details{
   padding:28px 48px 24px;
-  background:var(--surface);
-  border-top:1px solid var(--border);
-  border-bottom:1px solid var(--border);
+  background:var(--glass-bg-raised);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  border-top:1px solid var(--glass-border);
+  border-bottom:1px solid var(--glass-border);
   margin-top:16px;
 }
 @media(max-width:900px){.car-page-details{padding:20px 16px 4px}}
@@ -3259,7 +3283,11 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
 /* Right: categories + reactions */
 .specs-right-panel{
   display:flex;flex-direction:column;gap:14px;
-  padding:4px 0;min-width:0;
+  padding:16px;min-width:0;
+  background:var(--glass-bg-raised);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-border);
+  border-radius:var(--r-lg);
 }
 .specs-cats-label{
   font-family:var(--cond);font-size:.7rem;font-weight:700;

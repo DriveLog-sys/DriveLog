@@ -4077,15 +4077,21 @@ function renderCardReactionOverlay(post) {
   </div>`;
 }
 
-function cardHTML(post,animIdx) {
+function cardHTML(post,animIdx,options={}) {
   const cfg=catCfg(post.category), imgs=post.images||[];
   const liked=S.user&&(post.likedBy||[]).includes(S.user.username);
   const multi=imgs.length>1?`<div class="card-multi"><i class="fas fa-images"></i> ${imgs.length}</div>`:'';
   const imgHTML=imgs.length
     ?`<img class="card-img" src="${imgs[0]}" alt="${esc(post.title)}" loading="lazy"/>`
     :`<div class="card-img card-img-ph" style="background:${phBg(post.id)}"><span>${esc((post.make||'?').toUpperCase())}</span></div>`;
+  // Category badge ("Euro", "Supercar", etc.) — shown everywhere by
+  // default (Feed, Registry, Search, Garage), suppressed only where
+  // explicitly requested. Profile pages pass hideBadge:true since
+  // category is meant for exploring/browsing builds, not something
+  // that belongs on someone's personal profile grid.
+  const badgeHTML = options.hideBadge ? '' : `<span class="cat-badge ${cfg.badge}">${post.category}</span>`;
   return `<div class="card" data-id="${post.id}" style="animation-delay:${animIdx*.04}s">
-    <div class="card-img-wrap">${imgHTML}<span class="cat-badge ${cfg.badge}">${post.category}</span>${multi}</div>
+    <div class="card-img-wrap">${imgHTML}${badgeHTML}${multi}</div>
     <div class="card-body">
       <button class="card-menu-btn" data-id="${post.id}" title="More options"><i class="fas fa-ellipsis-vertical"></i></button>
       <div class="card-menu-dropdown" data-id="${post.id}">
@@ -5344,7 +5350,7 @@ async function viewMemberProfile(username) {
   if (pinnedWrap && pinnedGrid) {
     if (pinnedPost) {
       pinnedWrap.style.display = 'block';
-      pinnedGrid.innerHTML = cardHTML(pinnedPost, 0);
+      pinnedGrid.innerHTML = cardHTML(pinnedPost, 0, {hideBadge:true});
       attachCardEvents(pinnedGrid);
     } else {
       pinnedWrap.style.display = 'none';
@@ -5357,7 +5363,7 @@ async function viewMemberProfile(username) {
   const gridPosts = pinnedPost ? posts.filter(p => p.id !== pinnedPost.id) : posts;
   if (gridPosts.length) {
     noBuilds.style.display = 'none';
-    grid.innerHTML = gridPosts.map((p,i) => cardHTML(p,i)).join('');
+    grid.innerHTML = gridPosts.map((p,i) => cardHTML(p,i,{hideBadge:true})).join('');
     attachCardEvents(grid);
     // Right-click to pin (own profile only)
     if (isOwn) {
@@ -5809,7 +5815,7 @@ async function updateProfilePage() {
     };
   }
   const grid=el('profileGrid');
-  if(posts.length){el('noBuilds').style.display='none';grid.innerHTML=posts.map((p,i)=>cardHTML(p,i)).join('');attachCardEvents(grid);}
+  if(posts.length){el('noBuilds').style.display='none';grid.innerHTML=posts.map((p,i)=>cardHTML(p,i,{hideBadge:true})).join('');attachCardEvents(grid);}
   else{grid.innerHTML='';el('noBuilds').style.display='block';}
   // Your Media — social posts
   renderProfileMedia(u.username);
@@ -6373,7 +6379,7 @@ function cpRenderGallery(post) {
   // A plain click on the +N tile therefore only sets the main image
   // AFTER expansion has already happened — buildStrip(true) below is
   // what makes that switch, driven by a data-expanded flag on the grid.
-  const THRESHOLD = 6;
+  const THRESHOLD = 8; // 4 wide × 2 rows, filled — was 6 (4+2, leaving the second row half-empty)
   function buildStrip(expanded) {
     const showAll = expanded || media.length <= THRESHOLD;
     const visibleMedia   = showAll ? media : media.slice(0, THRESHOLD);
@@ -6400,6 +6406,28 @@ function cpRenderGallery(post) {
         }
         setMain(+t.dataset.i);
       });
+      // Double-click/double-tap opens this thumbnail directly in the
+      // fullscreen lightbox — same behavior as double-clicking the main
+      // image. Images only (videos play inline, not in the lightbox).
+      // media[] lists every image before any video, in the same order
+      // as imgs[], so a tile's own index lines up with imgs[] directly
+      // for anything where type==='image'.
+      const tileIdx = +t.dataset.i;
+      if (t.dataset.moreTrigger !== '1' && media[tileIdx]?.type === 'image') {
+        t.addEventListener('dblclick', e => {
+          e.preventDefault();
+          openLightbox(imgs, tileIdx);
+        });
+        // Manual tap-timing as a mobile fallback — native dblclick from
+        // touch isn't consistently fired across every mobile browser,
+        // so this catches it either way.
+        let lastTileTap = 0;
+        t.addEventListener('touchend', () => {
+          const now = Date.now();
+          if (now - lastTileTap < 300) { openLightbox(imgs, tileIdx); lastTileTap = 0; }
+          else lastTileTap = now;
+        });
+      }
     });
     // Re-apply the highlight border to whichever tile matches the
     // currently-shown main image — without this, expanding the grid
