@@ -7761,7 +7761,7 @@ body.dark .exp-support-card p { color: #a0a0a0; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 24px;
-  padding: 7px 14px;
+  padding: 10px 14px;
   width: 240px;
   flex-shrink: 1;
   min-width: 130px;
@@ -9339,3 +9339,18 @@ html, body { overflow-x: hidden; }
 @media(max-width:768px){
   .search-page-wrap{padding:16px 16px 40px !important}
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   BUILD CARD HOVER GLOW — YouTube-style: hovering a video thumbnail
+   there gives it a subtle colored highlight distinguishing it from
+   the rest of the grid. Cycles through 3 colors (blue, dark blue,
+   dark grey) based on grid position, so neighboring cards don't all
+   light up the exact same shade, but stays consistent/predictable
+   rather than randomizing on every hover.
+   ═══════════════════════════════════════════════════════════════ */
+.card:hover{
+  box-shadow:0 2px 6px rgba(0,0,0,.06),0 16px 44px rgba(0,0,0,.14),0 0 0 1px var(--card-hover-glow,rgba(59,130,246,.35)),0 8px 28px var(--card-hover-glow,rgba(59,130,246,.28));
+}
+.card:nth-child(3n+1){--card-hover-glow:rgba(59,130,246,.35)}
+.card:nth-child(3n+2){--card-hover-glow:rgba(30,58,95,.45)}
+.card:nth-child(3n){--card-hover-glow:rgba(75,85,99,.4)}
