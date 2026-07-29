@@ -118,7 +118,7 @@ h1,h2,h3{font-family:var(--disp);font-weight:700;letter-spacing:-.01em}
 .icon-btn{width:38px;height:38px;border-radius:50%;background:var(--raised);border:1px solid var(--mid);color:var(--sec);display:flex;align-items:center;justify-content:center;font-size:.85rem;transition:all var(--tr);position:relative}
 .icon-btn:hover{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn-post{background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#fff;padding:8px 18px;border-radius:var(--r-sm);font-family:var(--cond);font-weight:700;font-size:.88rem;letter-spacing:1px;text-transform:uppercase;transition:all var(--tr);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 4px 14px var(--accent-glow)}
-.btn-post:hover{background:linear-gradient(135deg,var(--accent-dim),var(--accent));box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 8px 24px var(--accent-glow)}
+.btn-post:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 26px var(--accent-glow);transform:translateY(-2px)}
 .btn-auth{background:transparent;color:var(--sec);padding:8px 16px;border-radius:var(--r-sm);font-family:var(--cond);font-weight:600;font-size:.88rem;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--mid);transition:all var(--tr)}
 .btn-auth:hover{border-color:#555;color:var(--text)}
 
@@ -807,6 +807,18 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 .member-follow-btn:hover{background:var(--accent-dim)}
 .member-follow-btn.following{background:var(--raised);border:1px solid var(--mid);color:var(--sec)}
 .member-follow-btn.following:hover{border-color:var(--accent);color:var(--accent)}
+/* Follow/Unfollow confirmation animation — a quick, confident scale-pop
+   on the button itself, replacing the toast notification that used to
+   be the only signal the click registered. Applies to every follow
+   button style site-wide (member cards, profile page, Car Spotting
+   suggestions) since they all get the same .follow-pop class added. */
+@keyframes followPop{
+  0%{transform:scale(1)}
+  35%{transform:scale(1.18)}
+  60%{transform:scale(.94)}
+  100%{transform:scale(1)}
+}
+.follow-pop{animation:followPop .38s cubic-bezier(.34,1.56,.64,1)}
 .member-foot{border-top:1px solid var(--subtle);padding:9px 14px}
 .member-view-btn{width:100%;padding:6px;background:var(--raised);border:1px solid var(--border);border-radius:var(--r-sm);font-family:var(--cond);font-size:.78rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--sec);cursor:pointer;transition:all var(--tr)}
 .member-view-btn:hover{border-color:var(--accent);color:var(--accent)}
@@ -865,7 +877,26 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 .footer-links h4{font-family:var(--cond);font-size:.7rem;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted);margin-bottom:13px}
 .footer-links a{display:block;color:var(--sec);font-size:.84rem;margin-bottom:7px;transition:color var(--tr)}
 .footer-links a:hover{color:var(--accent)}
-.footer-bottom{border-top:1px solid var(--subtle);padding:18px 48px;max-width:1440px;margin:0 auto;display:flex;justify-content:space-between}
+.footer-bottom{border-top:1px solid var(--subtle);padding:18px 48px;max-width:1440px;margin:0 auto;display:flex;justify-content:space-between;position:relative;overflow:hidden}
+/* Decorative blue accent line — starts at the same left point as the
+   grey border-top above, travels right while angling down to meet it,
+   then runs close and parallel to it the rest of the way to the right
+   edge. A subtle bit of color worked into an otherwise plain, muted
+   footer. preserveAspectRatio="none" lets it stretch to fill the full
+   width at any screen size while keeping the same proportional path. */
+.footer-accent-line{
+  position:absolute;top:0;left:0;
+  width:100%;height:20px;
+  overflow:visible;
+  pointer-events:none;
+}
+.footer-accent-line path{
+  fill:none;
+  stroke:var(--accent);
+  stroke-width:1.5;
+  stroke-linecap:round;
+  opacity:.7;
+}
 .footer-bottom p{font-size:.74rem;color:var(--muted)}
 
 /* ─── AGE NOTICE ─────────────────────────────────────────────── */
@@ -7079,7 +7110,10 @@ body:not(.dark) .save-btn {
   transition: all var(--tr);
   box-shadow: 0 4px 14px var(--accent-glow);
 }
-.sidebar-post-btn:hover { background: linear-gradient(135deg,var(--accent-dim),var(--accent)); box-shadow: 0 8px 22px var(--accent-glow); }
+.sidebar-post-btn:hover {
+  box-shadow: 0 10px 28px var(--accent-glow);
+  transform: translateY(-2px);
+}
 
 /* ─── PLACEHOLDER PAGES (Guidelines/About/Privacy/Help) ───────── */
 .placeholder-page-wrap{
@@ -8968,3 +9002,75 @@ html, body { overflow-x: hidden; }
    than just "slightly blurry"). Firefox doesn't support backdrop-filter
    as widely as Chrome/Safari — the box still looks correct there,
    just without the blur itself, which is a harmless graceful fallback. ── */
+
+/* ═══════════════════════════════════════════════════════════════
+   MEMBERS PAGE — welcome banner (placeholder photo collage)
+   Replaces the old plain "Members" header. Each numbered tile is a
+   clearly-marked placeholder for a real photo to be dropped in later
+   — swap the background-image (or replace the div with an <img>) on
+   each .mem-banner-ph-N and the layout holds as-is.
+   ═══════════════════════════════════════════════════════════════ */
+.mem-welcome-banner{
+  position:relative;
+  width:100%;
+  height:260px;
+  overflow:hidden;
+  border-radius:0 0 var(--r-lg) var(--r-lg);
+  margin-bottom:8px;
+}
+.mem-banner-collage{
+  position:absolute;inset:0;
+  display:grid;
+  grid-template-columns:1.3fr 1fr 1fr 1fr 1.3fr;
+  grid-template-rows:1fr 1fr;
+  gap:3px;
+}
+.mem-banner-ph{
+  position:relative;
+  background:linear-gradient(135deg,var(--raised),var(--card));
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:6px;
+  color:var(--muted);
+  border:1px dashed var(--mid);
+}
+.mem-banner-ph i{font-size:1.3rem;opacity:.5}
+.mem-banner-ph span{font-family:var(--cond);font-size:.68rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;opacity:.6}
+/* Asymmetric collage layout — varied tile spans for visual interest
+   rather than a plain uniform grid */
+.mem-banner-ph-1{grid-column:1;grid-row:1/3}
+.mem-banner-ph-2{grid-column:2;grid-row:1}
+.mem-banner-ph-3{grid-column:3;grid-row:1/3}
+.mem-banner-ph-4{grid-column:2;grid-row:2}
+.mem-banner-ph-5{grid-column:4/6;grid-row:1/3}
+.mem-banner-overlay{
+  position:absolute;inset:0;
+  background:linear-gradient(180deg, rgba(0,0,0,.35) 0%, rgba(0,0,0,.55) 60%, rgba(0,0,0,.75) 100%);
+  pointer-events:none;
+}
+.mem-banner-content{
+  position:relative;z-index:1;
+  height:100%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;
+  padding:24px;
+}
+.mem-banner-content h1{
+  font-family:var(--disp);font-weight:800;font-size:clamp(1.8rem,3.6vw,2.6rem);
+  color:#fff;letter-spacing:-.01em;margin-bottom:8px;
+  text-shadow:0 2px 12px rgba(0,0,0,.4);
+}
+.mem-banner-content p{
+  font-size:.95rem;color:rgba(255,255,255,.85);
+  text-shadow:0 1px 8px rgba(0,0,0,.4);
+}
+@media(max-width:768px){
+  .mem-welcome-banner{height:200px}
+  .mem-banner-collage{grid-template-columns:1fr 1fr 1fr}
+  .mem-banner-ph-1{grid-column:1;grid-row:1/3}
+  .mem-banner-ph-2{grid-column:2;grid-row:1}
+  .mem-banner-ph-3{grid-column:3;grid-row:1/3}
+  .mem-banner-ph-4{grid-column:2;grid-row:2}
+  .mem-banner-ph-5{display:none}
+  .mem-banner-content h1{font-size:1.6rem}
+  .mem-banner-content p{font-size:.85rem}
+}

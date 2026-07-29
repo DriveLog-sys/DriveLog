@@ -3522,10 +3522,8 @@ function toggleFollow(username) {
   const isNowFollowing = idx < 0;
   if(idx>=0){
     S.following.splice(idx,1);
-    toast(`Unfollowed ${username}`,'');
   } else {
     S.following.push(username);
-    toast(`Now following ${username}`,'ok');
     const otherUser = S.users.find(u=>u.username===username);
     // Push real notification
     pushNotif('follow', S.user.username, `<b>${S.user.username}</b> started following you`, 'user:'+S.user.username, otherUser?.id);
@@ -3535,9 +3533,59 @@ function toggleFollow(username) {
   // Persist to Supabase
   const other = S.users.find(u=>u.username===username);
   if (other?.id && S.user?.id) DB.toggleFollow(S.user.id, other.id).catch(()=>{});
-  save(); renderMembers(); updateFollowBtn(username);
-  // Re-render profile if viewing the followed user
-  if (S.page==='profile') viewMemberProfile(username);
+  save();
+  // No toast, no full page/grid re-render — those were what caused the
+  // visible "flash/refresh" (viewMemberProfile() does a full clear-and-
+  // refetch, which is great for actually loading a new profile but was
+  // being called here just to flip one button's text). Every follow
+  // button and follower-count number currently on screen for this
+  // person now updates directly in place instead, with a small
+  // animation as the "it worked" signal.
+  syncFollowUI(username, isNowFollowing);
+}
+
+// syncFollowUI — surgically updates every follow button AND every
+// visible follower-count number for a given username, wherever they
+// currently exist in the DOM (member cards, profile page, Car Spotting
+// suggestions), without re-rendering or re-fetching anything. Called
+// after every toggleFollow() so the whole site stays in sync no matter
+// where the follow action originated.
+function syncFollowUI(username, isNowFollowing) {
+  // Member cards (Members page, Featured/Brands/Dealerships sections)
+  document.querySelectorAll(`.member-follow-btn[data-un="${CSS.escape(username)}"]`).forEach(btn => {
+    btn.classList.toggle('following', isNowFollowing);
+    btn.innerHTML = isNowFollowing ? '<i class="fas fa-check"></i> Following' : '+ Follow';
+    playFollowPop(btn);
+  });
+  // Car Spotting "Who to Follow" suggestion pills
+  document.querySelectorAll(`.social-follow-pill[data-user="${CSS.escape(username)}"]`).forEach(btn => {
+    btn.classList.toggle('active', isNowFollowing);
+    btn.textContent = isNowFollowing ? 'Following' : 'Follow';
+    playFollowPop(btn);
+  });
+  // Profile page's own follow button + follower count — only if that
+  // profile is the one currently open
+  const fb = el('followBtn');
+  if (fb && fb.style.display !== 'none' && S.viewingProfile === username) {
+    fb.textContent = isNowFollowing ? 'Following ✓' : 'Follow';
+    fb.className = isNowFollowing ? 'btn-ghost small' : 'btn-primary small';
+    playFollowPop(fb);
+    const countEl = document.querySelector('#profileFollowersStat .pstat-n');
+    if (countEl) {
+      const current = parseInt(countEl.textContent.replace(/,/g,''), 10) || 0;
+      countEl.textContent = Math.max(0, current + (isNowFollowing ? 1 : -1)).toLocaleString();
+    }
+  }
+}
+
+// playFollowPop — the animation that replaces the old toast as visual
+// confirmation. A quick, confident scale-pop rather than anything that
+// shifts layout or requires the person to look away from the button
+// they just clicked.
+function playFollowPop(el) {
+  el.classList.remove('follow-pop'); // restart if clicked again quickly
+  void el.offsetWidth; // force reflow so the animation replays
+  el.classList.add('follow-pop');
 }
 function updateFollowBtn(username) {
   const fb=el('followBtn'); if(!fb)return;
@@ -4967,6 +5015,7 @@ function switchToProfilePageSection() {
 async function viewMemberProfile(username) {
   S._editingPostId = null;
   if (!username) return;
+  S.viewingProfile = username; // used by syncFollowUI() to know whether #followBtn belongs to this person right now
 
   // Clear whatever profile was showing before, immediately and
   // synchronously — before any of the async fetches below even start.

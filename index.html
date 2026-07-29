@@ -560,7 +560,7 @@
       <div class="disc-header">
         <div>
           <h1 class="disc-title">Discussions</h1>
-          <p class="disc-subtitle">Start a thread, ask a question, talk builds with the community.</p>
+          <p class="disc-subtitle">Start a thread, ask a question, chat with the community.</p>
         </div>
         <button class="btn-primary" id="newDiscussionBtn"><i class="fas fa-plus"></i> New Discussion</button>
       </div>
@@ -852,7 +852,25 @@
 
   <!-- MEMBERS PAGE (kept for internal use, search from DMs etc) -->
   <section class="page" id="page-members">
-    <div class="page-head"><h1>Members</h1><p>Browse the DriveLog community.</p></div>
+    <!-- WELCOME BANNER — placeholder for now. Meant to hold a collage of
+         real photos (builds + supporters) once they're added manually;
+         each numbered tile below is exactly where one goes. Swap each
+         .mem-banner-ph div's background for a real photo (or an <img>)
+         when the photos are ready — the layout won't need to change. -->
+    <div class="mem-welcome-banner">
+      <div class="mem-banner-collage">
+        <div class="mem-banner-ph mem-banner-ph-1"><i class="fas fa-image"></i><span>Photo 1</span></div>
+        <div class="mem-banner-ph mem-banner-ph-2"><i class="fas fa-image"></i><span>Photo 2</span></div>
+        <div class="mem-banner-ph mem-banner-ph-3"><i class="fas fa-image"></i><span>Photo 3</span></div>
+        <div class="mem-banner-ph mem-banner-ph-4"><i class="fas fa-image"></i><span>Photo 4</span></div>
+        <div class="mem-banner-ph mem-banner-ph-5"><i class="fas fa-image"></i><span>Photo 5</span></div>
+      </div>
+      <div class="mem-banner-overlay"></div>
+      <div class="mem-banner-content">
+        <h1>Welcome to the Community</h1>
+        <p>The builds, the people, the passion — this is DriveLog.</p>
+      </div>
+    </div>
 
     <!-- Community stats -->
     <div class="mem-stats-bar" id="memStatsBar"></div>
@@ -1814,7 +1832,12 @@
     <div class="footer-links"><h4>Community</h4><a href="#" data-footer-page="guidelines">Guidelines</a><a href="#" data-footer-page="about">About</a><a href="#" data-footer-page="events">Events</a><a href="#" data-footer-page="members">Members</a></div>
     <div class="footer-links"><h4>Account</h4><a href="settings.html">Settings</a><a href="#" data-footer-page="privacy">Privacy</a><a href="#" data-footer-page="help">Help</a></div>
   </div>
-  <div class="footer-bottom"><p>© 2026 DriveLog. Built for car people, by car people.</p></div>
+  <div class="footer-bottom">
+    <svg class="footer-accent-line" viewBox="0 0 1440 20" preserveAspectRatio="none">
+      <path d="M 0,4 C 150,-9 300,10 480,6 L 1440,6" />
+    </svg>
+    <p>© 2026 DriveLog. Built for car people, by car people.</p>
+  </div>
 </footer>
 
 
