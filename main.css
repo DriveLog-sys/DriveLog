@@ -47,7 +47,7 @@
 
 /* Dark mode override */
 body.dark {
-  --bg:#000; --surface:#0d0d0d; --card:#0d0d0d; --raised:#161616; --hover:#1c1c1c;
+  --bg:#0d0d0d; --surface:#161616; --card:#181818; --raised:#1e1e1e; --hover:#242424;
   --border:#262626; --mid:#2e2e2e; --subtle:#1a1a1a;
   --text:#f0f0f0; --sec:#d1d5db; --muted:#8e8e8e;
   --sh:0 1px 2px rgba(0,0,0,.4), 0 10px 32px rgba(0,0,0,.42);
@@ -488,6 +488,20 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
 /* ─── TICKER ─────────────────────────────────────────────────── */
 /* ─── HOT RIGHT NOW MOSAIC ────────────────────────────────────── */
 .hot-panel{background:var(--bg);border-top:1px solid var(--subtle);border-bottom:1px solid var(--subtle);position:relative;overflow:hidden;user-select:none;padding:20px 0}
+/* Soft white glow — same idea as the sidebar's, but kept INSIDE the
+   panel's own bounds (via ::after instead of extending past the edges
+   like the sidebar does) since this element's overflow:hidden is doing
+   real work containing the slider content, and removing it to let a
+   glow spill outside would risk breaking that. */
+.hot-panel::after{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:radial-gradient(ellipse 60% 90% at 15% 50%, rgba(255,255,255,.05) 0%, transparent 65%),
+             radial-gradient(ellipse 50% 90% at 85% 50%, rgba(255,255,255,.04) 0%, transparent 65%);
+  z-index:-1;
+  pointer-events:none;
+}
 .hot-panel-inner{position:relative;width:100%;max-width:1440px;margin:0 auto;padding:0 48px}
 .hot-panel-label{display:none}
 .hot-flame{font-size:1.6rem;line-height:1}
@@ -577,7 +591,21 @@ body.dark .card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 16px 48px rgba(0,0,
 .card-likes:hover,.card-likes.liked{color:#e84242}
 
 /* ─── SIDEBAR ────────────────────────────────────────────────── */
-.sidebar{display:flex;flex-direction:column;gap:16px}
+.sidebar{display:flex;flex-direction:column;gap:16px;position:relative}
+/* Soft white glow behind the sidebar — makes the Trending/Top Members/
+   stats column read as a distinct, lit-up area rather than blending
+   into the page, without changing the actual panel colors themselves.
+   Sits behind everything (negative z-index) and extends past the
+   sidebar's own edges so it reads as ambient backlighting, not a
+   visible shape with hard edges. */
+.sidebar::before{
+  content:'';
+  position:absolute;
+  top:-40px;left:-60px;right:-60px;bottom:-40px;
+  background:radial-gradient(ellipse 70% 55% at 50% 30%, rgba(255,255,255,.06) 0%, transparent 70%);
+  z-index:-1;
+  pointer-events:none;
+}
 .widget{background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px}
 /* Featured widgets — Trending and Daily Pick get a distinct treatment */
 .widget-featured{
