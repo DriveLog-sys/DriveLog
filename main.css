@@ -1097,7 +1097,7 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
    The wrap has real padding around that grid — genuinely empty space
    — which is where a glow can actually be seen bleeding around the
    image's edges. */
-.car-page-wrap{max-width:1440px;margin:0 auto;padding:24px 48px 60px;position:relative;--car-glow-color:255,255,255;--car-glow-alpha:.09}
+.car-page-wrap{max-width:1440px;margin:0 auto;padding:24px 48px 60px;position:relative;--car-glow-color:255,255,255;--car-glow-alpha:.22}
 /* Ellipse is tall (140%) and centered vertically at the middle of the
    page rather than near the top — the gallery image runs quite tall,
    and a shorter/higher glow was fading out well before reaching the

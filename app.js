@@ -1189,7 +1189,7 @@ async function applyCarPageGlow(imgUrl) {
   // the most recent one before actually applying anything.
   const myRequestId = ++_carGlowRequestId;
   wrap.style.setProperty('--car-glow-color', '255,255,255');
-  wrap.style.setProperty('--car-glow-alpha', '.09');
+  wrap.style.setProperty('--car-glow-alpha', '.22');
   const color = await extractDominantColor(imgUrl);
   if (myRequestId !== _carGlowRequestId) return; // a newer build page has opened since this call started
   const stillWrap = document.querySelector('.car-page-wrap');
