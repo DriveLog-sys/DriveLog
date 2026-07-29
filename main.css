@@ -101,9 +101,9 @@ button:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-glow)}
 ::-webkit-scrollbar-thumb:hover{background:rgba(120,120,128,.75)}
 
 /* ─── TYPOGRAPHY ────────────────────────────────────────────── */
-.logo{font-family:var(--disp);font-weight:800;font-size:1.7rem;letter-spacing:.3px;color:var(--text);cursor:pointer}
+.logo{font-family:'Bebas Neue', Impact, 'Arial Narrow', sans-serif;font-size:1.7rem;letter-spacing:2px;color:var(--text);cursor:pointer}
 .logo span{color:var(--accent)}
-h1,h2,h3{font-family:var(--disp);font-weight:700;letter-spacing:normal}
+h1,h2,h3{font-family:var(--disp);font-weight:700;letter-spacing:-.01em}
 
 /* ─── BUTTONS ───────────────────────────────────────────────── */
 .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#fff;padding:10px 24px;border-radius:var(--r-sm);font-family:var(--cond);font-size:.92rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;transition:background var(--tr),transform var(--tr),box-shadow var(--tr);display:inline-flex;align-items:center;gap:8px;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 4px 14px var(--accent-glow)}
@@ -407,7 +407,7 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
 .page{display:none;overflow-x:hidden;width:100%;box-sizing:border-box}
 .page.active{display:block;animation:slideUp .3s ease}
 .page-head{max-width:1440px;margin:0 auto;padding:58px 48px 28px}
-.page-head h1{font-size:clamp(2.5rem,5vw,4rem);margin-bottom:7px}
+.page-head h1{font-size:clamp(2.1rem,4.2vw,3.4rem);letter-spacing:-.01em;margin-bottom:7px}
 .page-head p{color:var(--sec)}
 
 /* ─── HERO ───────────────────────────────────────────────────── */
@@ -420,7 +420,7 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
 .hero-inner{max-width:1440px;margin:0 auto;padding:0 48px;position:relative;z-index:1;width:100%;display:grid;grid-template-columns:1fr 520px;gap:40px;align-items:center}
 .hero-eyebrow{font-family:var(--cond);font-size:.82rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin-bottom:16px;display:flex;align-items:center;gap:8px}
 .pulse-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;animation:pulse 2s ease-in-out infinite}
-.hero-title{font-family:var(--disp);font-weight:800;font-size:clamp(2.4rem,5vw,4rem);line-height:1.05;letter-spacing:normal;margin-bottom:18px}
+.hero-title{font-family:var(--disp);font-weight:800;font-size:clamp(2rem,4.2vw,3.4rem);line-height:1.1;letter-spacing:-.01em;margin-bottom:18px}
 .accent-text{color:var(--accent);font-style:normal}
 .hero-sub{font-size:1rem;color:var(--sec);margin-bottom:28px;font-weight:300;max-width:440px}
 .hero-btns{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:38px}
@@ -663,7 +663,7 @@ body:not(.dark) .cat-card{border-color:#c8cdd6}
 .cat-accent-bar{position:absolute;top:0;left:0;right:0;height:3px;background:var(--cc,var(--accent));transform:scaleX(0);transform-origin:left;transition:transform var(--tr)}
 .cat-card:hover .cat-accent-bar{transform:scaleX(1)}
 .cat-icon{font-size:1.9rem;margin-bottom:11px;display:block}
-.cat-name{font-family:var(--disp);font-weight:700;font-size:1.8rem;letter-spacing:normal;margin-bottom:5px}
+.cat-name{font-family:var(--disp);font-weight:700;font-size:1.5rem;letter-spacing:-.005em;margin-bottom:5px}
 .cat-desc{font-size:.78rem;color:var(--muted);margin-bottom:13px;line-height:1.5}
 .cat-count{font-family:var(--cond);font-size:.7rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase}
 .cat-feed-head{max-width:1440px;margin:0 auto;padding:16px 48px;display:flex;align-items:center;gap:18px}
@@ -997,7 +997,7 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 .car-page-right{display:flex;flex-direction:column;gap:14px;padding:4px 0 0;color:var(--text);min-width:0;overflow-wrap:break-word;word-break:break-word}
 .car-page-header{display:flex;flex-direction:column;gap:8px}
 .car-page-cat{display:flex;gap:6px;flex-wrap:wrap;min-height:22px}
-.car-page-title{font-family:var(--disp);font-weight:800;font-size:clamp(1.8rem,4vw,2.8rem);letter-spacing:normal;line-height:1.15;color:var(--text)}
+.car-page-title{font-family:var(--disp);font-weight:800;font-size:clamp(1.5rem,3.4vw,2.3rem);letter-spacing:-.01em;line-height:1.2;color:var(--text)}
 .car-page-poster-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .car-page-av{width:38px;height:38px;border-radius:50%;font-family:var(--cond);font-size:.9rem;font-weight:700;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
 .car-page-poster-name{font-family:var(--cond);font-weight:700;font-size:1.05rem;cursor:pointer;color:var(--accent);letter-spacing:.3px}
@@ -8549,10 +8549,10 @@ html, body { overflow-x: hidden; }
   display:block;
   padding:9px 14px;
   border-radius:var(--r-sm);
-  font-family:var(--cond);
-  font-size:.82rem;
+  font-family:var(--disp);
+  font-size:.85rem;
   font-weight:600;
-  letter-spacing:.5px;
+  letter-spacing:normal;
   color:var(--text);
   text-decoration:none;
   cursor:pointer;
