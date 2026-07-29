@@ -124,6 +124,22 @@ h1,h2,h3{font-family:var(--disp);font-weight:700;letter-spacing:-.01em}
 
 /* ─── FORM ELEMENTS ─────────────────────────────────────────── */
 .finput{width:100%;background:var(--raised);border:1px solid var(--border);border-radius:var(--r-sm);padding:11px 14px;color:var(--text);font-size:.9rem;outline:none;transition:border-color var(--tr),box-shadow var(--tr);margin-bottom:12px;display:block}
+/* Build post comment input — scoped override so this one specific
+   .finput doesn't inherit the boxed look every other form field on
+   the site uses. Same minimal underline + soft glass-on-focus
+   treatment as the Discussions and Car Spotting comment inputs, so
+   commenting looks and feels consistent everywhere on the site. */
+#cpCommentInput.finput{
+  background:transparent;border:none;border-bottom:1.5px solid var(--border);
+  border-radius:0;padding:8px 4px;margin-bottom:0;
+  transition:border-color .2s ease,background .2s ease;
+}
+#cpCommentInput.finput:focus{
+  border-bottom-color:var(--accent);
+  background:var(--glass-bg);
+  border-radius:var(--r-sm) var(--r-sm) 0 0;
+  padding:8px 12px;
+}
 .finput:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
 .finput::placeholder{color:var(--muted)}
 select.finput{appearance:none;cursor:pointer}
@@ -2182,10 +2198,17 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
 .disc-comment-composer-av{width:32px;height:32px;border-radius:50%;flex-shrink:0}
 .disc-comment-composer-body{flex:1;display:flex;flex-direction:column;gap:8px}
 .disc-comment-composer textarea{
-  width:100%;background:var(--raised);border:1px solid var(--border);border-radius:var(--r-md);
-  padding:10px 12px;color:var(--text);font-family:var(--body);font-size:.88rem;resize:vertical;min-height:44px;outline:none;
+  width:100%;background:transparent;border:none;border-bottom:1.5px solid var(--border);
+  border-radius:0;
+  padding:8px 4px;color:var(--text);font-family:var(--body);font-size:.88rem;resize:vertical;min-height:40px;outline:none;
+  transition:border-color .2s ease,background .2s ease;
 }
-.disc-comment-composer textarea:focus{border-color:var(--accent)}
+.disc-comment-composer textarea:focus{
+  border-bottom-color:var(--accent);
+  background:var(--glass-bg);
+  border-radius:var(--r-sm) var(--r-sm) 0 0;
+  padding:10px 12px 8px;
+}
 .disc-comment-submit{
   align-self:flex-end;background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#fff;
   border:none;border-radius:20px;padding:7px 18px;font-family:var(--cond);font-weight:700;
@@ -7817,7 +7840,18 @@ body.dark .exp-support-card p { color: #a0a0a0; }
 .soc-comments-list{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-bottom:10px}
 .soc-comment-input-row{display:flex;align-items:center;gap:8px}
 .soc-comment-my-av{flex-shrink:0}
-.soc-comment-input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:20px;padding:8px 14px;font-size:.86rem;color:var(--text);outline:none;transition:border-color var(--tr)}
+.soc-comment-input{
+  flex:1;background:transparent;border:none;border-bottom:1.5px solid var(--border);
+  border-radius:0;
+  padding:8px 4px;font-size:.86rem;color:var(--text);outline:none;
+  transition:border-color .2s ease,background .2s ease;
+}
+.soc-comment-input:focus{
+  border-bottom-color:var(--accent);
+  background:var(--glass-bg);
+  border-radius:var(--r-sm) var(--r-sm) 0 0;
+  padding:8px 12px;
+}
 .soc-comment-input:focus{border-color:var(--accent)}
 .soc-comment-send{background:var(--accent);border:none;color:#fff;width:34px;height:34px;border-radius:50%;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.8rem;transition:background var(--tr)}
 .soc-comment-send:hover{background:var(--accent-dim)}
