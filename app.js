@@ -1345,14 +1345,16 @@ function showSignupNudge() {
   if (S.user) return;
   const nudge = el('signupNudge');
   if (!nudge || localStorage.getItem('dl_nudge_dismissed') === '1') return;
-  nudge.style.display = 'block';
-  requestAnimationFrame(() => requestAnimationFrame(() => nudge.classList.add('show')));
+  // Only relevant on the home feed now that this lives in-page there
+  // instead of as a global fixed overlay — showing it while looking at
+  // a completely different page wouldn't make sense.
+  if (S.page !== 'home') return;
+  nudge.classList.add('show');
 }
 function hideSignupNudge() {
   const nudge = el('signupNudge');
   if (!nudge) return;
   nudge.classList.remove('show');
-  setTimeout(() => { if (nudge) nudge.style.display = 'none'; }, 400);
 }
 
 // ─── MOBILE NAV ───────────────────────────────────────────────

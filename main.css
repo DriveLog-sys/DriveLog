@@ -47,8 +47,8 @@
 
 /* Dark mode override */
 body.dark {
-  --bg:#242424; --surface:#2d2d2d; --card:#303030; --raised:#383838; --hover:#404040;
-  --border:#404040; --mid:#4a4a4a; --subtle:#303030;
+  --bg:#181818; --surface:#212121; --card:#242424; --raised:#2c2c2c; --hover:#343434;
+  --border:#343434; --mid:#3e3e3e; --subtle:#242424;
   --text:#f0f0f0; --sec:#d1d5db; --muted:#8e8e8e;
   --sh:0 1px 2px rgba(0,0,0,.4), 0 10px 32px rgba(0,0,0,.42);
   --shm:0 12px 32px rgba(0,0,0,.5), 0 36px 100px rgba(0,0,0,.72);
@@ -5244,23 +5244,30 @@ html, body {
 /* ═══════════════════════════════════════════════════════════════
    SIGN UP NUDGE BANNER
    ═══════════════════════════════════════════════════════════════ */
+/* Now lives in-page at the top of the Feed (was a fixed bottom
+   overlay before). Uses a grid-template-rows 0fr→1fr trick to animate
+   smoothly open/closed — height:auto can't be transitioned directly,
+   and display:none can't be transitioned at all, so grid-rows is the
+   standard way to get a real collapse/expand animation instead of an
+   abrupt jump. When collapsed it takes up zero space, so the page
+   above/below it closes the gap cleanly with nothing left behind. */
 .signup-nudge{
-  position:fixed;bottom:0;left:0;right:0;z-index:1500;
-  /* Semi-transparent blue gradient + frosted glass — the feed stays
-     visible behind the bar as you scroll */
+  display:grid;
+  grid-template-rows:0fr;
+  transition:grid-template-rows .45s cubic-bezier(.34,1.2,.4,1);
+  overflow:hidden;
+}
+.signup-nudge.show{grid-template-rows:1fr}
+.signup-nudge-inner{
+  min-height:0;
+  max-width:1000px;margin:0 auto;
+  display:flex;align-items:center;gap:20px;
+  /* Semi-transparent blue gradient + frosted glass */
   background:linear-gradient(135deg,rgba(37,66,138,.72) 0%,rgba(23,37,84,.68) 55%,rgba(17,24,39,.66) 100%);
   -webkit-backdrop-filter:blur(14px) saturate(1.4);
   backdrop-filter:blur(14px) saturate(1.4);
-  border-top:1px solid rgba(96,150,246,.35);
-  box-shadow:0 -4px 32px rgba(0,0,0,.35);
+  border-bottom:1px solid rgba(96,150,246,.35);
   padding:14px 24px;
-  transform:translateY(100%);
-  transition:transform .4s cubic-bezier(.34,1.56,.64,1);
-}
-.signup-nudge.show{transform:translateY(0)}
-.signup-nudge-inner{
-  max-width:1000px;margin:0 auto;
-  display:flex;align-items:center;gap:20px;
 }
 .signup-nudge-text{
   flex:1;min-width:0;
@@ -5303,8 +5310,7 @@ html, body {
 .signup-nudge-close:hover{background:rgba(255,255,255,.15);color:#fff}
 
 @media(max-width:600px){
-  .signup-nudge{padding:12px 16px}
-  .signup-nudge-inner{gap:12px}
+  .signup-nudge-inner{padding:12px 16px;gap:12px}
   .signup-nudge-sub{display:none}
   .signup-nudge-title{font-size:.88rem}
   .signup-nudge-btn{padding:8px 16px;font-size:.76rem}
@@ -8120,12 +8126,12 @@ html, body { overflow-x: hidden; }
 @media (max-width: 768px) {
 
   /* ── HEADER ─────────────────────────────────────────────────
-     64px tall. Hamburger left, Logo next, Search bar center,
+     70px tall. Hamburger left, Logo next, Search bar center,
      Avatar right. Everything vertically centered on same line.  */
-  .site-header { height: 64px !important; }
+  .site-header { height: 70px !important; }
 
   .header-inner {
-    height: 64px !important;
+    height: 70px !important;
     padding: 0 14px !important;
     gap: 0 !important;
     display: flex !important;
@@ -8217,8 +8223,8 @@ html, body { overflow-x: hidden; }
     flex-shrink: 0 !important;
   }
 
-  /* Page wrap — clears the 64px header */
-  .page-wrap { padding-top: 64px !important; }
+  /* Page wrap — clears the 70px header */
+  .page-wrap { padding-top: 70px !important; }
 
   /* ── HOT RIGHT NOW — hidden on mobile ───────────────────────
      Feed starts with filter bar then posts. Cleaner for phones.
@@ -8264,7 +8270,7 @@ html, body { overflow-x: hidden; }
      Frosted like the header so feed content scrolls beneath it. */
   .sort-row {
     position: sticky !important;
-    top: 64px !important;
+    top: 70px !important;
     z-index: 90 !important;
     background: rgba(234,236,241,.82) !important;
     backdrop-filter: blur(16px) saturate(1.6) !important;
@@ -8329,7 +8335,7 @@ html, body { overflow-x: hidden; }
 
   /* ── MESSAGES ────────────────────────────────────────────── */
   #page-messages {
-    height: calc(100dvh - 64px) !important;
+    height: calc(100dvh - 70px) !important;
     display: flex !important;
     flex-direction: column !important;
     padding: 0 !important;
@@ -8340,11 +8346,11 @@ html, body { overflow-x: hidden; }
   .msg-chat-col {
     display: none !important;
     position: fixed !important;
-    inset: 64px 0 0 0 !important;
+    inset: 70px 0 0 0 !important;
     z-index: 250 !important;
     background: var(--bg) !important;
     flex-direction: column !important;
-    height: calc(100dvh - 64px) !important;
+    height: calc(100dvh - 70px) !important;
   }
   .msg-chat-col.active { display: flex !important; }
   #msgBackBtn { display: flex !important; }
@@ -8425,7 +8431,7 @@ html, body { overflow-x: hidden; }
   .modal-box.xlarge::before { display: none !important; }
 
   /* ── SEARCH OVERLAY ──────────────────────────────────────── */
-  .search-overlay { padding: 64px 12px 20px !important; }
+  .search-overlay { padding: 70px 12px 20px !important; }
 
   /* ── TOASTS ──────────────────────────────────────────────── */
   .toast {
