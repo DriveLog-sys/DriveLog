@@ -1149,15 +1149,21 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
   max-width:1440px;margin:0 auto;padding:24px 48px 60px;position:relative;
 }
 .car-page-layout{
-  display:grid;grid-template-columns:1.4fr 400px;gap:36px;margin-bottom:0;align-items:start;min-width:0;position:relative;
+  display:grid;
+  grid-template-columns:1.4fr 400px;
+  grid-template-rows:auto 1fr;
+  grid-template-areas:
+    "gallery header"
+    "gallery right";
+  gap:36px;margin-bottom:0;align-items:start;min-width:0;position:relative;
 }
-.car-page-left{display:flex;flex-direction:column;gap:8px;position:sticky;top:80px;min-width:0;overflow:hidden}
+.car-page-left{grid-area:gallery;display:flex;flex-direction:column;gap:8px;position:sticky;top:80px;min-width:0;overflow:hidden}
 .car-page-gallery-main{border-radius:var(--r-img);overflow:hidden;background:var(--raised);position:relative;aspect-ratio:4/3;width:100%;max-width:100%}
 .car-page-gallery-main img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s ease}
 .car-page-gallery-strip{display:flex;gap:6px;overflow-x:auto;padding:2px 0;scrollbar-width:none}
 .car-page-gallery-strip::-webkit-scrollbar{display:none}
-.car-page-right{display:flex;flex-direction:column;gap:14px;padding:4px 0 0;color:var(--text);min-width:0;overflow-wrap:break-word;word-break:break-word}
-.car-page-header{display:flex;flex-direction:column;gap:8px}
+.car-page-right{grid-area:right;display:flex;flex-direction:column;gap:14px;padding:4px 0 0;color:var(--text);min-width:0;overflow-wrap:break-word;word-break:break-word}
+.car-page-header{grid-area:header;display:flex;flex-direction:column;gap:8px}
 .car-page-cat{display:flex;gap:6px;flex-wrap:wrap;min-height:22px}
 .car-page-title{font-family:var(--disp);font-weight:800;font-size:clamp(1.5rem,3.4vw,2.3rem);letter-spacing:-.01em;line-height:1.2;color:var(--text)}
 .car-page-poster-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -1235,8 +1241,7 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 .msg-none-selected p{font-size:.85rem;max-width:280px}
 /* msgChatWrap display controlled by JS inline style, not CSS */
 .msg-chat-head{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0}
-.msg-back-btn{width:32px;height:32px;border-radius:50%;background:var(--raised);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--sec);font-size:.8rem;transition:all var(--tr)}
-.msg-back-btn:hover{background:var(--hover);color:var(--text)}
+
 .msg-chat-av{width:38px;height:38px;border-radius:50%;font-family:var(--disp);font-size:.95rem;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
 .msg-chat-name{font-family:var(--cond);font-weight:700;font-size:.9rem}
 .msg-chat-status{font-size:.72rem;color:var(--muted)}
@@ -2808,6 +2813,60 @@ body.dark .card-poster { color:#e8e8e8 }
   margin-top:16px;
 }
 @media(max-width:900px){.car-page-details{padding:20px 16px 4px}}
+
+/* ═══════════════════════════════════════════════════════════════
+   BUILD PAGE — mobile layout. This page had NO mobile-specific
+   layout at all before — the desktop grid (1.4fr + a fixed 400px
+   column) was rendering as-is on phones, where a 400px-wide fixed
+   column is wider than most phones' entire screen. That's exactly
+   why the gallery image was showing squeezed off to the left with
+   its right side cut off: the grid was trying to fit a desktop-width
+   layout into a viewport far narrower than what it needed.
+   ═══════════════════════════════════════════════════════════════ */
+@media(max-width:900px){
+  .car-page-wrap{padding:14px 14px 40px}
+  /* Back buttons — compact, consistent sizing on mobile. Also found
+     and fixed a real bug while investigating this: .msg-back-btn had
+     two separate, conflicting CSS definitions elsewhere in this file
+     (one circular with a fixed size, one with padding and square
+     corners) — whichever loaded second was winning for some
+     properties and not others, producing an inconsistent, oddly-
+     shaped button. Consolidated into one clean definition. */
+  .car-page-back,.post-page-back{margin-bottom:14px}
+  .car-page-back .btn-ghost.small,
+  .post-page-back .btn-ghost.small{
+    padding:6px 12px;font-size:.74rem;
+  }
+  .car-page-layout{
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  /* Title/poster header first, full width */
+  .car-page-header{order:1;width:100%}
+  /* Gallery second — full width, no more sticky positioning (sticky
+     only makes sense next to independently-scrolling content in a
+     2-column layout; in a single stacked column it just gets in the
+     way) */
+  .car-page-left{
+    order:2;
+    position:static;
+    width:100%;
+    max-width:100%;
+  }
+  .car-page-gallery-main{aspect-ratio:4/3;width:100%}
+  /* Thumbnail strip stays directly under the main image, wraps to
+     multiple rows instead of a cramped horizontal scroll on narrow
+     screens */
+  .car-page-gallery-strip{
+    flex-wrap:wrap;
+    overflow-x:visible;
+  }
+  /* Description, actions, BOTM vote, reactions — everything else,
+     last */
+  .car-page-right{order:3;width:100%;padding-top:0}
+  .car-page-title{font-size:1.5rem}
+}
 
 /* Description */
 #cpDesc:empty{display:none}
@@ -5798,12 +5857,13 @@ html, body {
 .msg-chat-name:hover { color: var(--accent); }
 .msg-chat-status { font-size: .75rem; color: var(--muted); }
 .msg-back-btn {
-  background: transparent; border: none; color: var(--muted);
-  font-size: .9rem; cursor: pointer; padding: 6px 8px;
-  border-radius: var(--r-sm); display: none;
-  transition: color var(--tr);
+  width:32px;height:32px;border-radius:50%;
+  background:var(--raised);border:1px solid var(--border);
+  display:none;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--sec);font-size:.8rem;
+  transition:all var(--tr);
 }
-.msg-back-btn:hover { color: var(--text); }
+.msg-back-btn:hover { background:var(--hover);color: var(--text); }
 .msg-chat-body {
   flex: 1;
   overflow-y: auto;
@@ -8163,6 +8223,23 @@ html, body { overflow-x: hidden; }
   .feed-wrap { padding: 10px 8px 80px !important; }
   .sidebar   { display: none !important; }
 
+  /* Mobile ambient lighting — the desktop Feed gets soft glows behind
+     the sidebar and Hot Right Now section, giving it real depth
+     instead of one flat color. Both of those are hidden/removed on
+     mobile entirely, so mobile had nothing left providing that same
+     lighting — which is exactly why it read as flat and stale by
+     comparison. Adds the same subtle-white-glow treatment directly to
+     the home page itself instead, using the same safe fully-contained
+     approach as the desktop glows (no negative offsets, avoiding the
+     scrollbar issue that technique caused earlier). */
+  #page-home {
+    position: relative;
+    background:
+      radial-gradient(ellipse 90% 40% at 20% 0%, rgba(255,255,255,.06) 0%, transparent 70%),
+      radial-gradient(ellipse 70% 35% at 90% 15%, rgba(255,255,255,.045) 0%, transparent 70%)
+      !important;
+  }
+
   /* 2-column card grid */
   .card-grid {
     grid-template-columns: 1fr 1fr !important;
@@ -9260,3 +9337,54 @@ html, body { overflow-x: hidden; }
 .card:nth-child(3n+1){--card-hover-glow:rgba(59,130,246,.35)}
 .card:nth-child(3n+2){--card-hover-glow:rgba(30,58,95,.45)}
 .card:nth-child(3n){--card-hover-glow:rgba(75,85,99,.4)}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE POST QUICK-CHOICE POPUP — tapping the center Post button
+   shows two small options (Build / Spotting) above the nav instead
+   of jumping straight into the build form.
+   ═══════════════════════════════════════════════════════════════ */
+.mob-post-choice-overlay{
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.35);
+  z-index:299;
+}
+.mob-post-choice-overlay.open{display:block}
+.mob-post-choice{
+  display:none;
+  position:fixed;
+  bottom:80px;left:50%;
+  transform:translateX(-50%) translateY(12px);
+  opacity:0;
+  gap:14px;
+  z-index:301;
+  transition:transform .25s cubic-bezier(.34,1.56,.64,1), opacity .2s ease;
+}
+.mob-post-choice.open{
+  display:flex;
+  transform:translateX(-50%) translateY(0);
+  opacity:1;
+}
+.mob-post-choice-btn{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:14px 20px;
+  background:var(--glass-bg-dropdown);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-border);
+  border-radius:18px;
+  box-shadow:var(--glass-shadow);
+  color:var(--text);
+  font-family:var(--cond);font-size:.7rem;font-weight:700;
+  letter-spacing:.5px;text-transform:uppercase;
+  cursor:pointer;
+}
+.mob-post-choice-icon{
+  width:44px;height:44px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent-dim));
+  color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;
+}
+@media(min-width:769px){
+  .mob-post-choice-overlay,.mob-post-choice{display:none !important}
+}

@@ -331,6 +331,21 @@
   </button>
 </nav>
 
+<!-- Post quick-choice popup — two small options that appear just above
+     the bottom nav when the center Post button is tapped, instead of
+     jumping straight into the build-post form. -->
+<div class="mob-post-choice-overlay" id="mobPostChoiceOverlay"></div>
+<div class="mob-post-choice" id="mobPostChoice">
+  <button class="mob-post-choice-btn" id="mobPostChoiceBuild">
+    <span class="mob-post-choice-icon"><i class="fas fa-car"></i></span>
+    <span>Build</span>
+  </button>
+  <button class="mob-post-choice-btn" id="mobPostChoiceSpot">
+    <span class="mob-post-choice-icon"><i class="fas fa-camera"></i></span>
+    <span>Spotting</span>
+  </button>
+</div>
+
   <!-- HOME -->
   <section class="page active" id="page-home">
 
@@ -1393,31 +1408,37 @@
         <button class="btn-ghost small" id="carPageBack"><i class="fas fa-arrow-left"></i> Back to Feed</button>
       </div>
       <div class="car-page-layout">
+        <!-- Title/poster header — a separate grid area now (not nested
+             inside car-page-right) so it can be positioned above the
+             gallery on mobile via grid-template-areas, while staying
+             in its original spot next to the gallery on desktop. All
+             the JS below still just looks these up by ID, so moving
+             this block in the DOM doesn't affect any functionality. -->
+        <div class="car-page-header">
+          <div class="car-page-cat" id="cpCat"></div>
+          <h1 class="car-page-title" id="cpTitle"></h1>
+          <div class="car-page-poster-row">
+            <div class="car-page-av" id="cpAv"></div>
+            <div class="car-page-poster-info">
+              <div class="car-page-poster-nameline">
+                <span class="car-page-poster-name" id="cpPosterName"></span>
+                <span class="car-page-poster-date" id="cpPosterDate"></span>
+                <span class="post-edited-tag" id="cpEditedBadge" style="display:none"><i class="fas fa-pencil-alt"></i> Edited</span>
+              </div>
+              <div class="car-page-poster-socials" id="cpSocials"></div>
+            </div>
+            <div class="car-page-poster-actions">
+              <button class="btn-ghost small" id="cpDmBtn" style="display:none"><i class="fas fa-envelope"></i> DM</button>
+            </div>
+          </div>
+        </div>
         <!-- Left: Gallery -->
         <div class="car-page-left">
           <div class="car-page-gallery-main" id="cpGallMain"></div>
           <div class="car-page-gallery-strip" id="cpGallStrip"></div>
         </div>
-        <!-- Right: Title, poster, description, actions -->
+        <!-- Right: description, actions (title/poster moved out above) -->
         <div class="car-page-right">
-          <div class="car-page-header">
-            <div class="car-page-cat" id="cpCat"></div>
-            <h1 class="car-page-title" id="cpTitle"></h1>
-            <div class="car-page-poster-row">
-              <div class="car-page-av" id="cpAv"></div>
-              <div class="car-page-poster-info">
-                <div class="car-page-poster-nameline">
-                  <span class="car-page-poster-name" id="cpPosterName"></span>
-                  <span class="car-page-poster-date" id="cpPosterDate"></span>
-                  <span class="post-edited-tag" id="cpEditedBadge" style="display:none"><i class="fas fa-pencil-alt"></i> Edited</span>
-                </div>
-                <div class="car-page-poster-socials" id="cpSocials"></div>
-              </div>
-              <div class="car-page-poster-actions">
-                <button class="btn-ghost small" id="cpDmBtn" style="display:none"><i class="fas fa-envelope"></i> DM</button>
-              </div>
-            </div>
-          </div>
           <!-- Description lives in the right column -->
           <p class="car-page-desc" id="cpDesc"></p>
           <div class="car-page-actions">

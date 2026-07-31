@@ -1424,7 +1424,22 @@ function initMobileNav() {
   document.querySelectorAll('.mob-bottom-tab[data-page]').forEach(tab => {
     tab.addEventListener('click', () => goTo(tab.dataset.page));
   });
-  el('mobBottomPost')?.addEventListener('click', openPostModal);
+  el('mobBottomPost')?.addEventListener('click', () => {
+    if (!S.user) { toast('Sign in to post','err'); el('authModal').classList.add('open'); return; }
+    el('mobPostChoiceOverlay')?.classList.add('open');
+    el('mobPostChoice')?.classList.add('open');
+  });
+  function closeMobPostChoice() {
+    el('mobPostChoiceOverlay')?.classList.remove('open');
+    el('mobPostChoice')?.classList.remove('open');
+  }
+  el('mobPostChoiceOverlay')?.addEventListener('click', closeMobPostChoice);
+  el('mobPostChoiceBuild')?.addEventListener('click', () => { closeMobPostChoice(); openPostModal(); });
+  el('mobPostChoiceSpot')?.addEventListener('click', () => {
+    closeMobPostChoice();
+    S._prevPage = S.page;
+    goTo('spotpost');
+  });
   el('mobBottomSearch')?.addEventListener('click', openSearch);
 }
 
