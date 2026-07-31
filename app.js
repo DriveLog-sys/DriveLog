@@ -4234,20 +4234,33 @@ function attachCardEvents(container) {
   // the double-binding bug that's bitten this codebase before.
   if (!container._cardMenuWired) {
     container._cardMenuWired = true;
+    // Keeps the dropdown's own .open class AND its card's .dropdown-open
+    // class (used for the z-index boost that keeps it from being
+    // covered by whatever card sits below it in the grid) in sync,
+    // rather than juggling both separately at every call site.
+    function closeAllCardDropdowns() {
+      container.querySelectorAll('.card-menu-dropdown.open').forEach(d => {
+        d.classList.remove('open');
+        d.closest('.card')?.classList.remove('dropdown-open');
+      });
+    }
     container.addEventListener('click', e => {
       const menuBtn = e.target.closest('.card-menu-btn');
       if (menuBtn) {
         e.stopPropagation();
         const dropdown = container.querySelector(`.card-menu-dropdown[data-id="${menuBtn.dataset.id}"]`);
         const wasOpen = dropdown?.classList.contains('open');
-        container.querySelectorAll('.card-menu-dropdown.open').forEach(d => d.classList.remove('open'));
-        if (dropdown && !wasOpen) dropdown.classList.add('open');
+        closeAllCardDropdowns();
+        if (dropdown && !wasOpen) {
+          dropdown.classList.add('open');
+          dropdown.closest('.card')?.classList.add('dropdown-open');
+        }
         return;
       }
       const saveBtn = e.target.closest('.card-menu-save');
       if (saveBtn) {
         e.stopPropagation();
-        if (!S.user) { toast('Sign in to save','err'); el('authModal').classList.add('open'); container.querySelectorAll('.card-menu-dropdown.open').forEach(d => d.classList.remove('open')); return; }
+        if (!S.user) { toast('Sign in to save','err'); el('authModal').classList.add('open'); closeAllCardDropdowns(); return; }
         const post = S.posts.find(p => p.id === saveBtn.dataset.id);
         if (post) {
           if (!post.savedBy) post.savedBy = [];
@@ -4260,7 +4273,7 @@ function attachCardEvents(container) {
           const nowSaved = post.savedBy.includes(vid);
           saveBtn.innerHTML = `<i class="${nowSaved?'fas':'far'} fa-bookmark"></i> ${nowSaved?'Saved':'Save'}`;
         }
-        container.querySelectorAll('.card-menu-dropdown.open').forEach(d => d.classList.remove('open'));
+        closeAllCardDropdowns();
         return;
       }
       const shareBtn = e.target.closest('.card-menu-share');
@@ -4270,7 +4283,7 @@ function attachCardEvents(container) {
         const url = window.location.href.split('#')[0] + '#car:' + shareBtn.dataset.id;
         if (navigator.share) navigator.share({ title: post?.title, url });
         else navigator.clipboard.writeText(url).then(() => toast('Link copied', 'ok'));
-        container.querySelectorAll('.card-menu-dropdown.open').forEach(d => d.classList.remove('open'));
+        closeAllCardDropdowns();
         return;
       }
       const reportBtn = e.target.closest('.card-menu-report');
@@ -4278,12 +4291,12 @@ function attachCardEvents(container) {
         e.stopPropagation();
         const post = S.posts.find(p => p.id === reportBtn.dataset.id);
         openReport('post', reportBtn.dataset.id, post?.title || '');
-        container.querySelectorAll('.card-menu-dropdown.open').forEach(d => d.classList.remove('open'));
+        closeAllCardDropdowns();
         return;
       }
       // Clicked anywhere else in the container — close any open dropdown
       if (!e.target.closest('.card-menu-dropdown')) {
-        container.querySelectorAll('.card-menu-dropdown.open').forEach(d => d.classList.remove('open'));
+        closeAllCardDropdowns();
       }
     });
   }
