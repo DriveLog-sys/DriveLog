@@ -200,6 +200,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // Apply theme first — prevents flash of wrong colors before CSS loads
   applyPrefs();
 
+  // Hot Right Now is meant to be fully hidden on mobile via CSS, but a
+  // persistent empty gap was reported there that repeated CSS review
+  // couldn't turn up a cause for — no conflicting rule, no stray inline
+  // style, nothing. Rather than keep guessing at CSS, this enforces it
+  // directly in JS instead: actually REMOVING the element from the DOM
+  // on mobile, not just hiding it. A removed element cannot reserve
+  // layout space no matter what CSS elsewhere might be doing to it,
+  // which sidesteps the whole mystery rather than solving it blind.
+  if (window.innerWidth <= 768) {
+    document.getElementById('hotPanel')?.remove();
+  }
+
   // Wire all UI modules. Each init() attaches event listeners.
   // Wrapped in try/catch so one broken module doesn't prevent others.
   const inits = [initHeader, initMobileNav, initSearch, initAuth,
@@ -1053,7 +1065,7 @@ function initHeader() {
     if (el2.id === 'avChip' || el2.id === 'avCircle' || el2.id === 'avWrap' ||
         el2.closest('#avChip') || el2.closest('.av-drop') ||
         el2.closest('.msg-chat-head') || el2.closest('.msg-conv-item') ||
-        el2.closest('.msg-new-result') || el2.closest('#signupNudge')) return;
+        el2.closest('.msg-new-result')) return;
     e.stopPropagation();
     viewPublicProfile(username);
   });
@@ -1331,30 +1343,12 @@ function updateAuthUI() {
     if (ddAdm) ddAdm.style.display = S.user.isAdmin ? '' : 'none';
     const mobAdm = document.querySelector('.mob-link[data-page="admin"]');
     if (mobAdm) mobAdm.style.display = S.user.isAdmin ? '' : 'none';
-    hideSignupNudge();
   } else {
     el('openAuthBtn') && (el('openAuthBtn').style.display='');
     el('avWrap') && (el('avWrap').style.display='none');
     const ddAdm = el('ddAdmin');
     if (ddAdm) ddAdm.style.display = 'none';
-    setTimeout(showSignupNudge, 2500);
   }
-}
-
-function showSignupNudge() {
-  if (S.user) return;
-  const nudge = el('signupNudge');
-  if (!nudge || localStorage.getItem('dl_nudge_dismissed') === '1') return;
-  // Only relevant on the home feed now that this lives in-page there
-  // instead of as a global fixed overlay — showing it while looking at
-  // a completely different page wouldn't make sense.
-  if (S.page !== 'home') return;
-  nudge.classList.add('show');
-}
-function hideSignupNudge() {
-  const nudge = el('signupNudge');
-  if (!nudge) return;
-  nudge.classList.remove('show');
 }
 
 // ─── MOBILE NAV ───────────────────────────────────────────────
@@ -1431,6 +1425,7 @@ function initMobileNav() {
     tab.addEventListener('click', () => goTo(tab.dataset.page));
   });
   el('mobBottomPost')?.addEventListener('click', openPostModal);
+  el('mobBottomSearch')?.addEventListener('click', openSearch);
 }
 
 function closeMobNav() {
@@ -2142,21 +2137,6 @@ function initAuth() {
     openPostModal();
   });
   el('authClose')?.addEventListener('click',  ()=>el('authModal').classList.remove('open'));
-  // Signup nudge banner buttons
-  el('signupNudgeBtn')?.addEventListener('click', () => {
-    hideSignupNudge();
-    el('authModal')?.classList.add('open');
-    setTimeout(() => document.querySelector('.auth-tab[data-tab="register"]')?.click(), 50);
-  });
-  el('signupNudgeSignIn')?.addEventListener('click', () => {
-    hideSignupNudge();
-    el('authModal')?.classList.add('open');
-    setTimeout(() => document.querySelector('.auth-tab[data-tab="login"]')?.click(), 50);
-  });
-  el('signupNudgeClose')?.addEventListener('click', () => {
-    hideSignupNudge();
-    localStorage.setItem('dl_nudge_dismissed', '1');
-  });
   el('authModal')?.addEventListener('click',  e=>{if(e.target===el('authModal'))el('authModal').classList.remove('open');});
 
   // Tab switching

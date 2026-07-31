@@ -5242,80 +5242,6 @@ html, body {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   SIGN UP NUDGE BANNER
-   ═══════════════════════════════════════════════════════════════ */
-/* Now lives in-page at the top of the Feed (was a fixed bottom
-   overlay before). Uses a grid-template-rows 0fr→1fr trick to animate
-   smoothly open/closed — height:auto can't be transitioned directly,
-   and display:none can't be transitioned at all, so grid-rows is the
-   standard way to get a real collapse/expand animation instead of an
-   abrupt jump. When collapsed it takes up zero space, so the page
-   above/below it closes the gap cleanly with nothing left behind. */
-.signup-nudge{
-  display:grid;
-  grid-template-rows:0fr;
-  transition:grid-template-rows .45s cubic-bezier(.34,1.2,.4,1);
-  overflow:hidden;
-}
-.signup-nudge.show{grid-template-rows:1fr}
-.signup-nudge-inner{
-  min-height:0;
-  max-width:1000px;margin:0 auto;
-  display:flex;align-items:center;gap:20px;
-  /* Semi-transparent blue gradient + frosted glass */
-  background:linear-gradient(135deg,rgba(37,66,138,.72) 0%,rgba(23,37,84,.68) 55%,rgba(17,24,39,.66) 100%);
-  -webkit-backdrop-filter:blur(14px) saturate(1.4);
-  backdrop-filter:blur(14px) saturate(1.4);
-  border-bottom:1px solid rgba(96,150,246,.35);
-  padding:14px 24px;
-}
-.signup-nudge-text{
-  flex:1;min-width:0;
-  display:flex;flex-direction:column;gap:2px;
-}
-.signup-nudge-title{
-  font-family:var(--cond);font-size:.95rem;font-weight:700;
-  letter-spacing:.5px;color:#fff;
-}
-.signup-nudge-sub{
-  font-size:.8rem;color:rgba(255,255,255,.55);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-.signup-nudge-btn{
-  background:var(--accent);color:#fff;
-  font-family:var(--cond);font-size:.82rem;font-weight:700;
-  letter-spacing:1px;text-transform:uppercase;
-  padding:9px 24px;border-radius:var(--r-sm);border:none;
-  cursor:pointer;white-space:nowrap;flex-shrink:0;
-  transition:all var(--tr);
-}
-.signup-nudge-btn:hover{background:var(--accent-dim);transform:scale(1.03)}
-.signup-nudge-signin{
-  background:rgba(255,255,255,.94);color:#111827;
-  font-family:var(--cond);font-size:.82rem;font-weight:700;
-  letter-spacing:1px;text-transform:uppercase;
-  padding:9px 22px;border-radius:var(--r-sm);
-  border:1px solid rgba(255,255,255,.6);
-  cursor:pointer;white-space:nowrap;flex-shrink:0;
-  transition:all var(--tr);
-}
-.signup-nudge-signin:hover{background:#fff;transform:scale(1.03)}
-.signup-nudge-close{
-  width:32px;height:32px;border-radius:50%;
-  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
-  color:rgba(255,255,255,.5);cursor:pointer;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;
-  font-size:.75rem;transition:all var(--tr);
-}
-.signup-nudge-close:hover{background:rgba(255,255,255,.15);color:#fff}
-
-@media(max-width:600px){
-  .signup-nudge-inner{padding:12px 16px;gap:12px}
-  .signup-nudge-sub{display:none}
-  .signup-nudge-title{font-size:.88rem}
-  .signup-nudge-btn{padding:8px 16px;font-size:.76rem}
-}
-
 /* ═══════════════════════════════════════════════════════════════
    LOADING SCREEN — always visible, semi-transparent
    ═══════════════════════════════════════════════════════════════ */
@@ -5474,14 +5400,6 @@ html, body {
 @media(max-width:480px) {
   .card-grid { grid-template-columns: 1fr; }
   .hero-title { font-size: 1.6rem !important; }
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   SIGN UP NUDGE — above mobile bottom actions
-   ═══════════════════════════════════════════════════════════════ */
-@media(max-width:768px) {
-  .signup-nudge { padding: 10px 14px; }
-  .signup-nudge-inner { gap: 10px; }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -8444,19 +8362,6 @@ html, body { overflow-x: hidden; }
   }
   .toast.show { transform: translateX(-50%) translateY(-4px) !important; }
 
-  /* ── SIGNUP NUDGE ────────────────────────────────────────── */
-  /* Floats as a rounded banner just above the pill bottom nav —
-     the old full-bleed square edges clashed with the floating pill. */
-  .signup-nudge {
-    bottom: 78px !important;
-    left: 12px !important;
-    right: 12px !important;
-    border-radius: 16px !important;
-    border: 1px solid rgba(96,150,246,.35) !important;
-    padding: 10px 14px !important;
-  }
-  .signup-nudge-sub { display: none !important; }
-
   /* ── FOOTER ──────────────────────────────────────────────── */
   .footer-inner {
     grid-template-columns: 1fr !important;
@@ -8485,14 +8390,15 @@ html, body { overflow-x: hidden; }
     max-width: 420px !important;
     height: 56px !important;
     border-radius: 22px !important;
-    /* Flat black — matches the Instagram-style pivot elsewhere; kept
-       the existing floating rounded-pill SHAPE untouched, only the
-       surface treatment changed from frosted glass to flat black. */
-    background: #000 !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    border: 1px solid rgba(255, 255, 255, 0.09) !important;
-    box-shadow: 0 8px 32px rgba(0,0,0,.5) !important;
+    /* Glassmorphism — matches the rest of the site's glass treatment
+       instead of the flat black this had from an earlier Instagram-
+       style pass. Always exactly one bottom nav on screen at once, so
+       full blur is cheap here (same reasoning as the header/modals). */
+    background: var(--glass-bg-raised) !important;
+    backdrop-filter: var(--glass-blur) !important;
+    -webkit-backdrop-filter: var(--glass-blur) !important;
+    border: 1px solid var(--glass-border) !important;
+    box-shadow: var(--glass-shadow) !important;
     z-index: 300 !important;
     justify-content: space-around !important;
     align-items: center !important;
@@ -8505,32 +8411,26 @@ html, body { overflow-x: hidden; }
     box-shadow: 0 8px 32px rgba(0,0,0,.1), inset 0 1px 0 rgba(255,255,255,.9) !important;
   }
 
-  /* Instagram-style compact state while scrolling down — shorter bar,
-     smaller icons, labels hidden. Height/scale animate together so it
-     feels like one smooth shrink rather than separate jumpy changes. */
+  /* Compact state while scrolling down — shrinks the bar INWARD
+     (narrower, centered) rather than shorter, so it visually recedes
+     to the sides instead of flattening vertically. Height/icon size
+     stay the same; only the width and horizontal padding animate. */
   .mob-bottom-nav {
-    transition: height .2s ease, transform .2s ease;
+    transition: width .25s ease, max-width .25s ease, padding .25s ease;
   }
   .mob-bottom-nav.nav-compact {
-    height: 42px !important;
+    max-width: 280px !important;
   }
   .mob-bottom-tab {
-    transition: padding .2s ease, transform .2s ease;
+    transition: padding .2s ease;
   }
   .mob-bottom-nav.nav-compact .mob-bottom-tab {
-    padding: 4px 0 !important;
+    padding: 4px 2px !important;
   }
   .mob-bottom-nav.nav-compact .mob-bottom-tab span:not(.mob-tab-badge) {
     display: none;
   }
-  .mob-bottom-nav.nav-compact .mob-bottom-tab i {
-    font-size: 1rem !important;
-    transition: font-size .2s ease;
-  }
-  .mob-bottom-nav.nav-compact #mobBottomPost i {
-    font-size: 1.2rem !important;
-  }
-  /* Underline indicator sits a bit higher on the shorter bar so it
+  /* Underline indicator sits a bit higher on the narrower bar so it
      doesn't end up sitting right at the very bottom edge */
   .mob-bottom-nav.nav-compact .mob-bottom-tab.active::after {
     bottom: 1px !important;
@@ -8545,8 +8445,9 @@ html, body { overflow-x: hidden; }
     justify-content: center !important;
     gap: 3px !important;
     padding: 8px 0 6px !important;
-    /* White icons on dark, grey on light */
-    color: rgba(255, 255, 255, 0.55) !important;
+    /* Crisp white icons on dark, dark grey on light — was 55% opacity
+       white before, which read as grey rather than actually white */
+    color: rgba(255, 255, 255, 0.9) !important;
     background: transparent !important;
     border: none !important;
     cursor: pointer !important;
@@ -8715,7 +8616,6 @@ html, body { overflow-x: hidden; }
   /* ── Spot carousel + nudge (mobile) ── */
   .social-post-card { max-width: 100% !important; }
   .soc-car-arrow { width: 28px !important; height: 28px !important; }
-  .signup-nudge-signin { padding: 9px 14px !important; }
 
   }
 }

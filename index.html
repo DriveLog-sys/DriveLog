@@ -320,10 +320,9 @@
     <i class="fas fa-plus-circle"></i>
     <span>Post</span>
   </button>
-  <button class="mob-bottom-tab" data-page="messages" aria-label="Messages">
-    <i class="fas fa-envelope"></i>
-    <span>Messages</span>
-    <span class="mob-tab-badge" id="mobTabDmBadge" style="display:none"></span>
+  <button class="mob-bottom-tab" id="mobBottomSearch" aria-label="Search">
+    <i class="fas fa-search"></i>
+    <span>Search</span>
   </button>
   <button class="mob-bottom-tab" data-page="notifications" id="mobBottomNotif" aria-label="Notifications">
     <i class="fas fa-bell"></i>
@@ -340,21 +339,6 @@
     <span id="statMembers" hidden>0</span>
     <span id="statLikes" hidden>0</span>
     <span id="featuredMembersStrip" hidden><span id="featuredMembersAvatars"></span></span>
-
-    <!-- Sign up nudge banner — shown to signed-out users. Lives here
-         (top of the home feed, right after the header) rather than as
-         a fixed bottom overlay like it used to be. -->
-    <div class="signup-nudge" id="signupNudge">
-      <div class="signup-nudge-inner">
-        <div class="signup-nudge-text">
-          <span class="signup-nudge-title">Join the community</span>
-          <span class="signup-nudge-sub">Share your build, follow enthusiasts, and climb the leaderboard.</span>
-        </div>
-        <button class="signup-nudge-btn" id="signupNudgeBtn">Create Account</button>
-        <button class="signup-nudge-signin" id="signupNudgeSignIn">or Sign In</button>
-        <button class="signup-nudge-close" id="signupNudgeClose" aria-label="Dismiss"><i class="fas fa-times"></i></button>
-      </div>
-    </div>
 
     <!-- Hot Right Now — Cinematic Slider -->
     <div class="hot-panel" id="hotPanel">
