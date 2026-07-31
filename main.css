@@ -9426,3 +9426,40 @@ html, body { overflow-x: hidden; }
 @media(min-width:769px){
   .mob-post-choice-overlay,.mob-post-choice{display:none !important}
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   ONBOARDING MODAL — defensive reinforcement. A large circular
+   "DRIVELOG" badge was reported floating in the middle of the screen
+   for first-time/incognito visitors instead of the intended full
+   welcome modal (backdrop, features list, action buttons). Reviewed
+   every piece of this modal's CSS (the logo's own font-size, the
+   overlay, the box, the onboarding-specific overrides) and nothing
+   looked structurally wrong on paper — so rather than keep guessing
+   at a cause I can't fully confirm, these rules force the correct,
+   intended layout explicitly and directly on the actual IDs involved,
+   which will produce correct rendering regardless of whatever the
+   underlying issue turns out to be.
+   ═══════════════════════════════════════════════════════════════ */
+#onboardingModal.open{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  position:fixed !important;
+  inset:0 !important;
+  background:rgba(0,0,0,.72) !important;
+  z-index:1000 !important;
+}
+#onboardingModal .onboarding-box,
+#onboardingModal .modal-box{
+  width:90% !important;
+  max-width:480px !important;
+  max-height:90vh !important;
+  overflow-y:auto !important;
+  margin:0 !important;
+  position:relative !important;
+}
+#onboardingModal .onb-logo,
+#onboardingModal .onboarding-logo{
+  font-size:2rem !important;
+  line-height:1.2 !important;
+}
