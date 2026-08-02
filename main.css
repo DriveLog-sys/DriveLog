@@ -170,8 +170,14 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
 .nav-link{padding:8px 13px;font-family:var(--cond);font-size:.85rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);border-radius:var(--r-sm);transition:color var(--tr);position:relative;cursor:pointer}
 .nav-link::after{content:'';position:absolute;bottom:3px;left:13px;right:13px;height:2px;background:var(--accent);transform:scaleX(0);transition:transform var(--tr);border-radius:2px}
 .nav-link:hover{color:var(--sec)}
+/* Keeps the link highlighted for as long as its dropdown is open —
+   .nav-link:hover alone only applies while the cursor is exactly on
+   the text itself, so moving down into the dropdown menu (a separate,
+   absolutely-positioned element below it) was dropping the highlight
+   even though the dropdown was still visibly open. */
+.nav-item-dropdown:hover .nav-link{color:var(--sec)}
 .nav-link.active{color:var(--text)}
-.nav-link.active::after,.nav-link:hover::after{transform:scaleX(1)}
+.nav-link.active::after,.nav-link:hover::after,.nav-item-dropdown:hover .nav-link::after{transform:scaleX(1)}
 .header-right{display:flex;align-items:center;gap:10px;position:relative}
 
 /* Notif */
@@ -586,7 +592,7 @@ body.dark .card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 16px 48px rgba(0,0,
 .badge-jdm{background:#e8392a}.badge-euro{background:#3b82f6}.badge-muscle{background:#f0a030}
 .badge-classic{background:#c9a84c}.badge-offroad{background:#22c55e}.badge-collector{background:#14b8a6}
 .badge-slammed{background:#a855f7}.badge-default{background:#555}
-.card-multi{position:absolute;top:9px;right:9px;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);border-radius:30px;padding:2px 9px;font-family:var(--cond);font-size:.67rem;font-weight:700;color:var(--sec);display:flex;align-items:center;gap:4px}
+.card-multi{position:absolute;top:9px;left:9px;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);border-radius:30px;padding:2px 9px;font-family:var(--cond);font-size:.67rem;font-weight:700;color:var(--sec);display:flex;align-items:center;gap:4px}
 .card-body{padding:13px 15px 15px}
 .card-title{font-family:var(--cond);font-size:1.04rem;font-weight:700;color:var(--text);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card-sub{font-size:.76rem;color:var(--muted);margin-bottom:11px}
@@ -595,9 +601,9 @@ body.dark .card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 16px 48px rgba(0,0,
 .card-av{width:21px;height:21px;border-radius:50%;font-family:var(--cond);font-size:.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
 .card-poster{font-size:.73rem;color:var(--sec);font-weight:500}
 .card-stats{display:flex;align-items:center;gap:9px}
-.card-comments{font-size:.76rem;color:var(--muted);display:flex;align-items:center;gap:3px}
-.card-likes{font-family:var(--cond);font-size:.78rem;font-weight:700;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:3px;transition:color var(--tr)}
-.card-views{font-family:var(--cond);font-size:.78rem;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:3px}
+.card-comments{font-size:.76rem;color:var(--text);display:flex;align-items:center;gap:3px}
+.card-likes{font-family:var(--cond);font-size:.78rem;font-weight:700;color:var(--text);cursor:pointer;display:flex;align-items:center;gap:3px;transition:color var(--tr)}
+.card-views{font-family:var(--cond);font-size:.78rem;font-weight:700;color:var(--text);display:flex;align-items:center;gap:3px}
 .card-views i{font-size:.72rem}
 .card-likes:hover,.card-likes.liked{color:#e84242}
 
@@ -1171,7 +1177,7 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 .car-page-poster-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .car-page-av{width:38px;height:38px;border-radius:50%;font-family:var(--cond);font-size:.9rem;font-weight:700;display:flex;align-items:center;justify-content:center;color:#fff;flex-shrink:0}
 .car-page-poster-name{font-family:var(--cond);font-weight:700;font-size:1.05rem;cursor:pointer;color:var(--accent);letter-spacing:.3px}
-.car-page-poster-name:hover{text-decoration:underline}
+.car-page-poster-name:hover{text-decoration:none;color:var(--text)}
 .car-page-poster-date{font-size:.72rem;color:var(--muted);display:block}
 .car-page-poster-socials{display:flex;gap:5px;margin-left:auto}
 .car-page-actions{display:flex;gap:6px;flex-wrap:nowrap}
@@ -1387,8 +1393,8 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 .badge-ratrod{background:#374151}
 
 /* ─── CLICKABLE USER — cursor + underline hint ───────────────── */
-.clickable-user{cursor:pointer}
-.clickable-user:hover{opacity:.8;text-decoration:underline}
+.clickable-user{cursor:pointer;text-decoration:none !important}
+.clickable-user:hover{color:var(--text) !important;text-decoration:none !important}
 /* Avatar circles don't get underline */
 .card-av.clickable-user:hover,.tm-av.clickable-user:hover,
 .lb-av-th.clickable-user:hover,.comment-av.clickable-user:hover,
@@ -1401,7 +1407,7 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 /* Car Spotting username text (header row + inline with caption) —
    color change only, no underline, no box-shadow (it's text, not a
    circular avatar, so the ring treatment above doesn't apply here). */
-.soc-post-user.clickable-user:hover{text-decoration:none}
+.soc-post-user.clickable-user:hover{text-decoration:none;color:var(--text)}
 
 /* ─── GENERAL SITE POLISH ────────────────────────────────────── */
 /* Smoother card image fade-in */
@@ -1468,7 +1474,7 @@ body.dark .card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 16px 48px rgba(0,0,
 
 /* ─── PROFILE LINK STYLE — always visible signal it's clickable ── */
 .car-page-poster-name.clickable-user{transition:color var(--tr)}
-.car-page-poster-name.clickable-user:hover{color:var(--accent-dim)}
+.car-page-poster-name.clickable-user:hover{color:var(--text);text-decoration:none}
 
 /* ─── HOT PANEL — fix for cursor on card body ─────────────────── */
 .hot-item{cursor:pointer}
@@ -6412,7 +6418,7 @@ body:not(.dark) .save-btn {
 .hero2-meta span:first-child::before { display: none; }
 .hero2-likes { color: #f87171; }
 .hero2-user { cursor: pointer; }
-.hero2-user:hover { text-decoration: underline; }
+.hero2-user:hover { text-decoration: none; color: #fff; }
 .hero2-view-btn {
   display: inline-flex; align-items: center; gap: 7px;
   background: rgba(255,255,255,.15);
@@ -6623,7 +6629,7 @@ body:not(.dark) .save-btn {
   cursor: pointer;
   letter-spacing: .2px;
 }
-.car-page-poster-name:hover { text-decoration: underline; }
+.car-page-poster-name:hover { text-decoration: none; color: var(--text); }
 .car-page-poster-date {
   font-size: .78rem;
   color: var(--muted);
@@ -9070,7 +9076,7 @@ html, body { overflow-x: hidden; }
 .card-menu-btn{
   position:absolute;top:12px;right:10px;
   width:26px;height:26px;border-radius:50%;
-  background:none;border:none;color:var(--muted);
+  background:none;border:none;color:var(--text);
   display:flex;align-items:center;justify-content:center;
   font-size:.85rem;cursor:pointer;
   transition:background .15s ease,color .15s ease;
@@ -9463,3 +9469,20 @@ html, body { overflow-x: hidden; }
   font-size:2rem !important;
   line-height:1.2 !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   DREAM GARAGE — now lives directly under Liked Builds instead of
+   its own separate tab
+   ═══════════════════════════════════════════════════════════════ */
+.dream-garage-section{
+  margin-top:40px;
+  padding-top:32px;
+  border-top:1px solid var(--border);
+}
+.dream-garage-divider{
+  display:flex;align-items:center;gap:9px;
+  font-family:var(--cond);font-size:1rem;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;color:var(--text);
+  margin-bottom:16px;
+}
+.dream-garage-divider i{color:#f0a030}

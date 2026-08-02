@@ -825,6 +825,20 @@ function initNavLinks() {
       waitForLayout(() => {
         if (targetId === 'expMerchSection') {
           window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else if (targetId === 'gpanel-dream') {
+          // Dream Garage now lives nested inside the Liked Builds panel
+          // rather than its own separate tab — make sure that panel is
+          // actually the visible one before trying to scroll into it,
+          // since scrolling to something inside a display:none ancestor
+          // wouldn't do anything.
+          const likedTab = document.querySelector('.gtab[data-gtab="liked"]');
+          if (likedTab && !likedTab.classList.contains('active')) likedTab.click();
+          waitForLayout(() => {
+            const target = el(targetId);
+            if (!target) return;
+            const y = target.getBoundingClientRect().top + window.scrollY - HEADER_H;
+            window.scrollTo({ top: y, behavior: 'smooth' });
+          });
         } else {
           const target = el(targetId);
           if (!target) return;
@@ -898,12 +912,22 @@ function initNavLinks() {
       });
     })
   );
-  // Footer "Dream Garage" link — garage page, switched to that tab
+  // Footer "Dream Garage" link — garage page, Liked tab, scrolled to
+  // the Dream Garage section nested within it
   document.querySelectorAll('[data-footer-gtab]').forEach(a =>
     a.addEventListener('click', e => {
       e.preventDefault();
       goTo('garage');
-      waitForLayout(() => document.querySelector(`.gtab[data-gtab="${a.dataset.footerGtab}"]`)?.click());
+      waitForLayout(() => {
+        const likedTab = document.querySelector('.gtab[data-gtab="liked"]');
+        if (likedTab && !likedTab.classList.contains('active')) likedTab.click();
+        waitForLayout(() => {
+          const target = el('gpanel-dream');
+          if (!target) return;
+          const y = target.getBoundingClientRect().top + window.scrollY - HEADER_H;
+          window.scrollTo({ top: y, behavior: 'smooth' });
+        });
+      });
     })
   );
 }
@@ -4188,20 +4212,17 @@ function renderCardReactionOverlay(post) {
 }
 
 function cardHTML(post,animIdx,options={}) {
-  const cfg=catCfg(post.category), imgs=post.images||[];
+  const imgs=post.images||[];
   const liked=S.user&&(post.likedBy||[]).includes(S.user.username);
   const multi=imgs.length>1?`<div class="card-multi"><i class="fas fa-images"></i> ${imgs.length}</div>`:'';
   const imgHTML=imgs.length
     ?`<img class="card-img" src="${imgs[0]}" alt="${esc(post.title)}" loading="lazy"/>`
     :`<div class="card-img card-img-ph" style="background:${phBg(post.id)}"><span>${esc((post.make||'?').toUpperCase())}</span></div>`;
-  // Category badge ("Euro", "Supercar", etc.) — shown everywhere by
-  // default (Feed, Registry, Search, Garage), suppressed only where
-  // explicitly requested. Profile pages pass hideBadge:true since
-  // category is meant for exploring/browsing builds, not something
-  // that belongs on someone's personal profile grid.
-  const badgeHTML = options.hideBadge ? '' : `<span class="cat-badge ${cfg.badge}">${post.category}</span>`;
+  // Category badge ("Euro", "Supercar", etc.) removed from build preview
+  // cards site-wide — the image count badge now takes its spot on the
+  // top-left instead of the top-right.
   return `<div class="card" data-id="${post.id}" style="animation-delay:${animIdx*.04}s">
-    <div class="card-img-wrap">${imgHTML}${badgeHTML}${multi}</div>
+    <div class="card-img-wrap">${imgHTML}${multi}</div>
     <div class="card-body">
       <button class="card-menu-btn" data-id="${post.id}" title="More options"><i class="fas fa-ellipsis-vertical"></i></button>
       <div class="card-menu-dropdown" data-id="${post.id}">
