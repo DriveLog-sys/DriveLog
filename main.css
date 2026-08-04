@@ -19,9 +19,9 @@
   --blue:  #3b82f6; --gold: #f0a030; --green: #22c55e;
   --purple:#a855f7; --teal: #14b8a6; --red:#e8392a;
   --text:  #111827; --sec: #374151; --muted: #6b7280;
-  --disp:  'Inter', 'Barlow', -apple-system, BlinkMacSystemFont, sans-serif;
-  --cond:  'Barlow Condensed', 'Arial Narrow', Arial, sans-serif;
-  --body:  'Inter', 'Barlow', -apple-system, BlinkMacSystemFont, sans-serif;
+  --disp:  'Roboto', Arial, -apple-system, BlinkMacSystemFont, sans-serif;
+  --cond:  'Roboto', Arial, sans-serif;
+  --body:  'Roboto', Arial, -apple-system, BlinkMacSystemFont, sans-serif;
   /* Modern polish pass: radii bumped one step rounder across the board
      (Instagram-style soft geometry). Every component reads these tokens,
      so this one block modernizes ~180 corner treatments consistently. */
@@ -47,11 +47,11 @@
 
 /* Dark mode override */
 body.dark {
-  --bg:#121212; --surface:#1b1b1b; --card:#1e1e1e; --raised:#262626; --hover:#2e2e2e;
-  --border:#2e2e2e; --mid:#383838; --subtle:#1e1e1e;
-  --text:#f0f0f0; --sec:#d1d5db; --muted:#8e8e8e;
-  --sh:0 1px 2px rgba(0,0,0,.4), 0 10px 32px rgba(0,0,0,.42);
-  --shm:0 12px 32px rgba(0,0,0,.5), 0 36px 100px rgba(0,0,0,.72);
+  --bg:#0f0f0f; --surface:#212121; --card:#212121; --raised:#272727; --hover:#3f3f3f;
+  --border:#3f3f3f; --mid:#3f3f3f; --subtle:#212121;
+  --text:#f1f1f1; --sec:#aaaaaa; --muted:#aaaaaa;
+  --sh:0 1px 2px rgba(0,0,0,.2);
+  --shm:0 2px 6px rgba(0,0,0,.3);
   /* Pivoted away from glassmorphism to a flat Instagram-dark-mode
      style: true black page, surfaces that sit almost flush with it
      rather than visibly "elevated" cards, a thin low-contrast divider
@@ -61,13 +61,13 @@ body.dark {
      the surfaces themselves. Every class that was built against these
      --glass-* tokens automatically follows this new look without
      needing to be touched individually — only the tokens changed. */
-  --glass-bg:      rgba(13,13,13,.94);
-  --glass-bg-raised: rgba(22,22,22,.96);
-  --glass-bg-dropdown: rgba(13,13,13,.98);
-  --glass-border:  rgba(255,255,255,.09);
+  --glass-bg:      rgba(33,33,33,.94);
+  --glass-bg-raised: rgba(39,39,39,.96);
+  --glass-bg-dropdown: rgba(24,24,24,.98);
+  --glass-border:  rgba(255,255,255,.08);
   --glass-blur:    none;
   --glass-blur-light: none;
-  --glass-shadow:  0 1px 2px rgba(0,0,0,.3);
+  --glass-shadow:  0 1px 2px rgba(0,0,0,.2);
 }
 
 /* ─── RESET ─────────────────────────────────────────────────── */
@@ -544,8 +544,17 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
 .filter-bar{background:var(--surface);border-bottom:1px solid var(--subtle);position:sticky;top:62px;z-index:90;overflow:hidden}
 .filter-scroll{max-width:1440px;margin:0 auto;padding:9px 24px;display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .filter-scroll::-webkit-scrollbar{display:none}
-.fpill{padding:6px 17px;border-radius:30px;font-family:var(--cond);font-size:.8rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--card);border:1px solid var(--border);white-space:nowrap;cursor:pointer;transition:all var(--tr);flex-shrink:0;outline:none}
+.fpill{padding:6px 17px;border-radius:30px;font-family:var(--cond);font-size:.8rem;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);background:var(--raised);border:1px solid var(--border);white-space:nowrap;cursor:pointer;transition:all var(--tr);flex-shrink:0;outline:none}
 .fpill:hover{color:var(--text);border-color:var(--mid)}
+body.dark .fpill:hover,body.dark .post-cat-pill:hover{background:#f1f1f1;color:#0f0f0f;border-color:#f1f1f1}
+body.dark .sort-btn:hover:not(.active),body.dark .disc-cat-pill:hover:not(.active){background:#f1f1f1;color:#0f0f0f;border-color:#f1f1f1}
+/* Titles medium-weight (500) rather than bold, matching YouTube's
+   video-title treatment — the site's other title-weight components
+   (post titles, discussion titles, etc.) keep their existing bold
+   weight, since an exhaustive pass over every heading in a stylesheet
+   this size wasn't feasible in one response; this covers the single
+   most prominent, YouTube-video-title-equivalent element site-wide. */
+body.dark .card-title{font-weight:500}
 .fpill:focus-visible{box-shadow:0 0 0 2px var(--accent-soft);border-color:var(--accent)}
 .fpill.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 4px 14px var(--accent-glow)}
 .fpill.active:focus-visible{box-shadow:0 4px 14px var(--accent-glow),0 0 0 2px var(--accent-soft)}
@@ -580,10 +589,10 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
 /* Modern polish: cards share the widget radius (--r-lg) for one consistent
    corner system, hover lift is gentler, and the shadow is theme-aware
    (the old rgba(0,0,0,.6) drop was far too heavy in light mode). */
-.card{background:var(--card);border-radius:var(--r-lg);border:1px solid var(--border);cursor:pointer;animation:cardIn .4s ease both;transition:transform var(--tr),box-shadow var(--tr),border-color var(--tr)}
-.card:hover{transform:translateY(-3px);box-shadow:0 2px 6px rgba(0,0,0,.06),0 16px 44px rgba(0,0,0,.14);border-color:var(--mid)}
-body.dark .card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 16px 48px rgba(0,0,0,.5);border-color:#3a3a3a}
-.card-img-wrap{position:relative;overflow:hidden;border-radius:var(--r-lg) var(--r-lg) 0 0}
+.card{background:var(--card);border-radius:var(--r-md);border:1px solid var(--border);cursor:pointer;animation:cardIn .4s ease both;transition:transform var(--tr),box-shadow var(--tr),border-color var(--tr)}
+.card:hover{transform:translateY(-3px);box-shadow:0 1px 4px rgba(0,0,0,.15);border-color:var(--mid)}
+body.dark .card:hover{box-shadow:0 1px 4px rgba(0,0,0,.4);border-color:#3f3f3f}
+.card-img-wrap{position:relative;overflow:hidden;border-radius:var(--r-md) var(--r-md) 0 0}
 .card-img{width:100%;aspect-ratio:16/10;object-fit:cover;background:var(--raised);display:block;transition:transform .45s cubic-bezier(.4,0,.2,1)}
 /* Image no longer zooms on hover — only the card's own background
    color changes now (see the hover color-shift rules further down),
@@ -1416,8 +1425,8 @@ body.dark .evt-card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 14px 44px rgba(
 
 /* Card hover — gentle lift with layered theme-aware shadows.
    NOTE: these rules win the cascade over the base .card:hover above. */
-.card:hover{transform:translateY(-3px);box-shadow:0 2px 6px rgba(0,0,0,.06),0 16px 44px rgba(0,0,0,.14)}
-body.dark .card:hover{box-shadow:0 2px 6px rgba(0,0,0,.35),0 16px 48px rgba(0,0,0,.5)}
+.card:hover{transform:translateY(-3px);box-shadow:0 1px 4px rgba(0,0,0,.15)}
+body.dark .card:hover{box-shadow:0 1px 4px rgba(0,0,0,.4)}
 
 /* Pill filter bar — active pill border glow */
 .fpill.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 3px 10px var(--accent-glow)}
