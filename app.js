@@ -200,18 +200,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Apply theme first — prevents flash of wrong colors before CSS loads
   applyPrefs();
 
-  // Hot Right Now is meant to be fully hidden on mobile via CSS, but a
-  // persistent empty gap was reported there that repeated CSS review
-  // couldn't turn up a cause for — no conflicting rule, no stray inline
-  // style, nothing. Rather than keep guessing at CSS, this enforces it
-  // directly in JS instead: actually REMOVING the element from the DOM
-  // on mobile, not just hiding it. A removed element cannot reserve
-  // layout space no matter what CSS elsewhere might be doing to it,
-  // which sidesteps the whole mystery rather than solving it blind.
-  if (window.innerWidth <= 768) {
-    document.getElementById('hotPanel')?.remove();
-  }
-
   // Wire all UI modules. Each init() attaches event listeners.
   // Wrapped in try/catch so one broken module doesn't prevent others.
   const inits = [initHeader, initMobileNav, initSearch, initAuth,
@@ -964,7 +952,19 @@ function goTo(page) {
     url.hash = page;
     url.searchParams.delete('user'); // clear profile param when navigating away
     url.searchParams.delete('post');
-    window.history.pushState({ page }, '', url.toString());
+    // Upload pages (build post form, car spotting form) use replaceState
+    // instead of pushState — they never become their own distinct
+    // history entry. Otherwise, after successfully posting and moving
+    // on to the feed, pressing back would land back on the now-stale
+    // upload form instead of wherever the person was before they
+    // clicked "post" in the first place. The only way back into the
+    // upload form is clicking the post button again, not the browser's
+    // back button.
+    if (page === 'post' || page === 'spotpost') {
+      window.history.replaceState({ page }, '', url.toString());
+    } else {
+      window.history.pushState({ page }, '', url.toString());
+    }
   } catch(_) {}
   if (page==='profile')     updateProfilePage();
   if (page==='leaderboard') renderLeaderboard();
@@ -9378,6 +9378,96 @@ function getCenterCrop(img, ratio) {
   return { sx, sy, sw, sh };
 }
 
+// getOffsetCrop — same idea as getCenterCrop, but lets the person drag
+// the crop window along whichever axis actually has slack (the one
+// that gets cropped) instead of always centering it. offsetX/offsetY
+// are normalized -1..1, where 0 is centered (identical to
+// getCenterCrop), -1 is as far as it can go one direction, and 1 is
+// as far as it can go the other way. Only one axis will ever actually
+// have room to move for a given image — the other is already using
+// its full extent — so this naturally does nothing on the axis that
+// can't move, and lets the person fine-tune which part of the photo
+// ends up in frame on the axis that can.
+function getOffsetCrop(img, ratio, offsetX, offsetY) {
+  const iw = img.naturalWidth, ih = img.naturalHeight;
+  const currentRatio = iw / ih;
+  let sw, sh, sx, sy;
+  if (currentRatio > ratio) {
+    sh = ih; sw = ih * ratio; sy = 0;
+    const slack = iw - sw;
+    sx = slack/2 + (offsetX||0) * (slack/2);
+    sx = Math.max(0, Math.min(iw - sw, sx));
+  } else {
+    sw = iw; sh = iw / ratio; sx = 0;
+    const slack = ih - sh;
+    sy = slack/2 + (offsetY||0) * (slack/2);
+    sy = Math.max(0, Math.min(ih - sh, sy));
+  }
+  return { sx, sy, sw, sh };
+}
+
+let _blurCropOffsets     = [];   // {x,y} normalized -1..1 per image, user-adjustable crop position
+
+// initCropDrag — lets the person drag directly on the crop preview to
+// reposition which part of the photo ends up in frame. Only whichever
+// axis actually has slack (see getOffsetCrop) will visibly respond to
+// dragging in that direction — dragging up/down on an image that's
+// already using its full height won't do anything, since there's
+// nowhere left for it to move on that axis.
+//
+// Wired exactly once (guarded by wrap._cropDragWired, not tied to any
+// particular image index) — every handler below reads _blurImgIdx and
+// _blurImages fresh each time rather than closing over a specific
+// image, since this same wrap element gets reused as the person
+// navigates between multiple uploaded photos, and closing over a
+// stale index/image would have left drag broken (or worse, editing
+// the wrong photo) after the first navigation.
+function initCropDrag() {
+  const wrap = el('csCanvasWrap');
+  if (!wrap || wrap._cropDragWired) return;
+  wrap._cropDragWired = true;
+  let dragging = false, startX = 0, startY = 0, startOff = {x:0,y:0};
+
+  function toOffset(dx, dy) {
+    const rect = wrap.getBoundingClientRect();
+    // Drag distance as a fraction of the visible crop window, doubled
+    // since offset only needs to travel half the available slack to
+    // reach either extreme (offset range is -1..1, a full swing).
+    const nx = startOff.x - (dx / rect.width) * 2.2;
+    const ny = startOff.y - (dy / rect.height) * 2.2;
+    return { x: Math.max(-1, Math.min(1, nx)), y: Math.max(-1, Math.min(1, ny)) };
+  }
+  function redraw(off) {
+    const idx = _blurImgIdx, img = _blurImages[idx];
+    if (!img) return;
+    _blurCropOffsets[idx] = off;
+    const crop = getOffsetCrop(img, SPOT_ASPECT_RATIO, off.x, off.y);
+    _blurCrops[idx] = crop;
+    const canvas = el('csCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
+    redrawBlurBoxes(idx);
+  }
+  function down(x, y) {
+    dragging = true; startX = x; startY = y;
+    startOff = _blurCropOffsets[_blurImgIdx] || {x:0,y:0};
+    wrap.classList.add('cs-cropping');
+  }
+  function move(x, y) {
+    if (!dragging) return;
+    redraw(toOffset(x - startX, y - startY));
+  }
+  function up() { dragging = false; wrap.classList.remove('cs-cropping'); }
+
+  wrap.addEventListener('mousedown', e => { down(e.clientX, e.clientY); e.preventDefault(); });
+  window.addEventListener('mousemove', e => move(e.clientX, e.clientY));
+  window.addEventListener('mouseup', up);
+  wrap.addEventListener('touchstart', e => { const t=e.touches[0]; down(t.clientX, t.clientY); }, {passive:true});
+  wrap.addEventListener('touchmove', e => { const t=e.touches[0]; move(t.clientX, t.clientY); }, {passive:true});
+  wrap.addEventListener('touchend', up);
+}
+
 function initBlurEditor(idx) {
   _blurImgIdx = idx;
   const img     = _blurImages[idx];
@@ -9390,7 +9480,10 @@ function initBlurEditor(idx) {
   // Crop to the fixed post ratio FIRST — everything below (canvas size,
   // blur box coordinates) operates on the cropped dimensions, so what
   // you see in the editor is exactly what gets posted, no surprises.
-  const crop = getCenterCrop(img, SPOT_ASPECT_RATIO);
+  // Uses the person's own saved crop position for this image if they've
+  // dragged to reposition it, otherwise falls back to centered.
+  const off = _blurCropOffsets[idx] || {x:0, y:0};
+  const crop = getOffsetCrop(img, SPOT_ASPECT_RATIO, off.x, off.y);
   _blurCrops[idx] = crop;
 
   // Size canvas to fit modal width, maintain aspect ratio
@@ -9411,6 +9504,7 @@ function initBlurEditor(idx) {
 
   // Re-draw saved boxes for this image
   redrawBlurBoxes(idx);
+  initCropDrag();
 
   // Multi-image navigation
   const nav = el('csBlurNav');

@@ -428,9 +428,9 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
 .lb-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.95);backdrop-filter:blur(8px)}
 .lb-close{position:fixed;top:20px;right:20px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.1);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;z-index:2;cursor:pointer;transition:all var(--tr)}
 .lb-close:hover{background:var(--accent);border-color:var(--accent)}
-.lb-nav{position:relative;z-index:2;width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.1);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.9rem;cursor:pointer;transition:all var(--tr);flex-shrink:0}
-.lb-nav:hover{background:var(--accent);border-color:var(--accent)}
-.lb-img{max-width:88vw;max-height:88vh;object-fit:contain;border-radius:var(--r-img);box-shadow:0 40px 120px rgba(0,0,0,.8);position:relative;z-index:1}
+.lb-nav{position:relative;z-index:2;width:48px;height:48px;background:none;border:none;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.6rem;cursor:pointer;transition:opacity var(--tr),transform var(--tr);flex-shrink:0;opacity:.75}
+.lb-nav:hover{opacity:1;transform:scale(1.12);background:none;border:none}
+.lb-img{max-width:88vw;max-height:88vh;object-fit:contain;border-radius:0;box-shadow:0 40px 120px rgba(0,0,0,.8);position:relative;z-index:1}
 .lb-counter{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);font-family:var(--cond);font-size:.8rem;font-weight:700;color:rgba(255,255,255,.5);z-index:2}
 
 /* ─── PAGE LAYOUT ───────────────────────────────────────────── */
@@ -2475,6 +2475,8 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
   background:conic-gradient(from 180deg,#f0a030,#3b82f6,#e8392a,#f0a030);
   display:flex;align-items:center;justify-content:center;position:relative;
   transition:transform .15s ease;
+  aspect-ratio:1/1;
+  overflow:hidden;
 }
 /* Glassy sheen — a soft light highlight across the upper-left, like a
    reflection on glass, sitting above the gradient but below the photo */
@@ -2484,8 +2486,22 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
   pointer-events:none;
 }
 .story-bubble:hover .story-bubble-ring{transform:scale(1.05)}
+/* Forces a correct circle at every nested level regardless of any
+   inline sizing set elsewhere — a vertical-oval distortion was
+   reported here, and after tracing through the full nested structure
+   (ring → sized inner avatar wrapper → photo) without finding one
+   single definitive culprit, this pins every layer to a matching
+   square aspect-ratio explicitly rather than relying on any one of
+   them individually staying correct. */
+.story-bubble-ring .av-circle,.story-bubble-ring .has-photo,
+.story-bubble-ring .story-bubble-av-inner,
+.story-bubble-ring .story-bubble-av-inner .has-photo{
+  width:100%!important;height:100%!important;
+  aspect-ratio:1/1!important;
+  border-radius:50%!important;
+}
 .story-bubble-ring .av-circle,.story-bubble-ring .has-photo{
-  width:100%!important;height:100%!important;border:3px solid var(--surface);
+  border:3px solid var(--surface);
 }
 .story-bubble-own .story-bubble-ring{background:var(--border)}
 .story-bubble-own.has-story .story-bubble-ring{background:conic-gradient(from 180deg,#f0a030,#3b82f6,#e8392a,#f0a030)}
@@ -4545,7 +4561,7 @@ body.dark .mob-nav.open{box-shadow:8px 0 24px rgba(0,0,0,.4),24px 0 80px rgba(0,
     object-fit:contain;
   }
   .lb-prev,.lb-next{
-    width:40px;height:40px;font-size:.9rem;
+    width:40px;height:40px;font-size:1.3rem;
     /* Bring arrows inside the image */
     position:fixed;
     top:50%;transform:translateY(-50%);
@@ -8038,7 +8054,14 @@ body.dark .exp-support-card p { color: #a0a0a0; }
 .soc-post-media-wrap{position:relative}
 .soc-heart-burst{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:5}
 .soc-heart-burst i{font-size:5.5rem;color:#ef4444;filter:drop-shadow(0 4px 18px rgba(0,0,0,.45));animation:socHeartBurst .9s cubic-bezier(.2,1.4,.4,1) forwards}
-@keyframes socHeartBurst{0%{transform:scale(0);opacity:0}20%{transform:scale(1.15);opacity:1}45%{transform:scale(1);opacity:1}100%{transform:scale(1);opacity:0}}
+@keyframes socHeartBurst{
+  0%{transform:translateY(60px) scale(.4);opacity:0}
+  15%{transform:translateY(0) scale(1.15);opacity:1}
+  35%{transform:translateY(0) scale(.95);opacity:1}
+  50%{transform:translateY(0) scale(1.08);opacity:1}
+  70%{transform:translateY(0) scale(1);opacity:1}
+  100%{transform:translateY(0) scale(1);opacity:0}
+}
 
 /* ============================================================
    SPOT COMPOSER — privacy warning, upload zone, blur editor
@@ -8061,7 +8084,8 @@ body.dark .exp-support-card p { color: #a0a0a0; }
 .cs-tool-btn{display:flex;align-items:center;gap:6px;background:var(--raised);border:1px solid var(--border);color:var(--text);font-size:.8rem;font-weight:600;padding:7px 13px;border-radius:8px;cursor:pointer;transition:all var(--tr)}
 .cs-tool-btn:hover{border-color:var(--accent);color:var(--accent)}
 .cs-tool-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
-.cs-canvas-wrap{position:relative;margin:0 auto;border-radius:10px;overflow:hidden;background:#000;max-width:100%;box-shadow:0 4px 20px rgba(0,0,0,.15)}
+.cs-canvas-wrap{position:relative;margin:0 auto;border-radius:10px;overflow:hidden;background:#000;max-width:100%;box-shadow:0 4px 20px rgba(0,0,0,.15);cursor:grab}
+.cs-canvas-wrap.cs-cropping{cursor:grabbing}
 .cs-canvas-wrap canvas{display:block;max-width:100%}
 #csOverlay{position:absolute;top:0;left:0;z-index:2;cursor:crosshair;touch-action:none}
 .cs-blur-nav{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:12px}
@@ -8221,20 +8245,22 @@ html, body { overflow-x: hidden; }
   /* Page wrap — clears the 70px header */
   .page-wrap { padding-top: 70px !important; }
 
-  /* ── HOT RIGHT NOW — hidden on mobile ───────────────────────
-     Feed starts with filter bar then posts. Cleaner for phones.
-     Every property that could reserve space is reset, not just
-     display:none, in case some other rule is adding height/padding
-     to this element that display:none alone wouldn't fully undo. */
-  .hot-panel, #hotPanel {
-    display: none !important;
-    height: 0 !important;
-    min-height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    border: none !important;
+  /* ── HOT RIGHT NOW — shown at the top of the mobile feed, adapted
+     for a narrow screen. The desktop version puts the main image at
+     ~65% width alongside a stacked side-thumbnail column — there's
+     nowhere near enough room for that split on a phone, so the side
+     thumbnails are hidden here and the main image takes the full
+     width instead, with a shorter overall height to match. */
+  .hot-panel {
+    padding: 12px 0 16px !important;
   }
+  .hot-panel-inner { padding: 0 12px !important; }
+  .hot-slider { height: 220px !important; }
+  .hot-slide-img { right: 0 !important; }
+  .hot-slide-strip { display: none !important; }
+  .hot-slide-rank { font-size: .68rem !important; padding: 5px 10px !important; }
+  .hot-slide-title { font-size: 1.1rem !important; }
+  .hot-slide-sub { font-size: .74rem !important; flex-wrap: wrap; gap: 8px !important; }
 
   /* ── FEED ───────────────────────────────────────────────────  */
   .feed-wrap { padding: 10px 8px 80px !important; }
@@ -9486,3 +9512,18 @@ html, body { overflow-x: hidden; }
   margin-bottom:16px;
 }
 .dream-garage-divider i{color:#f0a030}
+
+/* Force proper centering on mobile for confirmation-style popups (blur
+   confirm, upload success) — reported appearing pinned to the bottom
+   of the screen there instead of centered, making the buttons hard to
+   reach/use. Reinforced explicitly rather than relying on the base
+   flex centering alone, in case something mobile-specific elsewhere
+   was overriding it. */
+@media(max-width:768px){
+  .modal-overlay,.upload-success-overlay{
+    display:flex !important;
+    align-items:center !important;
+    justify-content:center !important;
+  }
+  .modal-overlay:not(.open),.upload-success-overlay:not(.open){display:none !important}
+}
