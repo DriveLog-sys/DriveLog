@@ -117,7 +117,7 @@ h1,h2,h3{font-family:var(--disp);font-weight:700;letter-spacing:-.01em}
 .btn-ghost.large{padding:12px 28px;font-size:1rem}
 .icon-btn{width:38px;height:38px;border-radius:50%;background:var(--raised);border:1px solid var(--mid);color:var(--sec);display:flex;align-items:center;justify-content:center;font-size:.85rem;transition:all var(--tr);position:relative}
 .icon-btn:hover{background:var(--glass-bg-dropdown) !important;border-color:var(--mid);color:var(--text)}
-.btn-post{background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#fff;padding:8px 18px;border-radius:var(--r-sm);font-family:var(--cond);font-weight:700;font-size:.88rem;letter-spacing:1px;text-transform:uppercase;transition:all var(--tr);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 4px 14px var(--accent-glow)}
+.btn-post{background:linear-gradient(135deg,var(--accent),var(--accent-dim));color:#fff;padding:8px 16px;border-radius:var(--r-sm);font-family:var(--cond);font-weight:700;font-size:.72rem;letter-spacing:.6px;text-transform:uppercase;transition:all var(--tr);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 4px 14px var(--accent-glow);white-space:nowrap}
 .btn-post:hover{filter:brightness(1.12);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 6px 16px rgba(0,0,0,.2);transform:scale(1.04)}
 .btn-auth{background:transparent;color:var(--sec);padding:8px 16px;border-radius:var(--r-sm);font-family:var(--cond);font-weight:600;font-size:.88rem;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--mid);transition:all var(--tr)}
 .btn-auth:hover{border-color:#555;color:var(--text)}
@@ -160,14 +160,14 @@ textarea.finput{resize:vertical}
 
 /* ─── HEADER ─────────────────────────────────────────────────── */
 .site-header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(255,255,255,.88);backdrop-filter:blur(20px) saturate(1.8);-webkit-backdrop-filter:blur(20px) saturate(1.8);border-bottom:1px solid var(--border);transition:background var(--tr),box-shadow var(--tr)}
-body.dark .site-header{background:#000;backdrop-filter:none;-webkit-backdrop-filter:none;border-bottom-color:rgba(255,255,255,.08)}
+body.dark .site-header{background:rgba(20,20,20,.75);backdrop-filter:blur(20px) saturate(1.8);-webkit-backdrop-filter:blur(20px) saturate(1.8);border-bottom-color:rgba(255,255,255,.08)}
 .site-header.scrolled{background:rgba(255,255,255,.96);box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06);border-bottom-color:var(--border)}
-body.dark .site-header.scrolled{background:rgba(20,20,20,.97)}
+body.dark .site-header.scrolled{background:rgba(20,20,20,.75);backdrop-filter:blur(20px) saturate(1.8);-webkit-backdrop-filter:blur(20px) saturate(1.8)}
 .header-inner{max-width:1440px;margin:0 auto;padding:0 24px;height:62px;display:flex;align-items:center;gap:28px}
 .hamburger{display:none;width:38px;height:38px;align-items:center;justify-content:center;border-radius:var(--r-sm);color:var(--sec);font-size:1.1rem;transition:color var(--tr)}
 .hamburger:hover{color:var(--text)}
 .main-nav{display:flex;gap:2px;flex:1}
-.nav-link{padding:8px 13px;font-family:var(--cond);font-size:.85rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);border-radius:var(--r-sm);transition:color var(--tr);position:relative;cursor:pointer}
+.nav-link{padding:8px 10px;font-family:var(--cond);font-size:.78rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border-radius:var(--r-sm);transition:color var(--tr);position:relative;cursor:pointer}
 .nav-link::after{content:'';position:absolute;bottom:3px;left:13px;right:13px;height:2px;background:var(--accent);transform:scaleX(0);transition:transform var(--tr);border-radius:2px}
 .nav-link:hover{color:var(--sec)}
 /* Keeps the link highlighted for as long as its dropdown is open —

@@ -618,20 +618,12 @@ function _doSave() {
 }
 
 function applyPrefs() {
-  try {
-    const p = JSON.parse(localStorage.getItem('dl_prefs') || '{}');
-    // Accent color is no longer user-customizable — always the site default
-    // blue (set in main.css :root). Intentionally ignoring any stored
-    // p.accent value here, including old ones from before this was locked.
-    // Default theme is now LIGHT — only go dark when explicitly set
-    const theme = p.theme || 'dark';
-    if (theme === 'dark') document.body.classList.add('dark');
-    else document.body.classList.remove('dark');
-    // Font size is no longer user-customizable — always the site default
-    // 16px (set in main.css :root). Intentionally ignoring any stored
-    // p.fontSize value here, including old ones from before this was
-    // locked, same as accent color above.
-  } catch(e) {}
+  // Dark/light mode toggle has been removed — the site is dark-mode-only
+  // now. Always applying the class unconditionally rather than reading
+  // a stored preference, since there's no longer any way to set it to
+  // anything else, and a stale 'light' value saved from before this
+  // change shouldn't be able to un-apply dark mode.
+  document.body.classList.add('dark');
 }
 function setAccent(c) {
   const r = document.documentElement.style;
@@ -1423,19 +1415,6 @@ function initMobileNav() {
     }
   }, { passive: true });
 
-  // Theme toggle (in drawer)
-  el('mobThemeToggle')?.addEventListener('click', () => {
-    document.body.classList.toggle('dark');
-    const isDark = document.body.classList.contains('dark');
-    try {
-      const p = JSON.parse(localStorage.getItem('dl_prefs')||'{}');
-      p.theme = isDark ? 'dark' : 'light';
-      localStorage.setItem('dl_prefs', JSON.stringify(p));
-    } catch(_) {}
-    el('mobThemeToggle').innerHTML = isDark ? '<i class="fas fa-sun"></i> Light Mode' : '<i class="fas fa-moon"></i> Dark Mode';
-    if (el('themeToggleBtn')) el('themeToggleBtn').innerHTML = isDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
-  });
-
   // Drawer nav links
   document.querySelectorAll('.mob-link[data-page]').forEach(link => {
     link.addEventListener('click', () => { closeMobNav(); goTo(link.dataset.page); });
@@ -2160,17 +2139,6 @@ function clearAuthErrs() {
 function initAuth() {
   el('openAuthBtn')?.addEventListener('click', ()=>{ clearAuthErrs(); el('authModal').classList.add('open'); });
   el('openPostBtn')?.addEventListener('click', openPostModal);
-  // Mobile: Post Build also in burger menu
-  el('mobThemeToggle')?.addEventListener('click', () => {
-    document.body.classList.toggle('dark');
-    const isDark = document.body.classList.contains('dark');
-    try {
-      const p = JSON.parse(localStorage.getItem('dl_prefs')||'{}');
-      p.theme = isDark ? 'dark' : 'light';
-      localStorage.setItem('dl_prefs', JSON.stringify(p));
-    } catch(_) {}
-    el('mobThemeToggle').innerHTML = isDark ? '<i class="fas fa-sun"></i> Light Mode' : '<i class="fas fa-moon"></i> Dark Mode';
-  });
   el('mobPostBuildBtn')?.addEventListener('click', () => {
     closeMobNav();
     openPostModal();
@@ -8928,33 +8896,6 @@ function renderAdminActivity() {
 }
 
 // Reactions and compare are wired directly inside renderCarPage above.
-
-// ═══════════════════════════════════════════════════════════════
-// ─── DARK/LIGHT TOGGLE IN HEADER ───────────────────────────────
-// ═══════════════════════════════════════════════════════════════
-function initThemeToggle() {
-  const btn = el('themeToggleBtn');
-  if (!btn) return;
-  syncThemeToggle();
-  btn.addEventListener('click', () => {
-    const isDark = document.body.classList.toggle('dark');
-    document.body.classList.toggle('light', !isDark);
-    // Also remove any leftover opposite class
-    if (isDark) document.body.classList.remove('light');
-    else document.body.classList.remove('dark');
-    // Save to prefs
-    const p = JSON.parse(localStorage.getItem('dl_prefs') || '{}');
-    p.theme = isDark ? 'dark' : 'light';
-    localStorage.setItem('dl_prefs', JSON.stringify(p));
-    syncThemeToggle();
-  });
-}
-function syncThemeToggle() {
-  const btn = el('themeToggleBtn'); if (!btn) return;
-  const isDark = document.body.classList.contains('dark');
-  btn.innerHTML = isDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
-  btn.title = isDark ? 'Switch to light mode' : 'Switch to dark mode';
-}
 
 // ═══════════════════════════════════════════════════════════════
 // ─── SETTINGS REAL-TIME SYNC ───────────────────────────────────
