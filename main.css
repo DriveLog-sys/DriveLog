@@ -167,7 +167,7 @@ body.dark .site-header.scrolled{background:rgba(20,20,20,.75);backdrop-filter:bl
 .hamburger{display:none;width:38px;height:38px;align-items:center;justify-content:center;border-radius:var(--r-sm);color:var(--sec);font-size:1.1rem;transition:color var(--tr)}
 .hamburger:hover{color:var(--text)}
 .main-nav{display:flex;gap:2px;flex:1}
-.nav-link{padding:8px 10px;font-family:var(--cond);font-size:.78rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--muted);border-radius:var(--r-sm);transition:color var(--tr);position:relative;cursor:pointer}
+.nav-link{padding:8px 7px;font-family:var(--cond);font-size:.78rem;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);border-radius:var(--r-sm);transition:color var(--tr);position:relative;cursor:pointer}
 .nav-link::after{content:'';position:absolute;bottom:3px;left:13px;right:13px;height:2px;background:var(--accent);transform:scaleX(0);transition:transform var(--tr);border-radius:2px}
 .nav-link:hover{color:var(--sec)}
 /* Keeps the link highlighted for as long as its dropdown is open —
@@ -3426,13 +3426,13 @@ body.dark .profile-cover-overlay{background:linear-gradient(to bottom,transparen
 .spec-row:last-child{border-bottom:none}
 .spec-row:hover{background:var(--raised)}
 .spec-label{
-  font-family:var(--cond);font-size:.86rem;font-weight:600;
+  font-family:var(--cond);font-size:.95rem;font-weight:600;
   letter-spacing:.6px;text-transform:uppercase;color:var(--muted);
   display:flex;align-items:center;gap:9px;
 }
 .spec-icon{width:14px;text-align:center;color:var(--mid);font-size:.84rem}
 .spec-value{
-  font-family:var(--cond);font-size:1.15rem;font-weight:600;
+  font-family:var(--cond);font-size:.95rem;font-weight:600;
   color:var(--text);letter-spacing:.2px;
 }
 .spec-value.spec-accent{color:var(--accent)}
